@@ -82,7 +82,7 @@ And it's **2 dependencies** (`better-sqlite3` + `ws`). No React. No build step. 
 ### Step 1: Clone and Install
 
 ```bash
-git clone https://github.com/Cyvid7-Darus10/claude-mission-control.git
+git clone https://github.com/cyruspastelero/claude-mission-control.git
 cd claude-mission-control
 npm install
 npm rebuild better-sqlite3
@@ -526,6 +526,6 @@ Apache 2.0 — See [LICENSE](LICENSE)
 
 <div align="center">
 
-Made by [Cyrus David Pastelero](https://github.com/Cyvid7-Darus10)
+Made by [Cyrus David Pastelero](https://github.com/cyruspastelero)
 
 </div>
