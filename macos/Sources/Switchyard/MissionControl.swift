@@ -13,6 +13,7 @@ enum MissionControl {
     private static let verifyTimeout: TimeInterval = 3
     private static let poll: TimeInterval = 0.05
     private static let escapeKeyCode: CGKeyCode = 53
+    private static let walkTimeout: TimeInterval = 3
 
     /// Closes desktop `number`, only while it is still `space`. Throws with a plain reason; never closes another one.
     static func close(number: Int, space: UInt64) throws {
@@ -23,7 +24,15 @@ enum MissionControl {
             guard try DesktopAdmin.closeTarget(Spaces.displays(), number: number, space: space).get() == target else {
                 throw DesktopAdminError.changed(number)
             }
-            guard AX.perform(buttons[target.buttonIndex], "AXRemoveDesktop") else {
+            let button = buttons[target.buttonIndex]
+            let label = [AX.string(button, kAXTitleAttribute as String), AX.string(button, kAXDescriptionAttribute as String)]
+                .compactMap { $0 }.joined(separator: " / ")
+            Log.windows.notice("closing Desktop \(number, privacy: .public) via Mission Control button \(target.buttonIndex, privacy: .public): \(label, privacy: .public)")
+            // A fullscreen app's space is a button too; only ever remove one Mission Control calls a desktop.
+            guard label.localizedCaseInsensitiveContains("desktop") else {
+                throw CommandError.unsupported("Mission Control's button for Desktop \(number) is not a desktop (\(label)); nothing was closed")
+            }
+            guard AX.perform(button, "AXRemoveDesktop") else {
                 throw CommandError.unsupported("Mission Control did not close Desktop \(number)")
             }
         }
@@ -55,12 +64,16 @@ enum MissionControl {
             throw CommandError.unsupported("the Dock is not running")
         }
         let app = AX.appElement(pid: dock.processIdentifier)
-        open()
+        // Opening an already open Mission Control would toggle it shut.
+        if find(app, "mc", depth: 2) == nil { open() }
         defer { dismiss(app) }
         var mc: AXUIElement?
         _ = waitUntil(timeout: openTimeout) { mc = find(app, "mc", depth: 2); return mc != nil }
         guard let mc else { throw CommandError.unsupported("Mission Control did not open") }
-        Thread.sleep(forTimeInterval: 0.3) // the spaces bar fills in after the zoom starts
+        // The spaces bar fills in after the zoom starts: wait for one row per display.
+        let displays = Spaces.displays().count
+        _ = waitUntil(timeout: openTimeout) { displayGroups(mc).count >= displays }
+        Thread.sleep(forTimeInterval: 0.2)
         try work(mc)
     }
 
@@ -71,9 +84,9 @@ enum MissionControl {
         }
     }
 
-    /// Escape closes Mission Control; it is a no-op once it is gone.
+    /// Escape closes Mission Control. When it is not up yet (slow open), wait a moment so a late one is still closed.
     private static func dismiss(_ dock: AXUIElement) {
-        guard find(dock, "mc", depth: 2) != nil else { return }
+        guard waitUntil(timeout: 1, { find(dock, "mc", depth: 2) != nil }) else { return }
         let source = CGEventSource(stateID: .hidSystemState)
         for down in [true, false] {
             CGEvent(keyboardEventSource: source, virtualKey: escapeKeyCode, keyDown: down)?.post(tap: .cghidEventTap)
@@ -85,8 +98,8 @@ enum MissionControl {
 
     /// The display's group, matched by frame against that display's bounds.
     private static func displayGroup(in mc: AXUIElement, displayId: String) throws -> AXUIElement {
-        let groups = AX.children(mc).filter { AX.string($0, kAXIdentifierAttribute as String) == "mc.display" }
-        if groups.count == 1 { return groups[0] }
+        let groups = displayGroups(mc)
+        if groups.count == 1 && Spaces.displays().count == 1 { return groups[0] }
         guard let id = Spaces.cgDisplay(displayId) else { throw CommandError.unsupported("that screen is not connected") }
         let b = CGDisplayBounds(id)
         let screen = Rect(x: b.origin.x, y: b.origin.y, width: b.width, height: b.height)
@@ -107,10 +120,16 @@ enum MissionControl {
         return buttons
     }
 
-    /// Breadth-first search for an element with this AXIdentifier.
+    private static func displayGroups(_ mc: AXUIElement) -> [AXUIElement] {
+        AX.children(mc).filter { AX.string($0, kAXIdentifierAttribute as String) == "mc.display" }
+    }
+
+    /// Breadth-first search for an element with this AXIdentifier, bounded in time (a slow Dock must not stall commands).
     private static func find(_ root: AXUIElement, _ identifier: String, depth: Int = 4) -> AXUIElement? {
         var level = [root]
+        let end = Date().addingTimeInterval(walkTimeout)
         for _ in 0...depth {
+            if Date() > end { return nil }
             if let hit = level.first(where: { AX.string($0, kAXIdentifierAttribute as String) == identifier }) { return hit }
             level = level.flatMap(AX.children)
             if level.isEmpty { return nil }

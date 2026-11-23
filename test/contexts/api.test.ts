@@ -319,7 +319,8 @@ describe('desktops list over http', () => {
     const view = await (await f(`${BASE}/api/contexts`)).json();
     expect(view.desktopList.desktops.map((d: { number: number }) => d.number)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(view.desktopList.desktops[5].shared).toBe(true);
-    expect(view.desktopList.desktops[5].closeBlocked).toMatch(/shared desktop/);
+    expect(view.desktopList.desktops[5].closeBlocked).toBeNull(); // empty shared desktop: an added desktop can be undone
+    expect(view.desktopList.desktops[1].closeBlocked).toMatch(/Give .+ another desktop first/);
     expect(view.desktopList.screens).toEqual([{ screen: 1, label: 'Laptop', addBlocked: null }]);
   });
 

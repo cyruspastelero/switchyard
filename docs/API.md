@@ -88,7 +88,7 @@ The desktops routes take the same auth as the other dashboard routes. Each answe
 | `404` | No such desktop or screen, or a non-numeric `:n` |
 | `409` | The Mac app is not connected; desktops are not in use; the app is too old to report its desktops; or the rules refuse it |
 
-Close is refused for a desktop a context owns, the shared (last) desktop, the only desktop on its screen, and any desktop before a context's desktop (closing renumbers every later desktop). Add is refused at 16 desktops and on a screen whose new desktop would land before a context's desktop. The `409` body names the context to move, e.g. `"Desktop 3 belongs to aral. Give aral another desktop first."`
+Close is refused for a desktop a context owns, the shared (last) desktop while it holds windows (an empty one may close; the desktop before it becomes shared), the only desktop on its screen, and any desktop before a context's desktop (closing renumbers every later desktop). A desktop added after the last one becomes the new shared desktop. Add is refused for an unknown screen (`404`, checked first), at 16 desktops and on a screen whose new desktop would land before a context's desktop. The `409` body names the context to move, e.g. `"Desktop 3 belongs to aral. Give aral another desktop first."`
 
 ### Mac app snapshot and commands
 

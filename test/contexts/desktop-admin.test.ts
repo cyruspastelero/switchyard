@@ -17,8 +17,12 @@ describe('close rules', () => {
     expect(closeBlock(2, list, [ctx('aral', 2)], 6)).toBe('Desktop 2 belongs to aral. Give aral another desktop first.');
   });
 
-  it('the_shared_desktop_cannot_be_closed', () => {
-    expect(closeBlock(6, list, [], 6)).toMatch(/shared desktop/);
+  it('the_shared_desktop_with_windows_cannot_be_closed', () => {
+    expect(closeBlock(6, list, [], 6, 2)).toBe('Desktop 6 is the shared desktop and holds 2 windows. Move them first.');
+  });
+
+  it('an_empty_shared_desktop_can_be_closed_so_an_added_desktop_can_be_undone', () => {
+    expect(closeBlock(6, list, [ctx('aral', 1)], 6, 0)).toBeNull();
   });
 
   it('the_last_desktop_on_a_screen_cannot_be_closed', () => {
@@ -52,6 +56,7 @@ describe('add rules', () => {
   it('sixteen_desktops_is_the_limit_and_unknown_screens_are_named', () => {
     const full = Array.from({ length: 16 }, (_, i) => ({ number: i + 1, space: i + 1, screen: 1, builtin: true, showing: false }));
     expect(addBlock(1, full, [], 16)).toBe('Switchyard uses up to 16 desktops.');
+    expect(addBlock(9, full, [], 16)).toBe('There is no screen 9.');
     expect(addBlock(3, list, [], 6)).toBe('There is no screen 3.');
   });
 });

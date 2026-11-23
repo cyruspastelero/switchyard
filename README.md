@@ -83,7 +83,7 @@ The **Desktops** list in the dashboard shows every desktop on every screen, in <
 - **Add desktop** (or **Add to Laptop** / **Add to Monitor** with two screens) adds one at the end of that screen's row.
 - **Close** asks first, then closes the desktop through Mission Control. macOS moves its windows to another desktop on that screen.
 
-Close is off for a desktop a project owns, for the shared desktop, and for the only desktop on a screen. It is also off when closing would renumber a later project's desktop, since that would put the project on the wrong one. The row says why and which project to move: give that project another desktop (or No desktop) first. Add is off for the same reason on a screen whose new desktop would land before a project's desktop.
+Close is off for a desktop a project owns, for the shared desktop while it holds windows, and for the only desktop on a screen. An empty shared desktop can close, so a desktop you just added can be removed again; the one before it becomes the shared desktop. It is also off when closing would renumber a later project's desktop, since that would put the project on the wrong one. The row says why and which project to move: give that project another desktop (or No desktop) first. Add is off for the same reason on a screen whose new desktop would land before a project's desktop.
 
 macOS has no public way to add or remove a desktop, so Switchyard opens Mission Control and uses its buttons through Accessibility. Mission Control flashes on screen for a moment. Before closing, the app checks that the desktop is still the one you picked and stops if anything changed.
 

@@ -57,10 +57,15 @@ function firstOwnedAfter(number: number, contexts: readonly KeyedContext[], coun
   return null;
 }
 
-export function closeBlock(number: number, list: readonly DesktopEntry[], contexts: readonly KeyedContext[], count: number): string | null {
+/** `windowsOn`: windows on the desktop now. The last (shared) desktop may close while empty: no number shifts. */
+export function closeBlock(
+  number: number, list: readonly DesktopEntry[], contexts: readonly KeyedContext[], count: number, windowsOn = 0,
+): string | null {
   const entry = list.find((d) => d.number === number);
   if (!entry) return `There is no Desktop ${number}.`;
-  if (number === count) return `Desktop ${number} is the shared desktop. Unsorted windows live there.`;
+  if (number === count && windowsOn > 0) {
+    return `Desktop ${number} is the shared desktop and holds ${windowsOn} ${windowsOn === 1 ? 'window' : 'windows'}. Move them first.`;
+  }
   const owner = ownersOf(number, contexts, count)[0];
   if (owner) return `Desktop ${number} belongs to ${owner.name}. Give ${owner.name} another desktop first.`;
   if (list.filter((d) => d.screen === entry.screen).length < 2) return `Desktop ${number} is the only desktop on its screen.`;
@@ -70,9 +75,9 @@ export function closeBlock(number: number, list: readonly DesktopEntry[], contex
 }
 
 export function addBlock(screen: number, list: readonly DesktopEntry[], contexts: readonly KeyedContext[], count: number): string | null {
-  if (list.length >= MAX_DESKTOPS) return `Switchyard uses up to ${MAX_DESKTOPS} desktops.`;
   const onScreen = list.filter((d) => d.screen === screen);
   if (onScreen.length === 0) return `There is no screen ${screen}.`;
+  if (list.length >= MAX_DESKTOPS) return `Switchyard uses up to ${MAX_DESKTOPS} desktops.`;
   // macOS adds the new desktop at the end of that screen's row.
   const later = firstOwnedAfter(onScreen[onScreen.length - 1].number, contexts, count);
   if (later) return `A new desktop here would renumber Desktop ${later.number} (${later.name}). Give ${later.name} another desktop first.`;
@@ -105,7 +110,7 @@ export function desktopsListView(
     shared: d.number === count,
     owners: ownersOf(d.number, contexts, count).map((c) => ({ id: c.id, name: c.name })),
     windows: windows.filter((w) => w.desktop === d.number).length,
-    closeBlocked: closeBlock(d.number, list, contexts, count),
+    closeBlocked: closeBlock(d.number, list, contexts, count, windows.filter((w) => w.desktop === d.number).length),
   }));
   const screens = [...labels].map(([screen, label]) => ({ screen, label, addBlocked: addBlock(screen, list, contexts, count) }));
   return { desktops, screens };
@@ -129,7 +134,8 @@ export function planDesktopAction(
   const entry = list.find((d) => d.number === action.number);
   if (!entry) throw new ContextsError(404, `There is no Desktop ${action.number}.`);
   if (action.type === 'show') return { type: 'showDesktop', desktop: action.number };
-  const blocked = closeBlock(action.number, list, contexts, count);
+  const windowsOn = (snapshot?.windows ?? []).filter((w) => w.desktop === action.number).length;
+  const blocked = closeBlock(action.number, list, contexts, count, windowsOn);
   if (blocked) throw new ContextsError(409, blocked);
   return { type: 'closeDesktop', number: action.number, spaceCheck: entry.space };
 }
