@@ -3186,3 +3186,5 @@ body.view-contexts .header-stats { display: none; }
   .ctx-desktop-showing { grid-column: 4; grid-row: 2; text-align: right; }
 }
 .ctx-desktops .ctx-toggle { gap: 8px; }
+/* On wide screens the meta column would stretch and push Showing and the actions far from their desktop. */
+.ctx-desktops .ctx-layout-list, .ctx-desktop-batch { max-width: 760px; }
