@@ -100,13 +100,15 @@ struct DesktopCommands {
         let session = CarrySession()
         CarrySession.current = session
         let lease = HotKeyLease.shared
+        // A failed acquire has already released its hold; release only one that succeeded.
+        var acquired = false
         defer {
             session.releaseMouse()
-            lease.release()
+            if acquired { lease.release() }
             CarrySession.current = nil
         }
         let shortcuts: [Int: DesktopShortcut]
-        do { shortcuts = try lease.acquire(numbers) } catch {
+        do { shortcuts = try lease.acquire(numbers); acquired = true } catch {
             result.failed = carries.map { ($0.0, error.localizedDescription) }
             return result
         }
