@@ -190,3 +190,59 @@ describe('the dashboard and menu view', () => {
     expect(last(svc, 'show')).toMatchObject({ desktop: 2 });
   });
 });
+
+describe('choosing a context desktop', () => {
+  const keyOf = (svc: Service, id: string) => svc.store.getContext(id)?.key;
+
+  it('taking_a_key_another_context_holds_swaps_the_two_keys', async () => {
+    const svc = newService();
+    const ids = await setup(svc, { 1: [], 2: [] }, snap([]));
+    svc.patchContext(ids[1], { key: 2 });
+    expect(keyOf(svc, ids[1])).toBe(2);
+    expect(keyOf(svc, ids[2])).toBe(1);
+  });
+
+  it('after_a_swap_both_contexts_windows_are_carried_to_their_new_desktops_and_nothing_else', async () => {
+    const svc = newService();
+    const ids = await setup(svc, { 1: ['a'], 2: ['b'], 3: ['c'] }, snap([win('a', 1), win('b', 2), win('c', 3), win('u', 1)]));
+    svc.patchContext(ids[2], { key: 1 });
+    const moves = (last(svc, 'moveWindows')?.moves ?? []) as { windowKey: string; desktop: number }[];
+    expect([...moves].sort((x, y) => x.windowKey.localeCompare(y.windowKey))).toEqual([
+      { windowKey: 'a', desktop: 2 }, { windowKey: 'b', desktop: 1 },
+    ]);
+  });
+
+  it('no_desktop_frees_it_and_the_windows_go_to_the_shared_desktop', async () => {
+    const svc = newService();
+    const ids = await setup(svc, { 2: ['b'] }, snap([win('b', 2)]));
+    svc.patchContext(ids[2], { key: null });
+    expect(keyOf(svc, ids[2])).toBeNull();
+    expect(last(svc, 'moveWindows')?.moves).toEqual([{ windowKey: 'b', desktop: 6 }]);
+  });
+
+  it('a_minimized_window_is_left_where_it_is_like_sort_does', async () => {
+    const svc = newService();
+    const ids = await setup(svc, { 2: ['b', 'm'] }, snap([win('b', 2), win('m', null)]));
+    svc.patchContext(ids[2], { key: 3 });
+    expect(last(svc, 'moveWindows')?.moves).toEqual([{ windowKey: 'b', desktop: 3 }]);
+  });
+
+  it('the_same_key_again_carries_nothing', async () => {
+    const svc = newService();
+    const ids = await setup(svc, { 2: ['b'] }, snap([win('b', 2)]));
+    const before = svc.commands.lastSeq;
+    svc.patchContext(ids[2], { key: 2 });
+    expect(svc.commands.since(before).filter((c) => c.type === 'moveWindows')).toEqual([]);
+  });
+
+  it('without_the_mac_app_the_keys_still_swap_but_nothing_is_queued', async () => {
+    let now = Date.parse('2026-11-23T10:00:00Z');
+    const svc = new ContextsService({ db, listAgents: getAgents, signals, autoContextWindowMs: Infinity, now: () => now });
+    const ids = await setup(svc, { 1: ['a'], 2: ['b'] }, snap([win('a', 1), win('b', 2)]));
+    now += 60_000;
+    const before = svc.commands.lastSeq;
+    svc.patchContext(ids[1], { key: 2 });
+    expect(keyOf(svc, ids[2])).toBe(1);
+    expect(svc.commands.since(before)).toEqual([]);
+  });
+});

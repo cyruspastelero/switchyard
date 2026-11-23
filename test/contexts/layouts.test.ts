@@ -183,13 +183,13 @@ describe('layout presets in the service', () => {
     expect(last(svc, 'captureLayout')).toMatchObject({ name: 'Mine' });
   });
 
-  it('a_refused_key_change_does_not_save_the_layout_either', async () => {
+  it('a_refused_layout_does_not_swap_the_key_either', async () => {
     const svc = newService();
     const id = await contextOn(svc, 2, ['a']);
-    await contextOn(svc, 3, ['b']);
-    const p = svc.layouts.create({ name: 'Desk', slots: [slot()] });
-    expect(() => svc.patchContext(id, { key: 3, layoutId: p.id })).toThrow('already used');
-    expect((await svc.view()).contexts.find((c) => c.id === id)?.layoutId).toBeNull();
+    const other = await contextOn(svc, 3, ['b']);
+    expect(() => svc.patchContext(id, { key: 3, layoutId: 'no-such-layout' })).toThrow();
+    expect(svc.store.getContext(id)?.key).toBe(2);
+    expect(svc.store.getContext(other)?.key).toBe(3);
   });
 
   it('the_default_name_skips_names_already_taken', () => {
