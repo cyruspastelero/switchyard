@@ -273,6 +273,19 @@ export class ContextsService {
     return { sorted, toMove: moves.length };
   }
 
+  /** "Move here": carries one context's windows from other desktops to its own. The screen stays where it is. */
+  async gather(contextId: string): Promise<{ toMove: number }> {
+    this.requireApp();
+    this.requireContext(contextId);
+    await this.refresh();
+    const assignments = this.store.getAssignments();
+    const moves = this.moves().filter((m) => assignments.get(m.windowKey)?.contextId === contextId);
+    if (moves.length > 0) this.commands.enqueue({ type: 'moveWindows', moves });
+    this.tidyChanged(moves);
+    this.scheduleEmit();
+    return { toMove: moves.length };
+  }
+
   // --- Real desktops ----------------------------------------------------------------
 
   private desktopCount(): number | null {

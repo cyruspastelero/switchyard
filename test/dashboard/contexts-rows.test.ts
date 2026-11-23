@@ -8,7 +8,7 @@ const logic = require('../../src/dashboard/contexts-logic.js') as {
   windowLabel: (w: Win) => string;
   windowParts: (w: Win) => { text: string; tabs: string };
   windowTip: (w: Win) => string;
-  windowPlace: (w: Win, activeDesktop: number | null) => string;
+  windowPlace: (w: Win, activeDesktop: number | null, unsorted?: boolean) => string;
   cardMeta: (c: { desktop: number | null; key: number | null; status: string }) => string;
   agentSummary: (c: { agents: { status: string; costToday: number | null }[] }) => string;
 };
@@ -45,7 +45,8 @@ describe('window rows', () => {
   });
 
   it('a_window_elsewhere_says_where_it_is', () => {
-    expect(logic.windowPlace(w({ desktop: 5 }), 1)).toBe('on Desktop 5');
+    expect(logic.windowPlace(w({ desktop: 5 }), 1)).toBe('Desktop 5 · not moved yet');
+    expect(logic.windowPlace(w({ desktop: 5 }), 1, true)).toBe('on Desktop 5'); // unsorted: nowhere to move to
     expect(logic.windowPlace(w({ desktop: 1 }), 1)).toBe('');
     expect(logic.windowPlace(w({ hidden: true, desktop: 1 }), 1)).toBe('hidden');
     expect(logic.windowPlace(w(), null)).toBe('');

@@ -188,6 +188,15 @@ describe('Sort sweeps unsorted windows off project desktops', () => {
     expect(tidy.force).toBe(false);
   });
 
+  it('move_here_carries_only_that_contexts_windows_to_its_desktop', async () => {
+    const svc = newService();
+    const ids = await setup(svc, { 1: ['a'], 2: ['b', 'c'] }, snap([win('a', 3), win('b', 4), win('c', 2), win('u', 2)]));
+    const seq = svc.commands.lastSeq;
+    expect(await svc.gather(ids[2])).toEqual({ toMove: 1 });
+    expect(after(svc, seq, 'moveWindows').map((c) => c.moves)).toEqual([[{ windowKey: 'b', desktop: 2 }]]);
+    expect((await svc.view()).activeContextId).toBe(null);
+  });
+
   it('the_view_counts_unsorted_windows_to_move', async () => {
     const svc = newService();
     await setup(svc, { 2: ['b'] }, snap([win('b', 2), win('u', 2), win('s', 6)]));

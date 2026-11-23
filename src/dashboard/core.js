@@ -427,9 +427,14 @@ function hideTooltip() {
   $tooltip.classList.add('hidden');
 }
 
+// Capture-phase listeners on document also see the document itself, which has no closest().
+function closestIn(node, selector) {
+  return node && node.closest ? node.closest(selector) : null;
+}
+
 // Show on mouseenter of elements with data-tooltip
 document.addEventListener('mouseenter', function (e) {
-  var target = e.target.closest('[data-tooltip]');
+  var target = closestIn(e.target, '[data-tooltip]');
   if (target) {
     if (tooltipHideTimer) { clearTimeout(tooltipHideTimer); tooltipHideTimer = null; }
     showTooltip(target);
@@ -437,7 +442,7 @@ document.addEventListener('mouseenter', function (e) {
 }, true);
 
 document.addEventListener('mouseleave', function (e) {
-  var target = e.target.closest('[data-tooltip]');
+  var target = closestIn(e.target, '[data-tooltip]');
   if (target) {
     tooltipHideTimer = setTimeout(hideTooltip, 150);
   }

@@ -2837,6 +2837,9 @@ body.view-contexts #contexts-view { display: flex; }
 .ctx-status-waiting { color: var(--warning); }
 .ctx-status-working { color: var(--text-bright); }
 .ctx-onscreen { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.ctx-name-text { font: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: text; }
+.ctx-name-text:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+.ctx-name-form { min-width: 0; } .ctx-name-form .ctx-input { width: 100%; }
 .ctx-name-text { display: block; color: var(--text-bright); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctx-dot { width: 10px; height: 10px; flex: none; background: var(--text-muted); display: inline-block; }
 .ctx-acts { display: flex; gap: 6px; justify-content: flex-end; }

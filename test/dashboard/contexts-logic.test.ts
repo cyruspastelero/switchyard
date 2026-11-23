@@ -63,6 +63,7 @@ describe('feedback', () => {
     expect(logic.busyLabel('park')).toBe('Parking…');
     expect(logic.doneText('switch', 'tala')).toBe('Switched to tala');
     expect(logic.doneText('park', 'tala')).toBe('Parked tala. Its tabs are saved.');
+    expect(logic.doneText('renameContext', 'aral app')).toBe('Renamed to aral app');
     expect(logic.doneText('showAll')).toBe('All windows are back');
     expect(logic.doneText('unknown')).toBe('');
   });

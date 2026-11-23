@@ -68,14 +68,21 @@
       case 'park': return 'Parked ' + name + '. Its tabs are saved.';
       case 'restore': return 'Restored ' + name;
       case 'sort': return 'Windows sorted';
+      case 'gather': return 'Moving ' + name + '\u2019s windows here';
       case 'showAll': return 'All windows are back';
       case 'accept': return 'Tab moved';
       case 'name': return 'Window renamed';
+      case 'renameContext': return 'Renamed to ' + name;
       case 'assign': return 'Window assigned';
       case 'move': return 'Moved to ' + name;
       case 'undoTidy': return 'Tidy undone';
       default: return '';
     }
+  }
+
+  // Shown when there is no data: the error already says what went wrong, so only guess when there is none.
+  function noDataNote(error) {
+    return error ? '' : 'The server did not answer. It may be restarting.';
   }
 
   // The Mac app can name Chrome windows only.
@@ -114,13 +121,13 @@
     return parts.length ? ['Sort'].concat(parts).join(' \u00B7 ') : 'Sort windows';
   }
 
-  // A context's windows that sit on another desktop: "1 window still on Desktop 1". '' when there are none.
+  // A context's windows that sit on another desktop: "2 windows are on Desktop 1" plus a Move here button. '' when there are none.
   function strayHint(c) {
     if (!c || typeof c.desktop !== 'number') return '';
     var away = (c.windows || []).filter(function (w) { return typeof w.desktop === 'number' && w.desktop !== c.desktop; });
     if (!away.length) return '';
     var where = away.every(function (w) { return w.desktop === away[0].desktop; }) ? 'Desktop ' + away[0].desktop : 'other desktops';
-    return plural(away.length, 'window') + ' still on ' + where;
+    return away.length === 1 ? '1 window is on ' + where + '.' : away.length + ' windows are on ' + where + '.';
   }
 
   // After a Move: the server says whether it is carrying the window and to which desktop.
@@ -164,9 +171,12 @@
   }
 
   // Where a window is when it is not where it belongs: `home` is its context's desktop (or the one on screen).
-  function windowPlace(w, home) {
+  // `unsorted`: the window has no context, so it is only somewhere else, not waiting to be moved.
+  function windowPlace(w, home, unsorted) {
     if (w.hidden) return 'hidden';
-    if (typeof w.desktop === 'number' && home != null && w.desktop !== home) return 'on Desktop ' + w.desktop;
+    if (typeof w.desktop === 'number' && home != null && w.desktop !== home) {
+      return unsorted ? 'on Desktop ' + w.desktop : 'Desktop ' + w.desktop + ' \u00B7 not moved yet';
+    }
     return '';
   }
 
@@ -216,7 +226,7 @@
     return named.length ? named[0].id : null;
   }
 
-  var api = { sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, UNSORTED_ID: UNSORTED_ID };
+  var api = { sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, UNSORTED_ID: UNSORTED_ID };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MCContextsLogic = api;
 })(typeof window !== 'undefined' ? window : this);

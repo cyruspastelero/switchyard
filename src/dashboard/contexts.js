@@ -39,6 +39,7 @@
     park: function (id) { return request('POST', '/api/contexts/' + seg(id) + '/park', {}); },
     restore: function (id) { return request('POST', '/api/contexts/' + seg(id) + '/restore', {}); },
     sort: function () { return request('POST', '/api/contexts/sort', {}); },
+    gather: function (id) { return request('POST', '/api/contexts/' + seg(id) + '/gather', {}); },
     assign: function (windowKey, contextId) {
       return request('POST', '/api/contexts/assign', { windowKey: windowKey, contextId: contextId });
     },
@@ -51,6 +52,7 @@
     nameWindow: function (windowKey, name) {
       return request('POST', '/api/contexts/windows/name', { windowKey: windowKey, name: name });
     },
+    renameContext: function (id, name) { return request('PATCH', '/api/contexts/' + seg(id), { name: name }); },
     showAll: function () { return request('POST', '/api/contexts/show-all', {}); },
     tidy: function (contextId) { return request('POST', '/api/contexts/tidy', contextId ? { contextId: contextId } : {}); },
     undoTidy: function (desktop) { return request('POST', '/api/contexts/tidy/undo', { desktop: desktop }); },
@@ -143,7 +145,7 @@
 
   var STATUS_LABEL = { working: 'Working', waiting: 'Waiting on you', idle: 'Idle', parked: 'Parked' };
   var NO_CONTROL_NOTE = "The Switchyard Mac app isn't connected, so windows can't be moved.";
-  var ONE_DESKTOP_NOTE = 'Switchyard sees the windows on the macOS desktop you are on. Windows on other desktops show up when you go there.';
+  var ONE_DESKTOP_NOTE = 'Switchyard sees windows on every desktop. One opened on another desktop while Switchyard was closed shows up once you go there.';
   var logic = window.MCContextsLogic;
 
   var st = {
@@ -335,7 +337,8 @@
         if (d.desktopMode === 'desktops') frag.appendChild(autoTidyToggle(d));
       }
     } else {
-      frag.appendChild(h('div', 'ctx-note', 'The server did not answer. It may be restarting.'));
+      var note = logic.noDataNote(errorText);
+      if (note) frag.appendChild(h('div', 'ctx-note', note));
       frag.appendChild(button('Try again', '', 'retry', load));
     }
 
@@ -464,7 +467,7 @@
 
     // Same order on every card: head (dot, name, actions), meta, one agent line (maybe empty), windows.
     var head = h('div', 'ctx-card-head');
-    add(head, dot(c.color), h('span', 'ctx-name-text', c.name, { title: c.name }), cardActions(c, control, parked));
+    add(head, dot(c.color), st.renaming === 'ctx:' + c.id ? contextNameForm(c) : contextName(c), cardActions(c, control, parked));
     var meta = h('div', 'ctx-card-meta ctx-status-' + c.status, logic.cardMeta(c) + (c.desktopShared ? ' \u00B7 shared' : ''));
     if (active) meta.appendChild(h('i', 'ctx-onscreen', null, { title: 'On screen', 'aria-label': 'On screen', role: 'img' }));
     var actions = c.agents.map(function (a) { return a.name + (a.lastAction ? ': ' + a.lastAction : ''); }).join('\n');
@@ -481,9 +484,9 @@
       var home = c.desktop != null ? c.desktop : d.activeDesktop;
       c.windows.forEach(function (w) { wins.appendChild(windowLine(w, moveTo, home)); });
       var stray = logic.strayHint(c);
-      if (stray) wins.appendChild(add(noteRow(stray), button('Sort', 'link', 'stray-sort:' + c.id, function () {
-        act('sort', function () { return api.sort(); });
-      }, !control || !!st.busy.sort)));
+      if (stray) wins.appendChild(add(noteRow(stray), button('Move here', 'link', 'gather:' + c.id, function () {
+        act('gather:' + c.id, function () { return api.gather(c.id); }, c.name);
+      }, !control || !!st.busy['gather:' + c.id])));
     } else {
       wins.appendChild(noteRow('No windows yet'));
     }
@@ -543,13 +546,13 @@
   }
 
   // The title is a button: it brings this one window to the front.
-  function windowTitle(w, activeDesktop) {
+  function windowTitle(w, activeDesktop, unsorted) {
     var key = 'focus:' + w.key;
     var b = h('button', 'ctx-w-text', null, { type: 'button', 'data-fk': key, title: logic.windowTip(w) });
     var parts = logic.windowParts(w);
     b.appendChild(h('span', 'ctx-w-label', parts.text));
     if (parts.tabs) b.appendChild(h('span', 'ctx-w-tabs', '\u00B7 ' + parts.tabs));
-    var place = logic.windowPlace(w, activeDesktop);
+    var place = logic.windowPlace(w, activeDesktop, unsorted);
     if (place) b.appendChild(h('span', 'ctx-w-place', place));
     b.addEventListener('click', function () { act(key, function () { return api.focusWindow(w.key); }); });
     return b;
@@ -598,6 +601,32 @@
     });
     picker.className += ' ctx-w-move';
     return picker;
+  }
+
+  // The context name is a button: click it to rename the context in place.
+  function contextName(c) {
+    var b = h('button', 'ctx-name-text', c.name, { type: 'button', title: 'Rename ' + c.name, 'aria-label': 'Rename ' + c.name });
+    b.addEventListener('click', function () { st.renaming = 'ctx:' + c.id; render(); });
+    return b;
+  }
+
+  function contextNameForm(c) {
+    var form = h('form', 'ctx-inline-form ctx-name-form');
+    var input = h('input', 'ctx-input', null, { type: 'text', maxlength: '60', 'aria-label': 'Context name' });
+    input.value = c.name;
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var name = input.value.trim();
+      if (!name || name === c.name) return endEdit();
+      act('renameContext:' + c.id, function () { return api.renameContext(c.id, name); }, name);
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); endEdit(); }
+    });
+    input.addEventListener('blur', function () { if (st.renaming === 'ctx:' + c.id) form.requestSubmit(); });
+    form.appendChild(input);
+    setTimeout(function () { input.focus(); input.select(); }, 0);
+    return form;
   }
 
   function renameForm(w) {
@@ -654,7 +683,7 @@
     var li = h('li', 'ctx-w');
     var text = logic.windowLabel(w);
     if (st.newTopicFor === w.key) return add(li, newTopicForm(w));
-    add(li, appIcon(w), windowTitle(w, d.activeDesktop));
+    add(li, appIcon(w), windowTitle(w, d.activeDesktop, true));
     var acts = add(h('span', 'ctx-w-acts ctx-w-acts-always'), window.MCPicker.create({
       ariaLabel: 'Assign ' + text + ' to a context',
       fk: 'assign:' + w.key,

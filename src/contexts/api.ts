@@ -154,6 +154,10 @@ const ROUTES: readonly Route[] = [
     run: async (c) => { await body(c, parseEmpty); c.service.switchTo(c.params[0]); ok(c); },
   },
   {
+    method: 'POST', pattern: /^\/([^/]+)\/gather$/, appOnly: false,
+    run: async (c) => { await body(c, parseEmpty); ok(c, await c.service.gather(c.params[0])); },
+  },
+  {
     method: 'POST', pattern: /^\/([^/]+)\/park$/, appOnly: false,
     run: async (c) => { await body(c, parseEmpty); ok(c, c.service.park(c.params[0])); },
   },

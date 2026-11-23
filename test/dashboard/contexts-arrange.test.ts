@@ -9,13 +9,14 @@ const logic = require('../../src/dashboard/contexts-logic.js') as {
   strayHint: (c: { desktop: number | null; windows: Win[] }) => string;
   moveResultText: (result: { moving?: boolean; desktop?: number | null } | null, name: string) => string;
   tidyText: (result: { desktop: number; windows: number }) => string;
+  noDataNote: (error: string) => string;
 };
 
 const win = (desktop: number | null): Win => ({ desktop, hidden: false });
 
 describe('arranging in the dashboard', () => {
   it('a_window_away_from_its_contexts_desktop_says_where_it_is', () => {
-    expect(logic.windowPlace(win(1), 2)).toBe('on Desktop 1');
+    expect(logic.windowPlace(win(1), 2)).toBe('Desktop 1 · not moved yet');
     expect(logic.windowPlace(win(2), 2)).toBe('');
   });
 
@@ -28,10 +29,15 @@ describe('arranging in the dashboard', () => {
 
   it('the_stray_hint_names_the_desktop_and_hides_at_zero', () => {
     expect(logic.strayHint({ desktop: 2, windows: [win(2)] })).toBe('');
-    expect(logic.strayHint({ desktop: 2, windows: [win(1), win(2)] })).toBe('1 window still on Desktop 1');
-    expect(logic.strayHint({ desktop: 2, windows: [win(1), win(1)] })).toBe('2 windows still on Desktop 1');
-    expect(logic.strayHint({ desktop: 2, windows: [win(1), win(3)] })).toBe('2 windows still on other desktops');
+    expect(logic.strayHint({ desktop: 2, windows: [win(1), win(2)] })).toBe('1 window is on Desktop 1.');
+    expect(logic.strayHint({ desktop: 2, windows: [win(1), win(1)] })).toBe('2 windows are on Desktop 1.');
+    expect(logic.strayHint({ desktop: 2, windows: [win(1), win(3)] })).toBe('2 windows are on other desktops.');
     expect(logic.strayHint({ desktop: null, windows: [win(null)] })).toBe('');
+  });
+
+  it('a_failed_load_names_the_error_once_instead_of_guessing_the_server_is_down', () => {
+    expect(logic.noDataNote("Couldn't load contexts: database is locked")).toBe('');
+    expect(logic.noDataNote('')).toBe('The server did not answer. It may be restarting.');
   });
 
   it('a_move_result_says_where_the_window_is_going', () => {
