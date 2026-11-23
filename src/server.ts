@@ -389,6 +389,10 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
         serveDashboardFile('contexts-logic.js', res);
         return;
       }
+      if (method === 'GET' && url === '/layouts.js') {
+        serveDashboardFile('layouts.js', res);
+        return;
+      }
       if (method === 'GET' && url === '/contexts.js') {
         serveDashboardFile('contexts.js', res);
         return;

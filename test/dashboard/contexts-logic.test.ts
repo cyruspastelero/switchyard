@@ -165,3 +165,37 @@ describe('renaming windows', () => {
     expect(logic.canRename({ app: 'Chrome Remote Desktop', bundleId: 'com.google.chromeremotedesktop' })).toBe(false);
   });
 });
+
+describe('layout presets', () => {
+  const lx = logic as unknown as {
+    layoutOptions: (layouts: { id: string; name: string }[], defaultId: string | null) => { value: string; label: string }[];
+    defaultLayoutOptions: (layouts: { id: string; name: string }[]) => { value: string; label: string }[];
+    layoutMeta: (p: { slots: { screen: { uuid: string } }[] }) => string;
+    layoutScreens: (p: { slots: { screen: { uuid: string } }[] }) => number;
+  };
+  const presets = [{ id: 'p1', name: 'Desk' }, { id: 'p2', name: 'Laptop' }];
+
+  it('a_card_offers_default_auto_and_every_preset', () => {
+    expect(lx.layoutOptions(presets, 'p2')).toEqual([
+      { value: '', label: 'Default (Laptop)' }, { value: 'auto', label: 'Auto' },
+      { value: 'p1', label: 'Desk' }, { value: 'p2', label: 'Laptop' },
+    ]);
+    expect(lx.layoutOptions(presets, null)[0]).toEqual({ value: '', label: 'Default (auto)' });
+  });
+
+  it('a_failed_capture_says_what_failed', () => {
+    expect(logic.failureText({ action: 'captureLayout', error: 'no windows on Desktop 2 to save' }))
+      .toBe('The Mac app could not save the layout: no windows on Desktop 2 to save');
+  });
+
+  it('the_default_select_starts_with_auto', () => {
+    expect(lx.defaultLayoutOptions(presets).map((o) => o.value)).toEqual(['', 'p1', 'p2']);
+  });
+
+  it('a_preset_counts_its_windows_and_screens', () => {
+    const p = { slots: [{ screen: { uuid: 'A' } }, { screen: { uuid: 'B' } }, { screen: { uuid: 'a' } }] };
+    expect(lx.layoutScreens(p)).toBe(2);
+    expect(lx.layoutMeta(p)).toBe('3 windows · 2 screens');
+    expect(lx.layoutMeta({ slots: [{ screen: { uuid: 'A' } }] })).toBe('1 window');
+  });
+});
