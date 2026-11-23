@@ -239,8 +239,12 @@
     render();
   }
 
+  // Replies and socket pushes can land out of order; an older reply must not put back the view before an action.
+  var replies = logic.replyGate();
+
   function load() {
-    return api.list().then(setData).catch(function (err) {
+    var seq = replies.start();
+    return api.list().then(function (data) { if (replies.accept(seq)) setData(data); }).catch(function (err) {
       st.loaded = true;
       st.error = "Couldn't load contexts: " + err.message;
       if (!isEditing()) render();
@@ -268,9 +272,10 @@
       st.actionError = err.message || 'That did not work.';
     }).then(function () {
       delete st.busy[key];
-      st.renaming = null;
-      st.newTopicFor = null;
-      st.dirty = false;
+      var open = logic.editorAfter(key, st);
+      st.renaming = open.renaming;
+      st.newTopicFor = open.newTopicFor;
+      if (!isEditing()) st.dirty = false;
       return load();
     });
   }
@@ -794,7 +799,7 @@
     setView: setView,
     // `contexts` WebSocket message: use its payload if it has the right shape, else refetch.
     onMessage: function (msg) {
-      if (msg && msg.data && Array.isArray(msg.data.contexts)) setData(normalize(msg.data));
+      if (msg && msg.data && Array.isArray(msg.data.contexts)) { replies.pushed(); setData(normalize(msg.data)); }
       else load();
     },
   };

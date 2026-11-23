@@ -94,7 +94,8 @@ export interface ServerOptions {
 }
 
 export interface SwitchyardServer {
-  start(): void;
+  /** `onListening` runs once the port is open; a start that loses the port exits before it. */
+  start(onListening?: () => void): void;
   stop(): void;
   readonly accessCode: string;
   readonly hookToken: string;
@@ -261,6 +262,9 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
           sendJson(res, 429, { error: 'Too many attempts. Try again in 15 minutes.' });
           return;
         }
+        // Counted before the body is read: guesses whose bodies arrive together must not all pass the check above.
+        // A correct code clears the count again.
+        recordAuthFailure(clientIp);
 
         let body: Record<string, unknown>;
         try {
@@ -293,7 +297,6 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
           setSessionCookie(res, token);
           sendJson(res, 200, { ok: true });
         } else {
-          recordAuthFailure(clientIp);
           emitSecurityEvent(1, 'AUTH', 'warn', 'Invalid access code attempt', clientIp);
           sendJson(res, 401, { error: 'Invalid access code' });
         }
@@ -585,11 +588,12 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
   let retentionTimer: ReturnType<typeof setInterval> | null = null;
 
   return {
-    start(): void {
+    start(onListening?: () => void): void {
       const host = bindLocal ? '127.0.0.1' : '0.0.0.0';
       server.listen(port, host, () => {
         agentTracker.start();
         contexts.start();
+        onListening?.();
       });
       retentionTimer = setInterval(() => purgeExpiredData(), RETENTION_SWEEP_MS);
       retentionTimer.unref();

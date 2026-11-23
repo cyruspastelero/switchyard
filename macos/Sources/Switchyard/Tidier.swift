@@ -64,6 +64,8 @@ actor Tidier {
         for w in candidates { before[w.key] = AX.frame(w.id.element) ?? w.frame }
         memory.record(desktop: desktop, before: before, keys: keySet, preset: fingerprint)
         store.save(memory)
+        let enhanced = AX.pauseEnhancedUI(pids: Set(candidates.map(\.pid)))
+        defer { AX.restoreEnhancedUI(enhanced) }
 
         var outcome = TidyOutcome()
         var unread = 0
@@ -103,6 +105,10 @@ actor Tidier {
             unread += done.unread
         }
         if unread > 0 && unread == targeted { pending[desktop] = (keys, slots) }
+        var after: [String: Rect] = [:]
+        for w in candidates { if let f = AX.frame(w.id.element) { after[w.key] = f } }
+        memory.recordResult(desktop: desktop, after: after)
+        store.save(memory)
         let ms = Int(Date().timeIntervalSince(start) * 1000)
         Log.timing.notice("tidy desktop=\(desktop, privacy: .public) windows=\(candidates.count, privacy: .public) preset=\(preset != nil, privacy: .public) applied=\(outcome.laidOut, privacy: .public) refused=\(outcome.refused, privacy: .public) unread=\(unread, privacy: .public) ms=\(ms, privacy: .public)")
         return outcome
@@ -124,8 +130,15 @@ actor Tidier {
             let learned = Layout.minimums(slots: slots, got: got.map { $0 ?? Rect(x: 0, y: 0, width: 0, height: 0) })
             guard !learned.isEmpty else { break }
             minimums.merge(learned) { a, b in Size(width: max(a.width, b.width), height: max(a.height, b.height)) }
-            slots = Layout.frames(count: wins.count, area: screen.area, minimums: minimums)
-            got = Self.apply(wins, slots)
+            let next = Layout.frames(count: wins.count, area: screen.area, minimums: minimums)
+            let changed = Layout.changedSlots(from: slots, to: next)
+            guard !changed.isEmpty else { break }
+            slots = next
+            // Only windows whose slot moved are set again, so the rest do not jump.
+            for i in changed where i < wins.count && i < got.count {
+                Self.setFrame(wins[i].id.element, slots[i])
+                got[i] = AX.frame(wins[i].id.element)
+            }
         }
         var outcome = TidyOutcome()
         var unread = 0
@@ -152,6 +165,8 @@ actor Tidier {
         store.save(memory)
         guard !frames.isEmpty else { return 0 }
         let wins = await windows.tidyCandidates(Array(frames.keys))
+        let enhanced = AX.pauseEnhancedUI(pids: Set(wins.map(\.pid)))
+        defer { AX.restoreEnhancedUI(enhanced) }
         for w in wins { if let f = frames[w.key] { Self.setFrame(w.id.element, f) } }
         Log.timing.notice("tidy undo desktop=\(desktop, privacy: .public) windows=\(wins.count, privacy: .public)")
         return wins.count

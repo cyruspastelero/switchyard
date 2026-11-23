@@ -61,19 +61,19 @@ interface RouteContext {
   readonly accessCode: string | undefined;
 }
 
-async function readBody(ctx: RouteContext): Promise<unknown> {
+async function readBody(ctx: RouteContext, max: number = LIMITS.bodyBytes): Promise<unknown> {
   const declared = Number(ctx.req.headers['content-length'] ?? 0);
-  if (declared > LIMITS.snapshotBytes) throw new ContextsError(413, 'Request body too large');
+  if (declared > max) throw new ContextsError(413, 'Request body too large');
   try {
-    return await parseBody(ctx.req);
+    return await parseBody(ctx.req, max);
   } catch (err) {
     const message = (err as Error).message;
     throw new ContextsError(message.includes('too large') ? 413 : 400, message);
   }
 }
 
-async function body<T>(ctx: RouteContext, parse: (b: unknown) => Parsed<T>): Promise<T> {
-  const parsed = parse(await readBody(ctx));
+async function body<T>(ctx: RouteContext, parse: (b: unknown) => Parsed<T>, max?: number): Promise<T> {
+  const parsed = parse(await readBody(ctx, max));
   if (!parsed.ok) throw new ContextsError(400, parsed.error);
   return parsed.value;
 }
@@ -243,7 +243,7 @@ const ROUTES: readonly Route[] = [
   },
   {
     method: 'PUT', pattern: /^\/snapshot$/, appOnly: true,
-    run: async (c) => { await c.service.applySnapshot(await body(c, parseSnapshot)); ok(c); },
+    run: async (c) => { await c.service.applySnapshot(await body(c, parseSnapshot, LIMITS.snapshotBytes)); ok(c); },
   },
   { method: 'GET', pattern: /^\/commands$/, appOnly: true, run: handleCommandPoll },
   {

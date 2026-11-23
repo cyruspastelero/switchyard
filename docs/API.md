@@ -51,7 +51,7 @@ Used by the Mac app (bearer token):
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `PUT` | `/api/contexts/snapshot` | Full view of windows and browser tabs (max 1 MB) |
+| `PUT` | `/api/contexts/snapshot` | Full view of windows and browser tabs (max 8 MB; other request bodies max 1 MB) |
 | `GET` | `/api/contexts/commands?since=<seq>` | Long-poll for commands to carry out |
 | `POST` | `/api/contexts/commands/:seq/ack` | `{ ok, error? }` |
 | `GET` | `/api/contexts/access-code` | `{ accessCode }` for the menu bar's "Copy dashboard access code". Bearer token from loopback only |

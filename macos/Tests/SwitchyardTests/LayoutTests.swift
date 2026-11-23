@@ -159,4 +159,16 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(Set(right.map(\.maxY)).count, 1)
         XCTAssertTrue(zip(right, [308.0, 270, 500]).allSatisfy { $0.height >= $1 })
     }
+
+    func test_a_window_wider_than_the_capped_column_gives_no_new_slots() {
+        let first = Layout.frames(count: 2, area: area, gap: 8, minimums: [1: Size(width: 1300, height: 100)])
+        let again = Layout.frames(count: 2, area: area, gap: 8, minimums: [1: Size(width: 1400, height: 100)])
+        XCTAssertEqual(Layout.changedSlots(from: first, to: again), [])
+    }
+
+    func test_only_slots_that_moved_are_set_again() {
+        let a = Rect(x: 0, y: 0, width: 10, height: 10), b = Rect(x: 20, y: 0, width: 10, height: 10)
+        XCTAssertEqual(Layout.changedSlots(from: [a, b], to: [a, Rect(x: 25, y: 0, width: 5, height: 10)]), [1])
+        XCTAssertEqual(Layout.changedSlots(from: [a], to: [a, b]), [1])
+    }
 }

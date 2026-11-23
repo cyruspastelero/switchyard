@@ -58,3 +58,38 @@ describe('access codes with multibyte characters', () => {
     expect((await loginFresh(fresh.accessCode)).status).toBe(429);
   });
 });
+
+describe('wrong codes sent at once', () => {
+  // Its own server and address count: each request's body is held back until all of them have arrived.
+  const port = 14302;
+  let held: ReturnType<typeof createServer>;
+
+  beforeAll(async () => {
+    held = createServer(port, true);
+    held.start();
+    await new Promise((r) => setTimeout(r, 300));
+  });
+  afterAll(() => held.stop());
+
+  it('guesses_whose_bodies_arrive_together_still_count_toward_the_lockout', async () => {
+    const { request } = await import('node:http');
+    const body = JSON.stringify({ code: '000000' });
+    const pending = Array.from({ length: 10 }, () => {
+      const req = request({
+        host: '127.0.0.1', port, path: '/api/auth', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), Host: `localhost:${port}` },
+      });
+      req.flushHeaders();
+      const status = new Promise<number>((resolve, reject) => {
+        req.on('response', (res) => { res.resume(); resolve(res.statusCode ?? 0); });
+        req.on('error', reject);
+      });
+      return { req, status };
+    });
+    await new Promise((r) => setTimeout(r, 200));
+    for (const p of pending) p.req.end(body);
+    const statuses = await Promise.all(pending.map((p) => p.status));
+    expect(statuses.filter((s) => s === 401).length).toBe(5);
+    expect(statuses.filter((s) => s === 429).length).toBe(5);
+  });
+});

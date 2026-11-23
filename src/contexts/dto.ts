@@ -9,7 +9,9 @@ const ok = <T>(value: T): Parsed<T> => ({ ok: true, value });
 const fail = (error: string): Parsed<never> => ({ ok: false, error });
 
 export const LIMITS = {
-  snapshotBytes: 1_048_576,
+  /** The Mac app's snapshot: thousands of browser tabs pass 1 MiB. App-only (bearer token, loopback). */
+  snapshotBytes: 8_388_608,
+  bodyBytes: 1_048_576,
   windows: 500,
   tabsPerWindow: 2_000,
   terminalTabs: 200,

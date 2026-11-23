@@ -77,9 +77,28 @@ describe('/api/contexts over http', () => {
     expect((await res.json()).error).toMatch(/unknown field/);
   });
 
-  it('snapshot_over_1mb_is_rejected', async () => {
-    const big = { windows: [{ ...win, title: 'x'.repeat(10) }], pad: 'y'.repeat(1_100_000) };
+  it('snapshot_over_the_snapshot_cap_is_rejected', async () => {
+    const big = { windows: [{ ...win, title: 'x'.repeat(10) }], pad: 'y'.repeat(8_500_000) };
     const res = await hf(`${BASE}/api/contexts/snapshot`, { method: 'PUT', ...json(big) });
+    expect(res.status).toBe(413);
+  });
+
+  it('a_snapshot_of_a_few_thousand_browser_tabs_is_accepted', async () => {
+    // About 4,000 tabs at ~400 bytes each: well over the 1 MiB that other bodies get.
+    const tabs = (w: number) => Array.from({ length: 400 }, (_, i) => ({ id: i, url: `https://example.com/${w}/${'p'.repeat(300)}/${i}`, title: `Tab ${i}` }));
+    const windows = Array.from({ length: 10 }, (_, w) => ({
+      ...win, key: `big${w}`, app: 'Google Chrome', bundleId: 'com.google.Chrome', title: `Chrome ${w}`,
+      browser: { windowId: w + 1, name: null, tabs: tabs(w), activeTitle: null },
+    }));
+    const body = json({ windows });
+    expect(body.body.length > 1_048_576).toBe(true);
+    const res = await hf(`${BASE}/api/contexts/snapshot`, { method: 'PUT', ...body });
+    expect(res.status).toBe(200);
+    expect((await hf(`${BASE}/api/contexts/snapshot`, { method: 'PUT', ...json({ windows: [win] }) })).status).toBe(200);
+  });
+
+  it('other_context_bodies_stay_capped_at_1mb', async () => {
+    const res = await f(`${BASE}/api/contexts`, { method: 'POST', ...json({ name: 'x', pad: 'y'.repeat(1_100_000) }) });
     expect(res.status).toBe(413);
   });
 

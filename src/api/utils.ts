@@ -5,21 +5,21 @@ const MAX_BODY_BYTES = 1_048_576; // 1 MB
 
 /**
  * Collect request body chunks and parse as JSON.
- * Rejects if body exceeds MAX_BODY_BYTES or contains invalid JSON.
+ * Rejects if body exceeds `maxBytes` (default MAX_BODY_BYTES) or contains invalid JSON.
  */
-export function parseBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+export function parseBody(req: IncomingMessage, maxBytes = MAX_BODY_BYTES): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let totalBytes = 0;
     req.on('data', (chunk: Buffer) => {
       totalBytes += chunk.length;
-      if (totalBytes > MAX_BODY_BYTES) {
+      if (totalBytes > maxBytes) {
         eventBus.emit('security:event', {
           layer: 5,
           layerName: 'PAYLOAD SIZE',
           severity: 'warn' as const,
           message: 'Blocked oversized request body',
-          detail: `${totalBytes} bytes (max ${MAX_BODY_BYTES})`,
+          detail: `${totalBytes} bytes (max ${maxBytes})`,
           timestamp: new Date().toISOString(),
         });
         req.destroy();

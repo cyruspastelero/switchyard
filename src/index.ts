@@ -132,13 +132,12 @@ function startServer(port: number, shouldOpen: boolean, localOnly: boolean): voi
     tidyServerLog(logFile);
     setInterval(() => tidyServerLog(logFile), 24 * 60 * 60 * 1000).unref();
   }
-  start();
-  printBanner(port, accessCode, localOnly);
-  writeHookToken(resolveDataDir(), hookToken);
-
-  if (shouldOpen) {
-    openBrowser(`http://localhost:${port}`);
-  }
+  // Only once the port is ours: a second start that loses it must not replace the running server's hook token.
+  start(() => {
+    printBanner(port, accessCode, localOnly);
+    writeHookToken(resolveDataDir(), hookToken);
+    if (shouldOpen) openBrowser(`http://localhost:${port}`);
+  });
 }
 
 /** Asks the running server for its code over loopback with the hook token, the way the menu bar app does. */
