@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { setupTestDb, teardownTestDb } from './helpers';
+import { describe, it, expect, beforeAll, afterAll } from './support/harness.ts';
+import { setupTestDb, teardownTestDb } from './helpers.ts';
 
 // Set up temp DB BEFORE importing db module
 const tmpDir = setupTestDb();
 
 // Dynamic import so env is set first
-const db = await import('../src/db');
+const db = await import('../src/db.ts');
 
 afterAll(() => teardownTestDb(tmpDir));
 

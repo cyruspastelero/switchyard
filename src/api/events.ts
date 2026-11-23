@@ -1,10 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import crypto from 'node:crypto';
-import { insertEvent, getEvents, getMissions, updateMission } from '../db.js';
-import { agentTracker } from '../services/agent-tracker.js';
-import { createMission as engineCreateMission, MissionEngineError } from '../services/mission-engine.js';
-import { eventBus } from '../services/event-bus.js';
-import { parseBody, sendJson, parseQuery, truncateField } from './utils.js';
+import { insertEvent, getEvents, getMissions, updateMission } from '../db.ts';
+import { agentTracker } from '../services/agent-tracker.ts';
+import { createMission as engineCreateMission, MissionEngineError } from '../services/mission-engine.ts';
+import { eventBus } from '../services/event-bus.ts';
+import { parseBody, sendJson, parseQuery } from './utils.ts';
+import { minimizeToolInput, minimizeToolOutput } from '../services/event-privacy.ts';
 
 // Track which agents already have auto-created missions (avoid duplicates per session)
 const agentMissionCreated = new Set<string>();
@@ -152,6 +153,65 @@ function autoMission(
   }
 }
 
+// --- Request DTO ------------------------------------------------------------
+
+interface HookEvent {
+  readonly session_id: string;
+  readonly agent_id: string;
+  readonly event_type: string;
+  readonly tool_name: string | null;
+  readonly tool_input: unknown;
+  readonly tool_output: unknown;
+  readonly cwd: string | null;
+  readonly model: string | null;
+}
+
+type ParsedEvent = { readonly ok: true; readonly value: HookEvent } | { readonly ok: false; readonly error: string };
+
+const EVENT_FIELDS = ['session_id', 'agent_id', 'event_type', 'tool_name', 'tool_input', 'tool_output', 'cwd', 'model'];
+const ID_MAX = 200;
+const PATH_MAX = 4_096;
+
+/** A string within `max`, or null when absent. `undefined` in the result means the value is invalid. */
+function optionalText(value: unknown, max: number): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  return typeof value === 'string' && value.length > 0 && value.length <= max ? value : undefined;
+}
+
+function parseEvent(body: unknown): ParsedEvent {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return { ok: false, error: 'Body must be an object' };
+  const o = body as Record<string, unknown>;
+  const extra = Object.keys(o).filter((k) => !EVENT_FIELDS.includes(k));
+  if (extra.length > 0) return { ok: false, error: `Unknown field(s): ${extra.join(', ').slice(0, 200)}` };
+  if (!o.session_id || !o.event_type) return { ok: false, error: 'Missing required fields: session_id, event_type' };
+
+  const text = {
+    session_id: optionalText(o.session_id, ID_MAX),
+    agent_id: o.agent_id === undefined ? 'main' : optionalText(o.agent_id, ID_MAX),
+    event_type: optionalText(o.event_type, 100),
+    tool_name: optionalText(o.tool_name, ID_MAX),
+    cwd: optionalText(o.cwd, PATH_MAX),
+    model: optionalText(o.model, ID_MAX),
+  };
+  const invalid = Object.entries(text).filter(([, v]) => v === undefined).map(([k]) => k);
+  if (invalid.length > 0 || text.agent_id === null) {
+    return { ok: false, error: `Invalid field(s): ${(invalid.length > 0 ? invalid : ['agent_id']).join(', ')}` };
+  }
+  return {
+    ok: true,
+    value: {
+      session_id: text.session_id as string,
+      agent_id: text.agent_id as string,
+      event_type: text.event_type as string,
+      tool_name: text.tool_name ?? null,
+      tool_input: o.tool_input ?? null,
+      tool_output: o.tool_output ?? null,
+      cwd: text.cwd ?? null,
+      model: text.model ?? null,
+    },
+  };
+}
+
 /**
  * Handle requests to /api/events
  *
@@ -182,7 +242,7 @@ async function handlePostEvent(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
     body = await parseBody(req);
   } catch {
@@ -190,56 +250,38 @@ async function handlePostEvent(
     return;
   }
 
-  const {
-    session_id,
-    agent_id = 'main',
-    event_type,
-    tool_name = null,
-    tool_input = null,
-    tool_output = null,
-    cwd = null,
-    model = null,
-  } = body as Record<string, string | null | undefined>;
-
-  if (!session_id || !event_type) {
-    sendJson(res, 400, { error: 'Missing required fields: session_id, event_type' });
+  const parsed = parseEvent(body);
+  if (!parsed.ok) {
+    sendJson(res, 400, { error: parsed.error });
     return;
   }
+  const { session_id, agent_id, event_type, tool_name, tool_input, cwd, model } = parsed.value;
 
   // Composite key: session_id:agent_id
-  const compositeId = `${session_id}:${agent_id ?? 'main'}`;
+  const compositeId = `${session_id}:${agent_id}`;
   const now = new Date().toISOString();
 
-  // Store the event
+  // Store a redacted summary of the tool call, never the raw input or output.
   const inserted = insertEvent({
     agent_id: compositeId,
-    session_id: session_id as string,
-    event_type: event_type as string,
-    tool_name: (tool_name as string) ?? null,
-    tool_input: tool_input != null ? truncateField(JSON.stringify(tool_input), 'tool_input') as string : null,
-    tool_output: tool_output != null ? truncateField(JSON.stringify(tool_output), 'tool_output') as string : null,
+    session_id,
+    event_type,
+    tool_name,
+    tool_input: minimizeToolInput(tool_input),
+    tool_output: minimizeToolOutput(parsed.value.tool_output),
     mission_id: null,
     timestamp: now,
   });
 
   // Agent tracker is the single owner of agent records — handles upsert,
   // name derivation, status lifecycle, and broadcast.
-  agentTracker.trackEvent(inserted, {
-    cwd: (cwd as string) ?? null,
-    model: (model as string) ?? null,
-  });
+  agentTracker.trackEvent(inserted, { cwd, model });
 
   // Broadcast to WebSocket clients via event bus
   eventBus.emit('event:new', inserted);
 
   // Auto-create mission from agent activity
-  autoMission(
-    compositeId,
-    event_type as string,
-    (tool_name as string) ?? null,
-    tool_input,
-    (cwd as string) ?? null,
-  );
+  autoMission(compositeId, event_type, tool_name, tool_input, cwd);
 
   sendJson(res, 201, { id: inserted.id, agent_id: compositeId });
 }

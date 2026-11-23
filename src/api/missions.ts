@@ -6,13 +6,13 @@ import {
   updateMission,
   deleteMission,
   getEvents,
-} from '../db.js';
+} from '../db.ts';
 import {
   createMission as engineCreateMission,
   MissionEngineError,
-} from '../services/mission-engine.js';
-import { eventBus } from '../services/event-bus.js';
-import { parseBody, sendJson, extractId, parseQuery, FIELD_LIMITS } from './utils.js';
+} from '../services/mission-engine.ts';
+import { eventBus } from '../services/event-bus.ts';
+import { parseBody, sendJson, extractId, parseQuery, unknownFields, FIELD_LIMITS } from './utils.ts';
 
 /**
  * Handle requests to /api/missions and /api/missions/:id
@@ -99,6 +99,11 @@ async function handleCreateMission(
     return;
   }
 
+  const unknown = unknownFields(body, ['title', 'description', 'depends_on', 'priority']);
+  if (unknown) {
+    sendJson(res, 400, { error: unknown });
+    return;
+  }
   const { title, description, depends_on, priority } = body;
 
   if (typeof title !== 'string' || title.trim().length === 0) {
@@ -164,6 +169,13 @@ async function handleUpdateMission(
     return;
   }
 
+  const invalid = unknownFields(body, ['status', 'assigned_agent_id', 'result', 'title', 'description', 'priority'])
+    ?? patchLimitError(body);
+  if (invalid) {
+    sendJson(res, 400, { error: invalid });
+    return;
+  }
+
   const fields: Record<string, unknown> = {};
   const now = new Date().toISOString();
 
@@ -226,6 +238,19 @@ async function handleUpdateMission(
 
   eventBus.emit('mission:update', updated);
   sendJson(res, 200, updated);
+}
+
+const tooLong = (value: unknown, max: number): boolean => typeof value === 'string' && value.length > max;
+
+/** Size and type limits for a mission update; null when the body is within them. */
+function patchLimitError(body: Record<string, unknown>): string | null {
+  if (tooLong(body.title, FIELD_LIMITS.title)) return `title exceeds maximum length of ${FIELD_LIMITS.title} characters`;
+  if (tooLong(body.description, FIELD_LIMITS.description)) return `description exceeds maximum length of ${FIELD_LIMITS.description} characters`;
+  if (tooLong(body.assigned_agent_id, FIELD_LIMITS.agentId)) return 'assigned_agent_id is too long';
+  const result = typeof body.result === 'string' ? body.result : JSON.stringify(body.result ?? '');
+  if (result.length > FIELD_LIMITS.result) return `result exceeds maximum length of ${FIELD_LIMITS.result} characters`;
+  if (body.priority !== undefined && !Number.isSafeInteger(body.priority)) return 'priority must be an integer';
+  return null;
 }
 
 function handleDeleteMission(missionId: string, res: ServerResponse): void {

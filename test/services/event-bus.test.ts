@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
-import { setupTestDb, teardownTestDb } from '../helpers';
+import { describe, it, expect, vi } from '../support/harness.ts';
+import { setupTestDb, teardownTestDb } from '../helpers.ts';
 
 const tmpDir = setupTestDb();
 
-const { eventBus } = await import('../../src/services/event-bus');
+const { eventBus } = await import('../../src/services/event-bus.ts');
 
-import { afterAll } from 'vitest';
+import { afterAll } from '../support/harness.ts';
 afterAll(() => teardownTestDb(tmpDir));
 
 describe('event-bus', () => {

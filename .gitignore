@@ -6,3 +6,7 @@ dist/
 .DS_Store
 .env
 coverage/
+personal_docs/
+.env.*
+!.env.example
+*.log

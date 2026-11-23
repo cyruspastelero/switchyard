@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getUsageStats, getAgentUsageStats } from '../db.js';
-import { sendJson, parseQuery } from './utils.js';
+import { getUsageStats, getAgentUsageStats } from '../db.ts';
+import { sendJson, parseQuery } from './utils.ts';
 
 /**
  * Handle requests to /api/usage

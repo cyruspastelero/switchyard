@@ -1,7 +1,7 @@
-import Database from "better-sqlite3";
-import { join } from "path";
-import { mkdirSync } from "fs";
-import { homedir } from "os";
+import { join } from "node:path";
+import { ensurePrivateDir, readEnv, resolveDataDir } from "./paths.ts";
+import { type Db, openSqlite } from "./sqlite.ts";
+import { minimizeToolInput, minimizeToolOutput } from "./services/event-privacy.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,16 +75,77 @@ interface DashboardStats {
 // Database initialisation
 // ---------------------------------------------------------------------------
 
-const DATA_DIR = process.env.MC_DATA_DIR || join(homedir(), ".claude-mission-control");
+const DATA_DIR = resolveDataDir();
 const DB_PATH = join(DATA_DIR, "data.db");
 
-function openDatabase(): Database.Database {
-  mkdirSync(DATA_DIR, { recursive: true });
+/** Raw events are kept this many days (SWITCHYARD_EVENT_RETENTION_DAYS). Daily totals outlive them. */
+export const EVENT_RETENTION_DAYS = retentionDays(readEnv("EVENT_RETENTION_DAYS"));
 
-  const db = new Database(DB_PATH);
+function retentionDays(raw: string | undefined): number {
+  const days = Number.parseInt(raw ?? "", 10);
+  return Number.isInteger(days) && days >= 1 && days <= 3650 ? days : 7;
+}
 
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
+const STORAGE_VERSION = 1;
+
+/**
+ * One-time rewrite of events stored before summaries were introduced: each raw tool input and output is
+ * replaced by its redacted summary, then the file is rebuilt so the old text is gone from disk.
+ */
+function minimizeStoredEvents(db: Db): void {
+  const { user_version: version } = db.prepare("PRAGMA user_version").get() as { user_version: number };
+  if (version >= STORAGE_VERSION) return;
+  const rows = db.prepare("SELECT id, tool_input, tool_output FROM events WHERE tool_input IS NOT NULL OR tool_output IS NOT NULL")
+    .all() as { id: number; tool_input: string | null; tool_output: string | null }[];
+  const update = db.prepare("UPDATE events SET tool_input = ?, tool_output = ? WHERE id = ?");
+  db.transaction(() => {
+    for (const row of rows) update.run(minimizeToolInput(row.tool_input), minimizeToolOutput(row.tool_output), row.id);
+  });
+  db.exec(`PRAGMA user_version = ${STORAGE_VERSION}`);
+  db.exec("VACUUM");
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  if (rows.length > 0) console.log(`  [db] Reduced ${rows.length} stored events to redacted summaries`);
+}
+
+/** Rolls events older than the retention limit into usage_daily, then deletes them. Returns the number deleted. */
+function purgeExpired(db: Db): number {
+  const cutoff = new Date(Date.now() - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const costPerCall = parseFloat(readEnv("COST_PER_TOOL_CALL") || '0.003');
+  db.prepare(`
+    INSERT INTO usage_daily (date, tool_calls, total_events, sessions, unique_tools, unique_agents, estimated_cost)
+    SELECT
+      strftime('%Y-%m-%d', timestamp) AS date,
+      SUM(CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN 1 ELSE 0 END),
+      COUNT(*),
+      COUNT(DISTINCT session_id),
+      COUNT(DISTINCT CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN tool_name END),
+      COUNT(DISTINCT agent_id),
+      SUM(CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN 1 ELSE 0 END) * @cost
+    FROM events
+    WHERE timestamp < @cutoff
+    GROUP BY date
+    ON CONFLICT(date) DO UPDATE SET
+      tool_calls     = MAX(usage_daily.tool_calls, excluded.tool_calls),
+      total_events   = MAX(usage_daily.total_events, excluded.total_events),
+      sessions       = MAX(usage_daily.sessions, excluded.sessions),
+      unique_tools   = MAX(usage_daily.unique_tools, excluded.unique_tools),
+      unique_agents  = MAX(usage_daily.unique_agents, excluded.unique_agents),
+      estimated_cost = MAX(usage_daily.estimated_cost, excluded.estimated_cost)
+  `).run({ cutoff, cost: costPerCall });
+
+  const purged = db.prepare('DELETE FROM events WHERE timestamp < ?').run(cutoff);
+  if (purged.changes > 0) {
+    console.log(`  [db] Purged ${purged.changes} events older than ${EVENT_RETENTION_DAYS} days (stats preserved in usage_daily)`);
+  }
+  // Instructions that reached their agent are history too.
+  db.prepare("DELETE FROM instructions WHERE status = 'delivered' AND delivered_at < ?").run(cutoff);
+  return purged.changes;
+}
+
+function openDatabase(): Db {
+  ensurePrivateDir(DATA_DIR);
+
+  const db = openSqlite(DB_PATH);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS agents (
@@ -157,44 +218,23 @@ function openDatabase(): Database.Database {
     );
   `);
 
-  // Event retention: purge raw events older than configured days.
-  // Before purging, roll up old events into usage_daily so historical cost data persists.
-  const RETENTION_DAYS = parseInt(process.env.MC_EVENT_RETENTION_DAYS || '90', 10);
-  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
-  // Roll up events that will be purged into usage_daily
-  const costPerCall = parseFloat(process.env.MC_COST_PER_TOOL_CALL || '0.003');
-  db.prepare(`
-    INSERT INTO usage_daily (date, tool_calls, total_events, sessions, unique_tools, unique_agents, estimated_cost)
-    SELECT
-      strftime('%Y-%m-%d', timestamp) AS date,
-      SUM(CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN 1 ELSE 0 END),
-      COUNT(*),
-      COUNT(DISTINCT session_id),
-      COUNT(DISTINCT CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN tool_name END),
-      COUNT(DISTINCT agent_id),
-      SUM(CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN 1 ELSE 0 END) * @cost
-    FROM events
-    WHERE timestamp < @cutoff
-    GROUP BY date
-    ON CONFLICT(date) DO UPDATE SET
-      tool_calls     = MAX(usage_daily.tool_calls, excluded.tool_calls),
-      total_events   = MAX(usage_daily.total_events, excluded.total_events),
-      sessions       = MAX(usage_daily.sessions, excluded.sessions),
-      unique_tools   = MAX(usage_daily.unique_tools, excluded.unique_tools),
-      unique_agents  = MAX(usage_daily.unique_agents, excluded.unique_agents),
-      estimated_cost = MAX(usage_daily.estimated_cost, excluded.estimated_cost)
-  `).run({ cutoff, cost: costPerCall });
-
-  const purged = db.prepare('DELETE FROM events WHERE timestamp < ?').run(cutoff);
-  if (purged.changes > 0) {
-    console.log(`  [db] Purged ${purged.changes} events older than ${RETENTION_DAYS} days (stats preserved in usage_daily)`);
-  }
+  minimizeStoredEvents(db);
+  purgeExpired(db);
 
   return db;
 }
 
-const db: Database.Database = openDatabase();
+const db: Db = openDatabase();
+
+/** Shared handle for modules that own their own tables (e.g. src/contexts). */
+export function getDb(): Db {
+  return db;
+}
+
+/** Applies the retention limit now. The server calls this hourly, so a long-running server keeps to it. */
+export function purgeExpiredData(): number {
+  return purgeExpired(db);
+}
 
 // ---------------------------------------------------------------------------
 // Prepared statements
@@ -611,7 +651,7 @@ const stmtSummaryTotals = db.prepare(`
 
 // Configurable cost per tool call (default: $0.003 — rough estimate for a typical
 // Claude API round-trip with tool use, ~1K input + 500 output tokens at Sonnet rates)
-const COST_PER_TOOL_CALL = parseFloat(process.env.MC_COST_PER_TOOL_CALL || '0.003');
+const COST_PER_TOOL_CALL = parseFloat(readEnv("COST_PER_TOOL_CALL") || '0.003');
 
 const ALL_TIME_SINCE = '1970-01-01T00:00:00.000Z';
 const ALL_TIME_DATE = '1970-01-01';
@@ -698,7 +738,7 @@ export function getUsageStats(hoursBack = 24): UsageStats {
     tool_calls: number;
     total_events: number;
     sessions: number;
-    estimated_cost: number;
+    estimated_cost: number | null;
   }>;
 
   // For days still in events table, compute from live data
@@ -720,7 +760,7 @@ export function getUsageStats(hoursBack = 24): UsageStats {
         date: d.date,
         tool_calls: d.tool_calls,
         sessions: d.sessions,
-        estimated_cost: parseFloat(d.estimated_cost.toFixed(4)),
+        estimated_cost: parseFloat((d.estimated_cost ?? 0).toFixed(4)), // null on a day with no priced calls
       });
     }
   }

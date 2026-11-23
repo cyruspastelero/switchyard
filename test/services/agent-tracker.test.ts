@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { setupTestDb, teardownTestDb } from '../helpers';
+import { describe, it, expect, beforeAll, afterAll, vi } from '../support/harness.ts';
+import { setupTestDb, teardownTestDb } from '../helpers.ts';
 
 const tmpDir = setupTestDb();
 
-const db = await import('../../src/db');
-const { agentTracker } = await import('../../src/services/agent-tracker');
+const db = await import('../../src/db.ts');
+const { agentTracker } = await import('../../src/services/agent-tracker.ts');
 
 afterAll(() => {
   agentTracker.stop();

@@ -5,8 +5,8 @@ import {
   getAgent,
   getAgents,
   updateAgent,
-} from "../db";
-import { eventBus } from "./event-bus";
+} from "../db.ts";
+import { eventBus } from "./event-bus.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -45,7 +45,7 @@ function hashForCodename(str: string): number {
  *
  * Strategy:
  * - Subagents: use their description (from Agent tool) or "Sub-<short-id>"
- * - Main agents: use NATO codename + project folder, e.g. "Alpha (mission-control)"
+ * - Main agents: use NATO codename + project folder, e.g. "Alpha (my-project)"
  */
 function deriveName(
   agentId: string,

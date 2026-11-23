@@ -4,8 +4,8 @@ import {
   getMission,
   getMissions,
   updateMission,
-} from "../db";
-import { eventBus } from "./event-bus";
+} from "../db.ts";
+import { eventBus } from "./event-bus.ts";
 
 // ---------------------------------------------------------------------------
 // Types

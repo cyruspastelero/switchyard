@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { setupTestDb, teardownTestDb, authenticate, authedFetch } from '../helpers';
+import { describe, it, expect, beforeAll, afterAll } from '../support/harness.ts';
+import { setupTestDb, teardownTestDb, authenticate, authedFetch } from '../helpers.ts';
 
 const tmpDir = setupTestDb();
 
-const { createServer } = await import('../../src/server');
+const { createServer } = await import('../../src/server.ts');
 
 let stop: () => void;
 let f: ReturnType<typeof authedFetch>;

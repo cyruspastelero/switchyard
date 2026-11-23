@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import type { Agent, Event, Mission, Instruction } from "../db";
+import type { Agent, Event, Mission, Instruction } from "../db.ts";
 
 // ---------------------------------------------------------------------------
 // Event type map

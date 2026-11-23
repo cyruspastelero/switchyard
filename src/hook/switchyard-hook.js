@@ -2,14 +2,14 @@
 'use strict';
 
 /**
- * Claude Code Hook Script — Mission Control
+ * Claude Code Hook Script — Switchyard
  *
- * Runs inside Claude Code's hook system on PreToolUse, PostToolUse, and Stop events.
+ * Runs inside Claude Code's hook system on tool, prompt, Notification and Stop events.
  * Plain JavaScript, no dependencies, uses only Node.js built-ins.
  *
  * Behavior:
  *   1. Reads JSON from stdin
- *   2. POSTs the event to the Mission Control server (fire-and-forget, 2s timeout)
+ *   2. POSTs the event to the Switchyard server (fire-and-forget, 2s timeout)
  *   3. On PreToolUse: GETs pending instructions and writes them to stderr
  *   4. NEVER crashes, NEVER blocks Claude Code — all errors are silently caught
  *   5. Always exits 0
@@ -20,15 +20,25 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 
-const MC_HOST = process.env.CLAUDE_MC_HOST || 'localhost';
-const MC_PORT = parseInt(process.env.CLAUDE_MC_PORT || '4280', 10);
+const SERVER_HOST = process.env.SWITCHYARD_HOST || process.env.CLAUDE_MC_HOST || 'localhost';
+const SERVER_PORT = parseInt(process.env.SWITCHYARD_PORT || process.env.CLAUDE_MC_PORT || '4280', 10);
 const TIMEOUT_MS = 2000;
 
 // Read hook token from file (written by server on startup)
 let HOOK_TOKEN = '';
 try {
-  const tokenPath = path.join(os.homedir(), '.claude-mission-control', 'hook-token');
-  HOOK_TOKEN = fs.readFileSync(tokenPath, 'utf-8').trim();
+  const explicit = process.env.SWITCHYARD_DATA_DIR || process.env.MC_DATA_DIR;
+  const dirs = explicit
+    ? [explicit]
+    : [path.join(os.homedir(), '.switchyard'), path.join(os.homedir(), '.claude-mission-control')];
+  for (const dir of dirs) {
+    try {
+      HOOK_TOKEN = fs.readFileSync(path.join(dir, 'hook-token'), 'utf-8').trim();
+      break;
+    } catch {
+      // try the next location
+    }
+  }
 } catch {
   // Token file not found — server may not be running
 }
@@ -40,8 +50,8 @@ function httpRequest(method, path, body) {
   return new Promise((resolve) => {
     try {
       const options = {
-        hostname: MC_HOST,
-        port: MC_PORT,
+        hostname: SERVER_HOST,
+        port: SERVER_PORT,
         path,
         method,
         headers: {},
@@ -127,19 +137,27 @@ async function main() {
   const agentId = stdinData.agent_id || 'main';
   const compositeId = `${sessionId}:${agentId}`;
 
-  // 4. Build the event payload
+  // 4. Build the event payload. A Notification has no tool input; its message and type are kept there
+  //    so the server can tell a permission prompt from the "waiting for your input" idle reminder.
+  let toolInput = stdinData.tool_input || null;
+  if (!toolInput && eventType === 'Notification' && (stdinData.message || stdinData.notification_type)) {
+    toolInput = {
+      message: typeof stdinData.message === 'string' ? stdinData.message.slice(0, 500) : null,
+      notification_type: typeof stdinData.notification_type === 'string' ? stdinData.notification_type : null,
+    };
+  }
   const event = {
     session_id: sessionId,
     agent_id: agentId,
     event_type: eventType,
     tool_name: stdinData.tool_name || null,
-    tool_input: stdinData.tool_input || null,
+    tool_input: toolInput,
     tool_output: stdinData.tool_output || null,
     cwd,
     model,
   };
 
-  // 5. POST event to Mission Control (fire-and-forget)
+  // 5. POST event to Switchyard (fire-and-forget)
   const postPromise = httpRequest('POST', '/api/events', event);
 
   // 6. For PreToolUse: fetch and display pending instructions
@@ -157,7 +175,7 @@ async function main() {
       for (const instruction of instructions) {
         // Write to stderr — Claude Code surfaces stderr as warnings to the agent
         process.stderr.write(
-          `[Mission Control] ${instruction.message}\n`,
+          `[Switchyard] ${instruction.message}\n`,
         );
       }
     }

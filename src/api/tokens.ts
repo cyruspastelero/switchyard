@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { scanSessions } from '../services/session-scanner.js';
-import { sendJson, parseQuery } from './utils.js';
+import { scanSessions } from '../services/session-scanner.ts';
+import { sendJson, parseQuery } from './utils.ts';
 
 /**
  * Handle requests to /api/tokens

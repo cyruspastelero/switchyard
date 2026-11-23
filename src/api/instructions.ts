@@ -3,9 +3,9 @@ import {
   createInstruction,
   getPendingInstructions,
   markInstructionDelivered,
-} from '../db.js';
-import { eventBus } from '../services/event-bus.js';
-import { parseBody, sendJson, extractId, FIELD_LIMITS } from './utils.js';
+} from '../db.ts';
+import { eventBus } from '../services/event-bus.ts';
+import { parseBody, sendJson, extractId, unknownFields, FIELD_LIMITS } from './utils.ts';
 
 /**
  * Handle requests to /api/instructions
@@ -64,9 +64,14 @@ async function handleCreateInstruction(
     return;
   }
 
+  const unknown = unknownFields(body, ['target_agent_id', 'message']);
+  if (unknown) {
+    sendJson(res, 400, { error: unknown });
+    return;
+  }
   const { target_agent_id, message } = body;
 
-  if (typeof target_agent_id !== 'string' || target_agent_id.trim().length === 0) {
+  if (typeof target_agent_id !== 'string' || target_agent_id.trim().length === 0 || target_agent_id.length > FIELD_LIMITS.agentId) {
     sendJson(res, 400, { error: 'Missing or invalid field: target_agent_id' });
     return;
   }

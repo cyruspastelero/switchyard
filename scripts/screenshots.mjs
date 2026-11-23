@@ -3,6 +3,9 @@
  * Take dashboard screenshots for README with seeded test data.
  * Self-contained: starts server, seeds data, captures, stops.
  * Usage: node scripts/screenshots.mjs
+ *
+ * Needs puppeteer, which is not a project dependency. Install it for the run only:
+ *   npm install --no-save puppeteer
  */
 
 import puppeteer from 'puppeteer';
@@ -16,7 +19,7 @@ const OUT = new URL('../docs/screenshots/', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
 
 // Use a fresh temp database so screenshots have clean data
-process.env.MC_DATA_DIR = mkdtempSync(join(tmpdir(), 'mc-screenshots-'));
+process.env.SWITCHYARD_DATA_DIR = mkdtempSync(join(tmpdir(), 'switchyard-screenshots-'));
 
 // Start server
 const { createServer } = await import('../dist/server.js');
@@ -187,7 +190,7 @@ const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox']
 async function shot(name, opts = {}) {
   const page = await browser.newPage();
   await page.setViewport(opts.viewport || { width: 1440, height: 900, deviceScaleFactor: 2 });
-  await page.setCookie({ name: 'mc_session', value: cookieVal, domain: 'localhost', path: '/' });
+  await page.setCookie({ name: 'switchyard_session', value: cookieVal, domain: 'localhost', path: '/' });
 
   await page.goto(`${BASE}${opts.url || '/'}`, { waitUntil: 'networkidle0', timeout: 10000 }).catch(() => {});
   await new Promise(r => setTimeout(r, 400));

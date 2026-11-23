@@ -1,9 +1,9 @@
 {
-  "name": "claude-mission-control",
-  "version": "0.1.0",
-  "description": "Real-time command center dashboard for Claude Code agents",
+  "name": "switchyard",
+  "version": "0.2.0",
+  "description": "Local dashboard for AI coding agents, plus a Mac app that sorts your windows by project",
   "bin": {
-    "claude-mission-control": "./dist/index.js"
+    "switchyard": "./dist/index.js"
   },
   "files": [
     "dist/",
@@ -11,30 +11,20 @@
     "src/dashboard/"
   ],
   "scripts": {
-    "build": "tsc && rm -rf dist/dashboard && cp -r src/dashboard dist/dashboard",
-    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json && rm -rf dist/dashboard && cp -r src/dashboard dist/dashboard",
+    "dev": "node src/index.ts",
     "start": "node dist/index.js",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=4 \"test/**/*.test.ts\"",
     "prepublishOnly": "npm run build && npm test"
   },
-  "dependencies": {
-    "better-sqlite3": "^11.10.0",
-    "qrcode-terminal": "^0.12.0",
-    "ws": "^8.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@types/better-sqlite3": "^7.0.0",
-    "@types/node": "^22.0.0",
-    "@types/ws": "^8.0.0",
-    "@vitest/coverage-v8": "^2.1.9",
-    "puppeteer": "^24.40.0",
-    "tsx": "^4.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^2.0.0"
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.18.0"
   },
   "license": "Apache-2.0",
   "author": "Cyrus David Pastelero",
@@ -48,8 +38,9 @@
     "ai",
     "agent",
     "dashboard",
-    "mission-control",
+    "window-management",
     "mcp",
     "monitoring"
-  ]
+  ],
+  "type": "module"
 }

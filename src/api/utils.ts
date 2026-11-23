@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { eventBus } from '../services/event-bus';
+import { eventBus } from '../services/event-bus.ts';
 
 const MAX_BODY_BYTES = 1_048_576; // 1 MB
 
@@ -35,13 +35,25 @@ export function parseBody(req: IncomingMessage): Promise<Record<string, unknown>
         return;
       }
       try {
-        resolve(JSON.parse(raw));
+        const value: unknown = JSON.parse(raw);
+        // Every endpoint takes a JSON object; arrays, strings and null are never valid bodies.
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+          reject(new Error('Invalid JSON body'));
+          return;
+        }
+        resolve(value as Record<string, unknown>);
       } catch {
         reject(new Error('Invalid JSON body'));
       }
     });
     req.on('error', reject);
   });
+}
+
+/** Names of fields the endpoint does not accept, as an error message; null when there are none. */
+export function unknownFields(body: Record<string, unknown>, allowed: readonly string[]): string | null {
+  const extra = Object.keys(body).filter((key) => !allowed.includes(key));
+  return extra.length > 0 ? `Unknown field(s): ${extra.join(', ').slice(0, 200)}` : null;
 }
 
 /**
@@ -52,6 +64,7 @@ export function sendJson(res: ServerResponse, status: number, data: unknown): vo
   // Use setHeader (appends) instead of writeHead options (replaces) to preserve
   // any previously set headers like Set-Cookie
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Length', Buffer.byteLength(body));
   res.writeHead(status);
   res.end(body);
@@ -66,8 +79,8 @@ export const FIELD_LIMITS = {
   description: 5_000,
   message: 10_000,
   result: 10_000,
-  tool_input: 100_000,
-  tool_output: 100_000,
+  agentId: 500,
+  name: 200,
 } as const;
 
 /**

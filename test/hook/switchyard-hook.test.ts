@@ -1,24 +1,22 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from '../support/harness.ts';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs';
-import os from 'node:os';
-import { setupTestDb, teardownTestDb, authenticate, authedFetch } from '../helpers';
+import { setupTestDb, teardownTestDb, authenticate, authedFetch } from '../helpers.ts';
 
 const execFileAsync = promisify(execFile);
 const tmpDir = setupTestDb();
 
-const { createServer } = await import('../../src/server');
+const { createServer } = await import('../../src/server.ts');
 
 let stop: () => void;
 let f: ReturnType<typeof authedFetch>;
 const PORT = 14283;
 const BASE = `http://localhost:${PORT}`;
-const HOOK_SCRIPT = path.resolve(__dirname, '../../src/hook/mission-control-hook.js');
+const HOOK_SCRIPT = path.resolve(import.meta.dirname, '../../src/hook/switchyard-hook.js');
 
-const MC_DIR = path.join(os.homedir(), '.claude-mission-control');
-const TOKEN_FILE = path.join(MC_DIR, 'hook-token');
+const TOKEN_FILE = path.join(tmpDir, 'hook-token');
 let previousToken: string | null = null;
 
 beforeAll(async () => {
@@ -35,7 +33,6 @@ beforeAll(async () => {
   } catch {
     previousToken = null;
   }
-  fs.mkdirSync(MC_DIR, { recursive: true });
   fs.writeFileSync(TOKEN_FILE, server.hookToken, 'utf-8');
 });
 
@@ -62,8 +59,8 @@ function runHook(stdin: string, env: Record<string, string> = {}): Promise<{ std
       {
         env: {
           ...process.env,
-          CLAUDE_MC_PORT: String(PORT),
-          CLAUDE_MC_HOST: 'localhost',
+          SWITCHYARD_PORT: String(PORT),
+          SWITCHYARD_HOST: 'localhost',
           ...env,
         },
         timeout: 5000,
@@ -94,6 +91,22 @@ describe('hook — event posting', () => {
     const res = await f(`${BASE}/api/agents`);
     const agents = await res.json();
     expect(agents.some((a: any) => a.id === 'hook-test-sess:main')).toBe(true);
+  });
+
+  it('a_notification_keeps_its_message_and_type_so_idle_reminders_can_be_told_from_prompts', async () => {
+    await runHook(
+      JSON.stringify({
+        session_id: 'hook-notify-sess',
+        hook_event_name: 'Notification',
+        message: 'Claude is waiting for your input',
+        notification_type: 'idle_prompt',
+      }),
+    );
+
+    const res = await f(`${BASE}/api/events?agent_id=${encodeURIComponent('hook-notify-sess:main')}`);
+    const events = await res.json();
+    const stored = events.find((e: any) => e.event_type === 'Notification' && e.session_id === 'hook-notify-sess');
+    expect(JSON.parse(stored.tool_input)).toEqual({ message: 'Claude is waiting for your input', notification_type: 'idle_prompt' });
   });
 
   it('handles subagent events', async () => {
@@ -133,7 +146,7 @@ describe('hook — instruction delivery', () => {
       { CLAUDE_HOOK_EVENT_NAME: 'PreToolUse' },
     );
 
-    expect(stderr).toContain('[Mission Control]');
+    expect(stderr).toContain('[Switchyard]');
     expect(stderr).toContain('Switch to tests');
   });
 
@@ -170,7 +183,7 @@ describe('hook — resilience', () => {
       }),
       {
         CLAUDE_HOOK_EVENT_NAME: 'PreToolUse',
-        CLAUDE_MC_PORT: '19999',
+        SWITCHYARD_PORT: '19999',
       },
     );
     expect(typeof stderr).toBe('string');

@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { setupTestDb, teardownTestDb } from '../helpers';
+import { describe, it, expect, beforeAll, afterAll } from '../support/harness.ts';
+import { setupTestDb, teardownTestDb } from '../helpers.ts';
 
 const tmpDir = setupTestDb();
 
 const { createMission, assignMission, completeMission, failMission, getReadyMissions, MissionEngineError } =
-  await import('../../src/services/mission-engine');
+  await import('../../src/services/mission-engine.ts');
 
 afterAll(() => teardownTestDb(tmpDir));
 

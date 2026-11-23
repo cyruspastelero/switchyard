@@ -2,17 +2,19 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { WebSocketServer, WebSocket } from 'ws';
-import { getDashboardStats, getAgents as dbGetAgents, getEvents as dbGetEvents, getMissions as dbGetMissions } from './db';
-import { eventBus, type SecurityEvent } from './services/event-bus';
-import { handleEvents } from './api/events';
-import { handleAgents } from './api/agents';
-import { handleMissions } from './api/missions';
-import { handleInstructions } from './api/instructions';
-import { handleUsage } from './api/usage';
-import { handleTokens } from './api/tokens';
-import { sendJson } from './api/utils';
-import { agentTracker } from './services/agent-tracker';
+import { attachWebSocketServer, type WsClient } from './ws.ts';
+import { getDashboardStats, getAgents as dbGetAgents, getEvents as dbGetEvents, getMissions as dbGetMissions, purgeExpiredData } from './db.ts';
+import { eventBus, type SecurityEvent } from './services/event-bus.ts';
+import { handleEvents } from './api/events.ts';
+import { handleAgents } from './api/agents.ts';
+import { handleMissions } from './api/missions.ts';
+import { handleInstructions } from './api/instructions.ts';
+import { handleUsage } from './api/usage.ts';
+import { handleTokens } from './api/tokens.ts';
+import { parseBody, sendJson, unknownFields } from './api/utils.ts';
+import { agentTracker } from './services/agent-tracker.ts';
+import { createContextsService, handleContexts, isContextsUrl } from './contexts/index.ts';
+import { checkRequestSource, hasJsonBodyOrNone, isBrowserRequest } from './request-guard.ts';
 
 // ---------------------------------------------------------------------------
 // Security event helpers
@@ -36,43 +38,16 @@ function emitSecurityEvent(
   eventBus.emit('security:event', event);
 }
 
-const DASHBOARD_DIR = path.resolve(__dirname, 'dashboard');
+const DASHBOARD_DIR = path.resolve(import.meta.dirname, 'dashboard');
 const MAX_WS_CLIENTS = 50;
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
 };
-
-// ---------------------------------------------------------------------------
-// Security: Origin validation
-// ---------------------------------------------------------------------------
-
-function getAllowedOrigins(port: number): readonly string[] {
-  return [
-    `http://localhost:${port}`,
-    `http://127.0.0.1:${port}`,
-    `http://[::1]:${port}`,
-  ];
-}
-
-// Private/local network IP ranges (RFC 1918 + link-local)
-// RFC-1918 private IP pattern with proper 0-255 octet validation
-const OCTET = '(?:\\d|[1-9]\\d|1\\d{2}|2[0-4]\\d|25[0-5])';
-const PRIVATE_IP_PATTERN = new RegExp(
-  `^http:\\/\\/(10\\.${OCTET}\\.${OCTET}\\.${OCTET}|172\\.(?:1[6-9]|2\\d|3[01])\\.${OCTET}\\.${OCTET}|192\\.168\\.${OCTET}\\.${OCTET}|169\\.254\\.${OCTET}\\.${OCTET}):\\d+$`
-);
-
-function isOriginAllowed(origin: string | undefined, port: number): boolean {
-  // No Origin header = same-origin request or CLI/programmatic — allow
-  if (!origin) return true;
-  // Exact localhost matches
-  if (getAllowedOrigins(port).includes(origin)) return true;
-  // Allow any private/local network IP (same WiFi)
-  if (PRIVATE_IP_PATTERN.test(origin)) return true;
-  return false;
-}
 
 // ---------------------------------------------------------------------------
 // Dashboard file serving (with path traversal guard)
@@ -93,10 +68,13 @@ function serveDashboardFile(filePath: string, res: http.ServerResponse): void {
   const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
 
   try {
-    const content = fs.readFileSync(absPath, 'utf-8');
+    // Read as bytes so binary files (icon.png) are not mangled by a text decode.
+    const content = fs.readFileSync(absPath);
     res.writeHead(200, {
       'Content-Type': contentType,
-      'Content-Length': Buffer.byteLength(content),
+      'Content-Length': content.length,
+      // A cached page outlives the session after a restart and renders blank; always revalidate.
+      'Cache-Control': 'no-store',
     });
     res.end(content);
   } catch {
@@ -106,53 +84,56 @@ function serveDashboardFile(filePath: string, res: http.ServerResponse): void {
 }
 
 // ---------------------------------------------------------------------------
-// CORS headers (origin-validated, not wildcard)
-// ---------------------------------------------------------------------------
-
-function setCorsHeaders(req: http.IncomingMessage, res: http.ServerResponse, port: number): boolean {
-  const origin = req.headers.origin as string | undefined;
-
-  if (origin && !isOriginAllowed(origin, port)) {
-    emitSecurityEvent(1, 'ORIGIN', 'critical', 'Blocked request from unauthorized origin', origin);
-    res.writeHead(403, { 'Content-Type': 'text/plain' });
-    res.end('Forbidden');
-    return false;
-  }
-
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  return true;
-}
-
-// ---------------------------------------------------------------------------
 // Server factory
 // ---------------------------------------------------------------------------
 
-export function createServer(port: number = 4280, bindLocal: boolean = false): { start: () => void; stop: () => void; accessCode: string; hookToken: string } {
+export interface ServerOptions {
+  /** Clock for session expiry; tests move it. */
+  readonly now?: () => number;
+}
+
+export interface SwitchyardServer {
+  start(): void;
+  stop(): void;
+  readonly accessCode: string;
+  readonly hookToken: string;
+}
+
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const RETENTION_SWEEP_MS = 60 * 60 * 1000;
+
+/** `bindLocal` false is the opt-in `--lan` mode: the server also answers on this machine's network addresses. */
+export function createServer(port: number = 4280, bindLocal: boolean = true, options: ServerOptions = {}): SwitchyardServer {
+  const now = options.now ?? Date.now;
+  const lan = !bindLocal;
   // C2 fix: Use CSPRNG for access code
   const accessCode = String(crypto.randomInt(100_000, 1_000_000));
   // H1/H2 fix: Shared secret for hook endpoints
   const hookToken = crypto.randomBytes(24).toString('hex');
-  const validSessions = new Set<string>();
+  /** Session token -> expiry time. Tokens are made here, never taken from the client. */
+  const validSessions = new Map<string, number>();
 
   // C1 fix: Rate limiting on auth endpoint (per IP)
   const authAttempts = new Map<string, { count: number; resetAt: number }>();
   const AUTH_MAX_ATTEMPTS = 5;
   const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
-  function checkAuthRateLimit(ip: string): boolean {
+  // Only wrong codes count toward the lockout; a correct code clears the IP's count.
+  function isAuthLockedOut(ip: string): boolean {
+    const entry = authAttempts.get(ip);
+    if (!entry) return false;
+    if (Date.now() > entry.resetAt) {
+      authAttempts.delete(ip);
+      return false;
+    }
+    return entry.count >= AUTH_MAX_ATTEMPTS;
+  }
+
+  function recordAuthFailure(ip: string): void {
     const now = Date.now();
     const entry = authAttempts.get(ip);
-    if (!entry || now > entry.resetAt) {
-      authAttempts.set(ip, { count: 1, resetAt: now + AUTH_WINDOW_MS });
-      return true;
-    }
-    entry.count++;
-    return entry.count <= AUTH_MAX_ATTEMPTS;
+    const fresh = !entry || now > entry.resetAt;
+    authAttempts.set(ip, fresh ? { count: 1, resetAt: now + AUTH_WINDOW_MS } : { ...entry, count: entry.count + 1 });
   }
 
   // L1 fix: Cap concurrent sessions
@@ -170,12 +151,21 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
 
   function isAuthenticated(req: http.IncomingMessage): boolean {
     const cookies = parseCookies(req);
-    const token = cookies['mc_session'];
-    return token ? validSessions.has(token) : false;
+    const token = cookies['switchyard_session'];
+    if (!token) return false;
+    const expiresAt = validSessions.get(token);
+    if (expiresAt === undefined) return false;
+    if (now() >= expiresAt) {
+      validSessions.delete(token);
+      return false;
+    }
+    return true;
   }
 
   // H1/H2 fix: Validate hook token (constant-time comparison via crypto)
   function isHookAuthenticated(req: http.IncomingMessage): boolean {
+    // The token belongs to the hook and the Mac app. A browser never has a reason to send it.
+    if (isBrowserRequest(req)) return false;
     const auth = req.headers.authorization ?? '';
     const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (provided.length !== hookToken.length) return false;
@@ -187,31 +177,53 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
   }
 
   function setSessionCookie(res: http.ServerResponse, token: string): void {
-    res.setHeader('Set-Cookie', `mc_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`);
+    res.setHeader('Set-Cookie', `switchyard_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`);
   }
 
   // H3 fix: Security headers on every response
-  function setSecurityHeaders(res: http.ServerResponse): void {
+  function setSecurityHeaders(res: http.ServerResponse, host: string): void {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' ws: wss:; img-src 'self' data:");
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    // Everything the dashboard loads comes from this server. No inline script, no other host.
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+      `font-src 'self'; connect-src 'self' ws://${host}; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
+    );
   }
 
-  const server = http.createServer(async (req, res) => {
-    // H3: Apply security headers to all responses
-    setSecurityHeaders(res);
+  function refuse(res: http.ServerResponse, status: number, message: string): void {
+    res.writeHead(status, { 'Content-Type': 'text/plain', 'X-Content-Type-Options': 'nosniff' });
+    res.end(message);
+  }
 
-    // Validate origin before processing any request
-    if (!setCorsHeaders(req, res, port)) return;
+  const contexts = createContextsService();
+
+  const server = http.createServer(async (req, res) => {
+    // Refuse other host names (DNS rebinding) and other origins before anything else runs.
+    const source = checkRequestSource(req, port, lan);
+    if (!source.ok) {
+      emitSecurityEvent(1, 'ORIGIN', 'critical', `Blocked request (${source.reason} check)`, null);
+      refuse(res, 403, 'Forbidden');
+      return;
+    }
+    // H3: Apply security headers to all responses
+    setSecurityHeaders(res, source.host);
 
     const method = req.method ?? 'GET';
     const url = req.url ?? '/';
 
-    // Handle CORS preflight
+    // Same-origin pages never preflight, and there is no cross-origin access to grant.
     if (method === 'OPTIONS') {
-      res.writeHead(204);
+      res.writeHead(204, { Allow: 'GET, POST, PUT, PATCH, DELETE' });
       res.end();
+      return;
+    }
+    if (!hasJsonBodyOrNone(req)) {
+      sendJson(res, 415, { error: 'Request bodies must be application/json' });
       return;
     }
 
@@ -221,14 +233,24 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
         const clientIp = req.socket.remoteAddress ?? 'unknown';
 
         // C1 fix: Rate limit auth attempts
-        if (!checkAuthRateLimit(clientIp)) {
+        if (isAuthLockedOut(clientIp)) {
           emitSecurityEvent(1, 'AUTH', 'critical', 'Auth rate limit exceeded — IP locked out', clientIp);
           sendJson(res, 429, { error: 'Too many attempts. Try again in 15 minutes.' });
           return;
         }
 
-        const { parseBody } = await import('./api/utils');
-        const body = await parseBody(req);
+        let body: Record<string, unknown>;
+        try {
+          body = await parseBody(req);
+        } catch {
+          sendJson(res, 400, { error: 'Invalid JSON body' });
+          return;
+        }
+        const unknown = unknownFields(body, ['code']);
+        if (unknown) {
+          sendJson(res, 400, { error: unknown });
+          return;
+        }
         const code = typeof body.code === 'string' ? body.code.trim() : '';
 
         // Constant-time comparison for access code
@@ -239,13 +261,15 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
           const token = crypto.randomBytes(32).toString('hex');
           // L1 fix: Evict oldest session if at capacity
           if (validSessions.size >= MAX_SESSIONS) {
-            const oldest = validSessions.values().next().value;
+            const oldest = validSessions.keys().next().value;
             if (oldest) validSessions.delete(oldest);
           }
-          validSessions.add(token);
+          validSessions.set(token, now() + SESSION_TTL_MS);
+          authAttempts.delete(clientIp);
           setSessionCookie(res, token);
           sendJson(res, 200, { ok: true });
         } else {
+          recordAuthFailure(clientIp);
           emitSecurityEvent(1, 'AUTH', 'warn', 'Invalid access code attempt', clientIp);
           sendJson(res, 401, { error: 'Invalid access code' });
         }
@@ -273,6 +297,17 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
         return;
       }
 
+      // ── Contexts API: session cookie, or hook bearer token from loopback (checked inside) ──
+      if (isContextsUrl(url)) {
+        await handleContexts(req, res, contexts, {
+          fromBrowser: isBrowserRequest(req),
+          cookieOk: isAuthenticated(req),
+          bearerOk: isHookAuthenticated(req),
+          accessCode,
+        });
+        return;
+      }
+
       // ── Public routes (no auth required) ──
       const urlPath = url.split('?')[0]; // Strip query string for matching
 
@@ -282,8 +317,13 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
         return;
       }
       // Static assets needed by login page
-      if (method === 'GET' && urlPath === '/styles.css') {
-        serveDashboardFile('styles.css', res);
+      if (method === 'GET' && (urlPath === '/styles.css' || urlPath === '/login.js')) {
+        serveDashboardFile(urlPath.slice(1), res);
+        return;
+      }
+      // App icon: favicon and login-page logo, so it must load before sign-in. Fixed names only.
+      if (method === 'GET' && (urlPath === '/icon.svg' || urlPath === '/icon.png')) {
+        serveDashboardFile(urlPath.slice(1), res);
         return;
       }
       // Favicon (no auth, return 204 if missing)
@@ -311,12 +351,36 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
         serveDashboardFile('index.html', res);
         return;
       }
+      if (method === 'GET' && url === '/core.js') {
+        serveDashboardFile('core.js', res);
+        return;
+      }
+      if (method === 'GET' && url === '/activity.js') {
+        serveDashboardFile('activity.js', res);
+        return;
+      }
+      if (method === 'GET' && url === '/usage.js') {
+        serveDashboardFile('usage.js', res);
+        return;
+      }
       if (method === 'GET' && url === '/app.js') {
         serveDashboardFile('app.js', res);
         return;
       }
+      if (method === 'GET' && url === '/picker.js') {
+        serveDashboardFile('picker.js', res);
+        return;
+      }
       if (method === 'GET' && url === '/security.js') {
         serveDashboardFile('security.js', res);
+        return;
+      }
+      if (method === 'GET' && url === '/contexts-logic.js') {
+        serveDashboardFile('contexts-logic.js', res);
+        return;
+      }
+      if (method === 'GET' && url === '/contexts.js') {
+        serveDashboardFile('contexts.js', res);
         return;
       }
 
@@ -373,8 +437,13 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found');
     } catch (err) {
-      // M1: Log full error server-side, return generic message to client
-      console.error(`[server] Error handling ${method} ${url}:`, err);
+      // A broken percent-escape in the path is the client's mistake.
+      if (err instanceof URIError) {
+        sendJson(res, 400, { error: 'Malformed URL' });
+        return;
+      }
+      // M1: Log the error server-side, return a generic message. The path is logged without its query string.
+      console.error(`[server] Error handling ${method} ${url.split('?')[0]}:`, err);
       sendJson(res, 500, { error: 'Internal Server Error' });
     }
   });
@@ -390,31 +459,25 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
   });
 
   // WebSocket server with origin validation and connection limit
-  const wss = new WebSocketServer({
-    server,
-    verifyClient: ({ req }: { req: http.IncomingMessage }) => {
-      const origin = req.headers.origin as string | undefined;
-      if (!isOriginAllowed(origin, port)) {
-        emitSecurityEvent(3, 'WS ORIGIN', 'critical', 'Rejected WebSocket from unauthorized origin', origin ?? 'unknown');
-        return false;
+  const wss = attachWebSocketServer(server, {
+    maxClients: MAX_WS_CLIENTS,
+    verify: (req) => {
+      const source = checkRequestSource(req, port, lan);
+      if (!source.ok) {
+        emitSecurityEvent(3, 'WS ORIGIN', 'critical', `Rejected WebSocket (${source.reason} check)`, null);
+        return 403;
       }
       // Check auth cookie for WebSocket too
       if (!isAuthenticated(req)) {
         emitSecurityEvent(1, 'AUTH', 'warn', 'Rejected unauthenticated WebSocket', req.socket.remoteAddress ?? 'unknown');
-        return false;
+        return 401;
       }
       return true;
     },
+    onConnection: (ws) => onWebSocketConnection(ws),
   });
 
-  wss.on('connection', (ws: WebSocket) => {
-    // M4: Reject if too many concurrent connections
-    if (wss.clients.size > MAX_WS_CLIENTS) {
-      emitSecurityEvent(4, 'CONN LIMIT', 'warn', 'Rejected WebSocket — connection limit reached', `${wss.clients.size}/${MAX_WS_CLIENTS}`);
-      ws.close(1013, 'Too many connections');
-      return;
-    }
-
+  function onWebSocketConnection(ws: WsClient): void {
     // Send current state on connect
     const agents = dbGetAgents();
     const recentEvents = dbGetEvents(50);
@@ -423,35 +486,44 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
     ws.send(JSON.stringify({ type: 'agents', data: agents }));
     ws.send(JSON.stringify({ type: 'events', data: recentEvents }));
     ws.send(JSON.stringify({ type: 'missions', data: missions }));
+    contexts.view().then(
+      (view) => {
+        if (ws.isOpen) ws.send(JSON.stringify({ type: 'contexts', data: view }));
+      },
+      (err) => console.error('[ws] Failed to send contexts:', err),
+    );
+    const unsubscribeContexts = contexts.subscribe((view) => {
+      if (ws.isOpen) ws.send(JSON.stringify({ type: 'contexts', data: view }));
+    });
 
     // Forward event bus events to this WebSocket client
     const onAgentUpdate = (d: unknown) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.isOpen) {
         ws.send(JSON.stringify({ type: 'agent:update', data: d }));
       }
     };
     const onEventNew = (d: unknown) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.isOpen) {
         ws.send(JSON.stringify({ type: 'event:new', data: d }));
       }
     };
     const onMissionUpdate = (d: unknown) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.isOpen) {
         ws.send(JSON.stringify({ type: 'mission:update', data: d }));
       }
     };
     const onInstructionNew = (d: unknown) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.isOpen) {
         ws.send(JSON.stringify({ type: 'instruction:new', data: d }));
       }
     };
     const onInstructionDelivered = (d: unknown) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.isOpen) {
         ws.send(JSON.stringify({ type: 'instruction:delivered', data: d }));
       }
     };
     const onSecurityEvent = (d: unknown) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.isOpen) {
         ws.send(JSON.stringify({ type: 'security:event', data: d }));
       }
     };
@@ -463,7 +535,8 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
     eventBus.on('instruction:delivered', onInstructionDelivered);
     eventBus.on('security:event', onSecurityEvent);
 
-    ws.on('close', () => {
+    ws.onClose(() => {
+      unsubscribeContexts();
       eventBus.off('agent:update', onAgentUpdate);
       eventBus.off('event:new', onEventNew);
       eventBus.off('mission:update', onMissionUpdate);
@@ -471,24 +544,27 @@ export function createServer(port: number = 4280, bindLocal: boolean = false): {
       eventBus.off('instruction:delivered', onInstructionDelivered);
       eventBus.off('security:event', onSecurityEvent);
     });
+  }
 
-    ws.on('error', (err) => {
-      console.error('[ws] Client error:', err.message);
-    });
-  });
+  let retentionTimer: ReturnType<typeof setInterval> | null = null;
 
   return {
     start(): void {
       const host = bindLocal ? '127.0.0.1' : '0.0.0.0';
       server.listen(port, host, () => {
         agentTracker.start();
+        contexts.start();
       });
+      retentionTimer = setInterval(() => purgeExpiredData(), RETENTION_SWEEP_MS);
+      retentionTimer.unref();
     },
     stop(): void {
+      if (retentionTimer) clearInterval(retentionTimer);
       agentTracker.stop();
-      wss.clients.forEach((client) => client.close());
+      contexts.stop();
       wss.close();
       server.close();
+      server.closeAllConnections();
     },
     accessCode,
     hookToken,

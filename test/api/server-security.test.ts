@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { setupTestDb, teardownTestDb, authenticate, authedFetch, hookFetch } from '../helpers';
+import { describe, it, expect, beforeAll, afterAll } from '../support/harness.ts';
+import { setupTestDb, teardownTestDb, authenticate, authedFetch, hookFetch } from '../helpers.ts';
 
 const tmpDir = setupTestDb();
 
-const { createServer } = await import('../../src/server');
+const { createServer } = await import('../../src/server.ts');
 
 let stop: () => void;
 let f: ReturnType<typeof authedFetch>;
@@ -126,6 +126,22 @@ describe('dashboard serving', () => {
     const res = await fetch(`${BASE}/styles.css`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/css');
+  });
+
+  it('serves the svg app icon without auth so the login page can show it', async () => {
+    const res = await fetch(`${BASE}/icon.svg`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/svg+xml');
+    expect(await res.text()).toContain('<svg');
+  });
+
+  it('serves the png app icon without auth as intact binary', async () => {
+    const res = await fetch(`${BASE}/icon.png`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/png');
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(Array.from(bytes.slice(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(Number(res.headers.get('content-length'))).toBe(bytes.length);
   });
 });
 

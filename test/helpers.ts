@@ -3,12 +3,14 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 /**
- * Create a fresh temp directory for MC_DATA_DIR.
+ * Create a fresh temp directory for SWITCHYARD_DATA_DIR.
  * Must be called BEFORE importing any src/ modules (they read env on import).
  */
 export function setupTestDb(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'mc-test-'));
-  process.env.MC_DATA_DIR = dir;
+  const dir = mkdtempSync(join(tmpdir(), 'switchyard-test-'));
+  process.env.SWITCHYARD_DATA_DIR = dir;
+  // Never scan the developer's real ~/.claude logs in tests: slow and nondeterministic.
+  process.env.SWITCHYARD_CLAUDE_HOME = join(dir, 'claude-home');
   return dir;
 }
 
@@ -39,11 +41,11 @@ export async function authenticate(base: string, accessCode: string): Promise<st
   }
   // Extract Set-Cookie header
   const setCookie = res.headers.get('set-cookie') ?? '';
-  const match = setCookie.match(/mc_session=([^;]+)/);
+  const match = setCookie.match(/switchyard_session=([^;]+)/);
   if (!match) {
     throw new Error('No session cookie returned');
   }
-  return `mc_session=${match[1]}`;
+  return `switchyard_session=${match[1]}`;
 }
 
 /**

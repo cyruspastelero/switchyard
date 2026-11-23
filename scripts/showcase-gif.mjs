@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * Generate an animated GIF showcasing Mission Control dashboard.
+ * Generate an animated GIF showcasing Switchyard dashboard.
  * Seeds data incrementally and captures frames to simulate real-time activity.
  * Usage: node scripts/showcase-gif.mjs
  * Output: docs/showcase.gif
+ *
+ * Needs puppeteer, which is not a project dependency. Install it for the run only:
+ *   npm install --no-save puppeteer
  */
 
 import puppeteer from 'puppeteer';
@@ -18,7 +21,7 @@ const FRAME_DIR = mkdtempSync(join(tmpdir(), 'mc-gif-frames-'));
 const OUT_GIF = new URL('../docs/showcase.gif', import.meta.url).pathname;
 
 // Fresh temp database
-process.env.MC_DATA_DIR = mkdtempSync(join(tmpdir(), 'mc-gif-data-'));
+process.env.SWITCHYARD_DATA_DIR = mkdtempSync(join(tmpdir(), 'mc-gif-data-'));
 
 // Start server
 const { createServer } = await import('../dist/server.js');
@@ -61,7 +64,7 @@ console.log('Auth: OK');
 const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 2 });
-await page.setCookie({ name: 'mc_session', value: cookieVal, domain: 'localhost', path: '/' });
+await page.setCookie({ name: 'switchyard_session', value: cookieVal, domain: 'localhost', path: '/' });
 
 let frameNum = 0;
 const d = (ms) => new Promise(r => setTimeout(r, ms));
@@ -325,7 +328,7 @@ await browser.close();
 srv.stop();
 
 try { rmSync(FRAME_DIR, { recursive: true }); } catch {}
-try { rmSync(process.env.MC_DATA_DIR, { recursive: true }); } catch {}
+try { rmSync(process.env.SWITCHYARD_DATA_DIR, { recursive: true }); } catch {}
 
 console.log('Done!');
 process.exit(0);

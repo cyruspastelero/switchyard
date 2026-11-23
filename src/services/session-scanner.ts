@@ -258,8 +258,10 @@ function parseSessionFile(filePath: string, sessionId: string): SessionTokenUsag
 // Scanner
 // ---------------------------------------------------------------------------
 
-const CLAUDE_DIR = join(homedir(), '.claude', 'projects');
-const SESSIONS_DIR = join(homedir(), '.claude', 'sessions');
+// SWITCHYARD_CLAUDE_HOME lets tests (and unusual setups) point at a different Claude config dir.
+const CLAUDE_HOME = process.env.SWITCHYARD_CLAUDE_HOME || join(homedir(), '.claude');
+const CLAUDE_DIR = join(CLAUDE_HOME, 'projects');
+const SESSIONS_DIR = join(CLAUDE_HOME, 'sessions');
 
 /**
  * Get active session IDs by reading ~/.claude/sessions/*.json

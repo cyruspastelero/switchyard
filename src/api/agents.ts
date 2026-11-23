@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getAgents, getAgent, updateAgent, deleteAgent, deleteDisconnectedAgents, getEvents } from '../db.js';
-import { parseBody, sendJson, extractId, parseQuery } from './utils.js';
+import { getAgents, getAgent, updateAgent, deleteAgent, deleteDisconnectedAgents, getEvents } from '../db.ts';
+import { parseBody, sendJson, extractId, parseQuery, unknownFields, FIELD_LIMITS } from './utils.ts';
 
 /**
  * Handle requests to /api/agents and /api/agents/:id
@@ -73,7 +73,12 @@ export async function handleAgents(
       return;
     }
 
-    if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+    const unknown = unknownFields(body, ['name']);
+    if (unknown) {
+      sendJson(res, 400, { error: unknown });
+      return;
+    }
+    if (typeof body.name !== 'string' || body.name.trim().length === 0 || body.name.length > FIELD_LIMITS.name) {
       sendJson(res, 400, { error: 'Missing or invalid field: name' });
       return;
     }
