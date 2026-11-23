@@ -127,6 +127,7 @@
       autoTidy: raw.autoTidy !== false,
       layouts: arr(raw.layouts).filter(function (p) { return p && typeof p.id === 'string' && Array.isArray(p.slots); }),
       defaultLayoutId: typeof raw.defaultLayoutId === 'string' ? raw.defaultLayoutId : null,
+      desktopList: window.MCDesktops ? window.MCDesktops.normalize(raw.desktopList) : null,
     };
   }
 
@@ -338,7 +339,7 @@
         if (control && d.desktopNote) frag.appendChild(h('div', 'ctx-foot ctx-muted', d.desktopNote));
         else if (control && d.desktopMode !== 'desktops') frag.appendChild(h('div', 'ctx-foot ctx-muted', ONE_DESKTOP_NOTE));
         if (d.desktopMode === 'desktops') frag.appendChild(autoTidyToggle(d));
-        if (d.desktopMode === 'desktops' && layoutsUi) frag.appendChild(layoutsUi.section(d, control));
+        if (d.desktopMode === 'desktops') add(frag, desktopsUi.section(d, control), layoutsUi && layoutsUi.section(d, control));
       }
     } else {
       var note = logic.noDataNote(errorText);
@@ -357,7 +358,9 @@
     }
   }
 
-  var layoutsUi = window.MCLayouts ? window.MCLayouts({ h: h, add: add, button: button, act: act, request: request, busy: st.busy }) : null;
+  var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy };
+  var layoutsUi = window.MCLayouts ? window.MCLayouts(uiDeps) : null;
+  var desktopsUi = window.MCDesktops(uiDeps);
 
   function noticeLine() {
     var line = h('div', 'ctx-ok', st.notice, { role: 'status' });
@@ -475,8 +478,7 @@
     // Same order on every card: head (dot, name, actions), meta, one agent line (maybe empty), windows.
     var head = h('div', 'ctx-card-head');
     add(head, dot(c.color), st.renaming === 'ctx:' + c.id ? contextNameForm(c) : contextName(c), cardActions(c, control, parked));
-    var meta = h('div', 'ctx-card-meta ctx-status-' + c.status, logic.cardMeta(c) + (c.desktopShared ? ' \u00B7 shared' : ''));
-    if (active) meta.appendChild(h('i', 'ctx-onscreen', null, { title: 'On screen', 'aria-label': 'On screen', role: 'img' }));
+    var meta = desktopsUi.cardMeta(c, d);
     var actions = c.agents.map(function (a) { return a.name + (a.lastAction ? ': ' + a.lastAction : ''); }).join('\n');
     var agents = h('div', 'ctx-card-agents', logic.agentSummary(c), actions ? { title: actions } : null);
     add(card, head, meta, agents, !parked && c.desktop != null && layoutsUi && d.layouts.length ? layoutsUi.cardSelect(c, d) : null);
