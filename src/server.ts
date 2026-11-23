@@ -88,6 +88,9 @@ function serveDashboardFile(filePath: string, res: http.ServerResponse): void {
 // Server factory
 // ---------------------------------------------------------------------------
 
+// Loaded in this order by index.html and login.html: the cascade is the one file it was split from.
+const STYLESHEETS: ReadonlySet<string> = new Set(['styles.css', 'styles-panels.css', 'styles-overlays.css', 'styles-mobile.css', 'styles-contexts.css']);
+
 const DASHBOARD_SCRIPTS: ReadonlySet<string> = new Set([
   'core.js',
   'activity.js',
@@ -353,7 +356,7 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
         return;
       }
       // Static assets needed by login page
-      if (method === 'GET' && (urlPath === '/styles.css' || urlPath === '/login.js')) {
+      if (method === 'GET' && (STYLESHEETS.has(urlPath.slice(1)) || urlPath === '/login.js')) {
         serveDashboardFile(urlPath.slice(1), res);
         return;
       }

@@ -1,0 +1,693 @@
+/* ── Radar ────────────────────────────────────────────── */
+.radar-container {
+  flex-shrink: 0;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--border);
+  background: var(--bg-base);
+}
+
+.radar-ring {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 0.5;
+}
+
+.radar-ring:first-of-type {
+  stroke: var(--border-bright);
+  stroke-width: 0.8;
+}
+
+.radar-cross {
+  stroke: var(--border);
+  stroke-width: 0.3;
+  stroke-dasharray: 2 4;
+}
+
+/* Sweep line with glow */
+.radar-sweep {
+  stroke: var(--success);
+  stroke-width: 1.5;
+  opacity: 0.7;
+  transform-origin: 100px 100px;
+  animation: radar-spin 4s linear infinite;
+  filter: drop-shadow(0 0 4px var(--success));
+}
+
+/* Sweep glow trail — a wider, fading arc behind the sweep */
+.radar-sweep-trail {
+  fill: none;
+  stroke: var(--success);
+  stroke-width: 0;
+  opacity: 0;
+  transform-origin: 100px 100px;
+  animation: radar-spin 4s linear infinite;
+}
+
+/* Gradient sweep cone */
+.radar-sweep-cone {
+  transform-origin: 100px 100px;
+  animation: radar-spin 4s linear infinite;
+  opacity: 0.12;
+}
+
+@keyframes radar-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Center dot — pulsing */
+.radar-center {
+  fill: var(--success);
+  opacity: 0.8;
+  animation: radar-center-pulse 2s ease-in-out infinite;
+}
+
+@keyframes radar-center-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 0.3; }
+}
+
+/* Radar blips — appear on security events */
+.radar-blip {
+  fill: var(--success);
+  opacity: 0;
+  animation: blip-appear 4s ease-out forwards;
+}
+
+.radar-blip.info {
+  fill: var(--info);
+}
+
+.radar-blip.warn {
+  fill: var(--warning);
+  animation: blip-pulse-warn 4s ease-out forwards;
+}
+
+.radar-blip.critical {
+  fill: var(--danger);
+  animation: blip-pulse-critical 6s ease-out forwards;
+  filter: drop-shadow(0 0 3px var(--danger));
+}
+
+/* Blip ring — expands outward from blip position */
+.radar-blip-ring {
+  fill: none;
+  stroke-width: 1;
+  opacity: 0;
+}
+
+.radar-blip-ring.info {
+  stroke: var(--info);
+  animation: blip-ring-expand 2s ease-out forwards;
+}
+
+.radar-blip-ring.warn {
+  stroke: var(--warning);
+  animation: blip-ring-expand 2s ease-out forwards;
+}
+
+.radar-blip-ring.critical {
+  stroke: var(--danger);
+  animation: blip-ring-expand 2.5s ease-out forwards;
+}
+
+@keyframes blip-appear {
+  0% { opacity: 0.9; r: 4; }
+  20% { opacity: 1; r: 3; }
+  100% { opacity: 0; r: 1; }
+}
+
+@keyframes blip-pulse-warn {
+  0% { opacity: 1; r: 5; }
+  15% { opacity: 0.8; r: 3; }
+  30% { opacity: 1; r: 4; }
+  100% { opacity: 0; r: 1; }
+}
+
+@keyframes blip-pulse-critical {
+  0% { opacity: 1; r: 6; }
+  10% { opacity: 0.5; r: 3; }
+  20% { opacity: 1; r: 5; }
+  40% { opacity: 0.5; r: 3; }
+  60% { opacity: 1; r: 4; }
+  100% { opacity: 0; r: 1; }
+}
+
+@keyframes blip-ring-expand {
+  0% { opacity: 0.6; r: 4; }
+  100% { opacity: 0; r: 20; }
+}
+
+/* ── 7-layer defense panel ────────────────────────────── */
+.security-layers {
+  flex: 1;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.layer-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: var(--font-size-xs);
+}
+
+.layer-num {
+  color: var(--text-muted);
+  font-weight: 600;
+  min-width: 20px;
+}
+
+.layer-name {
+  color: var(--text-secondary);
+  flex: 1;
+  letter-spacing: 0.5px;
+}
+
+.layer-status {
+  font-weight: 700;
+  min-width: 14px;
+  text-align: center;
+}
+
+.layer-status.ok {
+  color: var(--success);
+}
+
+.layer-status.warn {
+  color: var(--warning);
+}
+
+.layer-status.critical {
+  color: var(--danger);
+  animation: blink-alert 1.2s step-end infinite;
+}
+
+/* ── Security event log ───────────────────────────────── */
+.security-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+  padding: 8px 14px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.sec-clear-btn {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  padding: 1px 8px;
+  cursor: pointer;
+  transition: all 80ms;
+}
+
+.sec-clear-btn:hover {
+  color: var(--danger);
+  border-color: var(--danger-dim);
+}
+
+.security-log {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.security-log .empty-state {
+  min-height: 50px;
+  font-size: var(--font-size-xs);
+}
+
+.sec-event-row {
+  display: flex;
+  gap: 6px;
+  padding: 3px 14px;
+  font-size: var(--font-size-xs);
+  border-bottom: 1px solid rgba(37, 37, 40, 0.5);
+  align-items: center;
+  transition: background 80ms;
+}
+
+.sec-event-row:hover {
+  background: var(--bg-hover);
+}
+
+.sec-event-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 80ms, color 80ms;
+}
+
+.sec-event-row:hover .sec-event-dismiss {
+  opacity: 1;
+}
+
+.sec-event-dismiss:hover {
+  color: var(--text-bright);
+}
+
+.sec-event-time {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 56px;
+}
+
+.sec-event-layer {
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 24px;
+}
+
+.sec-event-layer.info { color: var(--info); }
+.sec-event-layer.warn { color: var(--warning); }
+.sec-event-layer.critical { color: var(--danger); }
+
+.sec-event-msg {
+  color: var(--text-secondary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sec-event-detail {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Keyboard help overlay ────────────────────────────── */
+.kbd-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  backdrop-filter: blur(2px);
+}
+
+.kbd-overlay.hidden {
+  display: none;
+}
+
+.kbd-content {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-bright);
+  padding: 20px 24px;
+  min-width: 340px;
+  max-width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Stays on top while the help scrolls, so the close button is always there. */
+.kbd-head {
+  position: sticky;
+  top: -20px;
+  z-index: 1;
+  margin-top: -20px;
+  padding-top: 20px;
+  background: var(--bg-panel);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kbd-title {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  letter-spacing: 2px;
+  color: var(--text-bright);
+}
+
+.kbd-grid {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 6px 16px;
+}
+
+.kbd-grid kbd {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--text-bright);
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  text-align: center;
+  line-height: 18px;
+}
+
+.kbd-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 22px;
+}
+
+.kbd-footer {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.kbd-footer kbd {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-bright);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  padding: 0 4px;
+}
+
+/* Help sections */
+.help-section-title {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 14px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.help-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.help-text p {
+  margin-bottom: 4px;
+}
+
+.help-text strong {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+.help-text code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-bright);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  padding: 1px 4px;
+}
+
+.help-text kbd {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-bright);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  padding: 0 3px;
+}
+
+/* ── Toast notifications ──────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border-bright);
+  color: var(--text-bright);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  padding: 6px 16px;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.toast-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Custom tooltip ───────────────────────────────────── */
+.custom-tooltip {
+  position: fixed;
+  z-index: 300;
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border-bright);
+  padding: 8px 10px;
+  max-width: 280px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+.custom-tooltip.hidden {
+  display: none;
+}
+
+.tooltip-row {
+  display: flex;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  min-width: 0;
+}
+
+.tooltip-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tooltip-value {
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ── Agent filter tabs ─────────────────────────────────── */
+.agent-filters {
+  display: flex;
+  gap: 2px;
+}
+
+.agent-filter-btn {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 80ms;
+}
+
+.agent-filter-btn:hover {
+  color: var(--text-secondary);
+}
+
+.agent-filter-btn.active {
+  color: var(--text-bright);
+  border-color: var(--border-bright);
+  background: var(--bg-hover);
+}
+
+.agent-clear-btn {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 1px 2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.agent-clear-btn:hover {
+  color: var(--danger);
+}
+
+/* ── Agent tree hierarchy ──────────────────────────────── */
+.agent-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-group:last-child {
+  border-bottom: none;
+}
+
+/* Main agent: prominent, full-width */
+.agent-row.main-agent {
+  background: var(--bg-panel);
+}
+
+.agent-row.main-agent .agent-name {
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+/* Session label fallback (when no main agent found) */
+.agent-group-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  padding: 4px 12px;
+  letter-spacing: 0.5px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Subagent container: indented with left connector line */
+.agent-subs {
+  border-left: 1px solid var(--border-bright);
+  margin-left: 14px;
+}
+
+.agent-row.subagent {
+  padding: 4px 10px;
+  border-bottom: 1px solid rgba(37, 37, 40, 0.3);
+}
+
+.agent-row.subagent:last-child {
+  border-bottom: none;
+}
+
+.agent-row.subagent .agent-name {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.agent-row.subagent .agent-dot {
+  font-size: var(--font-size-xs);
+}
+
+.agent-row.subagent .agent-activity {
+  margin-left: 13px;
+}
+
+/* Sub-count toggle on main agents */
+.agent-sub-toggle {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 0 6px;
+  line-height: 16px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 80ms;
+  user-select: none;
+}
+
+.agent-sub-toggle:hover {
+  color: var(--text-bright);
+  border-color: var(--border-bright);
+  background: var(--bg-hover);
+}
+
+/* Collapsed session: hide subs */
+.agent-group.session-collapsed .agent-subs {
+  display: none;
+}
+
+/* Session toggle in group label */
+.session-toggle {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-left: 8px;
+  cursor: pointer;
+}
+
+/* ── Agent quick-action buttons (copy path, copy ID) ──── */
+.agent-quick-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  margin-left: 15px;
+  opacity: 0;
+  transition: opacity 100ms;
+}
+
+.agent-row:hover .agent-quick-actions,
+.agent-quick-actions:focus-within {
+  opacity: 1;
+}
+
+/* Always show on touch devices */
+@media (hover: none) {
+  .agent-quick-actions { opacity: 1; }
+  .agent-quick-actions .agent-quick-btn { color: var(--text-secondary); }
+}
+
+.agent-quick-btn {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  padding: 1px 8px;
+  cursor: pointer;
+  transition: all 80ms;
+  white-space: nowrap;
+}
+
+.agent-quick-btn:hover {
+  color: var(--text-bright);
+  border-color: var(--border-bright);
+  background: var(--bg-hover);
+}
+
+.agent-quick-btn:active {
+  background: var(--bg-active);
+}
+
+.session-toggle:hover {
+  color: var(--text-bright);
+}
+

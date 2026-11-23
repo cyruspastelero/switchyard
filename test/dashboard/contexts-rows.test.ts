@@ -19,7 +19,8 @@ const w = (over: Partial<Win> = {}): Win => ({
   app: 'Google Chrome', bundleId: 'com.google.Chrome', title: 'Meta Business Suite - Google Chrome - Me',
   name: '', tabCount: null, why: '', desktop: null, hidden: false, ...over,
 });
-const css = readFileSync(new URL('../../src/dashboard/styles.css', import.meta.url), 'utf8');
+const css = ['styles.css', 'styles-panels.css', 'styles-overlays.css', 'styles-mobile.css', 'styles-contexts.css']
+  .map((f) => readFileSync(new URL(`../../src/dashboard/${f}`, import.meta.url), 'utf8')).join('');
 const rule = (selector: string): string => {
   const at = css.indexOf(`\n${selector} {`);
   return at === -1 ? '' : css.slice(at, css.indexOf('}', at));

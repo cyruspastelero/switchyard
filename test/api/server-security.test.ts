@@ -122,10 +122,22 @@ describe('dashboard serving', () => {
     expect(res.headers.get('content-type')).toContain('text/html');
   });
 
-  it('serves styles.css without auth', async () => {
-    const res = await fetch(`${BASE}/styles.css`);
-    expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('text/css');
+  it('serves every stylesheet without auth', async () => {
+    for (const file of ['styles.css', 'styles-panels.css', 'styles-overlays.css', 'styles-mobile.css', 'styles-contexts.css']) {
+      const res = await fetch(`${BASE}/${file}`);
+      expect(res.status, file).toBe(200);
+      expect(res.headers.get('content-type'), file).toContain('text/css');
+    }
+  });
+
+  it('both_pages_link_every_stylesheet_in_cascade_order', async () => {
+    const { readFileSync } = await import('node:fs');
+    const order = ['styles.css', 'styles-panels.css', 'styles-overlays.css', 'styles-mobile.css', 'styles-contexts.css'];
+    for (const page of ['index.html', 'login.html']) {
+      const html = readFileSync(new URL(`../../src/dashboard/${page}`, import.meta.url), 'utf8');
+      const linked = [...html.matchAll(/<link rel="stylesheet" href="\/([\w-]+\.css)">/g)].map((m) => m[1]);
+      expect(linked, page).toEqual(order);
+    }
   });
 
   it('serves the svg app icon without auth so the login page can show it', async () => {
