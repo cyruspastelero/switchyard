@@ -57,14 +57,14 @@ describe('new context window picker', () => {
     expect(choice.options.some((o) => /next free/.test(o.label))).toBe(false);
   });
 
-  it('a_free_key_whose_desktop_is_shared_is_not_called_next_free', () => {
-    // Keys 1-7 taken, 6 desktops: the next key (8) lands on the shared desktop, so it is no free desktop.
+  it('a_free_key_whose_desktop_is_shared_is_kept_but_not_called_next_free', () => {
+    // Keys 1-7 taken, 6 desktops: the next key (8) lands on the shared desktop. Create keeps ⌥8 (no PATCH
+    // that would drop the shortcut), and the label doesn't promise a free desktop.
     const seven = Array.from({ length: 7 }, (_, i) => ({ id: String(i), name: 'c' + i, key: i + 1, windows: [] }));
     const choice = logic.desktopChoice(seven, 6)!;
-    expect(choice.value).toBe('');
+    expect(choice.value).toBe('8');
     expect(choice.options.some((o) => /next free/.test(o.label))).toBe(false);
-    expect(choice.options.find((o) => o.value === '')!.label).toBe('No desktop (shared)');
-    expect(choice.options.some((o) => o.value === '8')).toBe(false);
+    expect(choice.options.find((o) => o.value === '8')!.label).toMatch(/shared desktop/);
   });
 
   it('there_is_no_desktop_choice_without_real_desktops', () => {

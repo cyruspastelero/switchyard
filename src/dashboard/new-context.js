@@ -43,16 +43,16 @@
     return null;
   }
 
-  // The desktop select: the card's key options, the next free one marked and picked. null without real desktops.
-  // Only a key with a desktop of its own (1 to count - 1) is "next free"; a free key that lands on the shared
-  // desktop is no free desktop, so the default is then "No desktop (shared)", said once with no suffix.
+  // The desktop select: the card's key options, with the key the server will give preselected, so Create
+  // keeps it (an ⌥N shortcut is useful even on the shared desktop). Only a key with a desktop of its own
+  // (1 to count - 1) is called "next free". null without real desktops.
   function desktopChoice(contexts, desktopCount) {
     if (desktopCount == null) return null;
     var key = nextFreeKey(contexts);
-    if (key != null && key > Math.min(9, desktopCount - 1)) key = null;
+    var ownDesktop = key != null && key <= Math.min(9, desktopCount - 1);
     var value = key == null ? '' : String(key);
     var options = shared.keyOptions(contexts, { id: '', key: key }, desktopCount).map(function (o) {
-      return key != null && o.value === value ? { value: o.value, label: o.label + ' (next free)' } : o;
+      return ownDesktop && o.value === value ? { value: o.value, label: o.label + ' (next free)' } : o;
     });
     return { options: options, value: value };
   }
