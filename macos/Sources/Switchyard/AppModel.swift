@@ -176,7 +176,7 @@ final class AppModel: ObservableObject {
         let here = contexts.filter { $0.desktop == desktop }
         let shared = here.contains(where: \.desktopShared)
         let owner = shared ? here.first { $0.id == activeContextId } : here.first
-        let sharedDesktop = contexts.first(where: \.desktopShared)?.desktop ?? Spaces.mainDesktops().count
+        let sharedDesktop = contexts.first(where: \.desktopShared)?.desktop ?? DesktopList.usableCount(Spaces.desktops())
         let unsortedHere = owner == nil || shared ? 0 : unsorted.filter { $0.desktop == desktop }.count
         hud.show(HUDText.make(contextName: owner?.name, desktop: desktop, shared: shared,
                               strays: owner.map(ContextStrays.desktops) ?? [], unsortedHere: unsortedHere, sharedDesktop: sharedDesktop))

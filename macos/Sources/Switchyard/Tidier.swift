@@ -43,7 +43,9 @@ actor Tidier {
         let here = await windows.tidyCandidates(keys).filter { w in
             w.windowNumber.flatMap { Spaces.desktopNumber(ofWindow: $0, in: list) } == desktop
         }
-        let display = list.first { $0.number == desktop }.flatMap(Spaces.displayId(of:))
+        guard let display = list.first(where: { $0.number == desktop }).flatMap(Spaces.displayId(of:)) else {
+            return TidyOutcome(skipped: "cannot find Desktop \(desktop)'s screen")
+        }
         guard let screen = await MainActor.run(body: { Self.screen(display) }) else { return TidyOutcome(skipped: "no screen") }
         // Only windows on the desktop's own screen (one may hang off it).
         let onMain = here.filter { screen.frame.intersects($0.frame) }
@@ -84,7 +86,7 @@ actor Tidier {
         }
         if unread > 0 && unread == wins.count { pending[desktop] = keys }
         // Deck: raise top to bottom so every title bar shows. Only here, and never activating an app.
-        if slots.count >= 3, slots[1].intersects(slots[2]), Spaces.activeDesktopNumber() == desktop {
+        if slots.count >= 3, slots[1].intersects(slots[2]), Spaces.isShowingDesktop(desktop) {
             for w in wins.dropFirst() { AX.perform(w.id.element, kAXRaiseAction as String) }
         }
         let ms = Int(Date().timeIntervalSince(start) * 1000)
@@ -141,7 +143,7 @@ actor Tidier {
     /// The main display (menu bar) in Accessibility coordinates, and its usable area.
     @MainActor
     /// The screen showing `display`, else the main one.
-    private static func screen(_ display: CGDirectDisplayID?) -> (frame: Rect, area: Rect)? {
+    private static func screen(_ display: CGDirectDisplayID) -> (frame: Rect, area: Rect)? {
         guard let primary = NSScreen.screens.first else { return nil }
         let number = NSDeviceDescriptionKey("NSScreenNumber")
         let main = NSScreen.screens.first { ($0.deviceDescription[number] as? NSNumber)?.uint32Value == display } ?? primary

@@ -155,9 +155,11 @@ struct WindowCarrier {
     /// Another display: dragging while that display switches leaves the window behind. Show the target desktop
     /// there, then move the window onto that screen; a window takes the space its display shows.
     private func moveAcross(_ window: CarryTarget, to target: Desktop, key: DesktopShortcut) throws {
-        DesktopKeys.post(key)
-        try DesktopSwitch.wait(for: target.id, number: target.number, abort: session.check)
-        try session.sleep(CarryDelays.settleAfterSwitch)
+        if !Spaces.isShowing(target.id) { // an extra Ctrl+N would switch the focused display instead
+            DesktopKeys.post(key)
+            try DesktopSwitch.wait(for: target.id, number: target.number, abort: session.check)
+            try session.sleep(CarryDelays.settleAfterSwitch)
+        }
         guard let display = Spaces.displayId(of: target), let frame = AX.frame(window.element) else {
             throw CarryError.failed("cannot find Desktop \(target.number)'s screen")
         }

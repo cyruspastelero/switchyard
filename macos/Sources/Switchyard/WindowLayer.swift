@@ -141,7 +141,7 @@ actor WindowLayer {
     private func withOtherDesktops(_ listed: [RawWindow], livePids: Set<pid_t>) -> [RawWindow] {
         desktopList = Spaces.desktops()
         let active = Spaces.activeDesktopNumber(in: desktopList)
-        desktops = desktopList.isEmpty ? nil : DesktopsInfo(count: desktopList.count, active: active)
+        desktops = desktopList.isEmpty ? nil : DesktopsInfo(count: DesktopList.usableCount(desktopList), active: active)
         let listedIds = Set(listed.compactMap(\.windowNumber))
         // A slow app's windows stay listed from the cache (no Accessibility call): the server takes an unlisted window as closed.
         let candidates = seen.filter { !listedIds.contains($0.key) && livePids.contains($0.value.pid) }

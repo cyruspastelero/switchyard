@@ -101,6 +101,16 @@ final class DesktopTests: XCTestCase {
         XCTAssertNil(DesktopList.activeNumber(focused: 99, mainCurrent: 98, in: twoDisplays))
     }
 
+    func test_desktops_past_sixteen_have_no_number_and_are_not_counted() {
+        let list = DesktopList.parse([
+            ["Display Identifier": "Main", "Spaces": (1...12).map { space(UInt64($0)) }],
+            ["Display Identifier": "EXT", "Spaces": (101...107).map { space(UInt64($0)) }],
+        ], mainDisplayId: nil)
+        XCTAssertEqual(DesktopList.number(ofSpaces: [104], in: list), 16)
+        XCTAssertNil(DesktopList.number(ofSpaces: [105], in: list))
+        XCTAssertEqual(DesktopList.usableCount(list), 16)
+    }
+
     func test_current_spaces_lists_what_every_display_shows() {
         let displays: [[String: Any]] = [
             ["Display Identifier": "Main", "Current Space": space(4)], ["Display Identifier": "EXT", "Current Space": space(20)],

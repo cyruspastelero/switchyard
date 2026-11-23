@@ -50,11 +50,16 @@ enum DesktopList {
         } ?? 0
     }
 
-    /// The desktop a window is on, on any display; nil for no space, several (All Desktops), or a non-desktop space.
+    /// The desktop a window is on, on any display; nil for no space, several (All Desktops), a non-desktop space,
+    /// or a desktop past 16, which has no Ctrl+N shortcut and which the server rejects.
     static func number(ofSpaces spaces: [UInt64], in desktops: [Desktop]) -> Int? {
-        guard spaces.count == 1, let d = desktops.first(where: { $0.id == spaces[0] }) else { return nil }
+        guard spaces.count == 1, let d = desktops.first(where: { $0.id == spaces[0] }),
+              d.number <= DesktopKeys.maxDesktop else { return nil }
         return d.number
     }
+
+    /// How many desktops the server may use: every display's, at most 16.
+    static func usableCount(_ desktops: [Desktop]) -> Int { min(desktops.count, DesktopKeys.maxDesktop) }
 
     /// The space each display shows now.
     static func currentSpaces(_ displays: [[String: Any]]) -> Set<UInt64> {
@@ -80,8 +85,6 @@ enum Spaces {
     static func desktops() -> [Desktop] {
         DesktopList.parse(displays(), mainDisplayId: mainDisplayUUID())
     }
-
-    static func mainDesktops() -> [Desktop] { desktops().filter(\.isMain) }
 
     /// The focused display's space (follows the pointer and key window across displays).
     static func activeSpace() -> UInt64 { cgsActiveSpace(connection) }
