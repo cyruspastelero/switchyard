@@ -1,5 +1,11 @@
 # Switchyard
 
+<a href="https://github.com/cyruspastelero/switchyard/releases/download/demo/switchyard-demo.mp4">
+  <img src="docs/img/switchyard-demo.gif" alt="Switchyard sorting windows onto one desktop per project, then switching with Option 1 to 3" width="960">
+</a>
+
+[Watch the full demo (45 s, with sound)](https://github.com/cyruspastelero/switchyard/releases/download/demo/switchyard-demo.mp4)
+
 Switchyard gives each of your projects its own macOS desktop. A small menu bar app reads your Chrome, Arc, Ghostty and editor windows, a local server works out which project each one belongs to, and Sort puts every window on its project's desktop. You switch projects with one key. The same server runs a dashboard for your Claude Code agents: what each one is doing, what it costs, and which ones are waiting on you.
 
 Everything runs on your Mac. Nothing is sent anywhere.
@@ -14,6 +20,8 @@ Everything runs on your Mac. Nothing is sent anywhere.
 ## Install
 
 ### Download
+
+The first signed release is on its way. Until it lands, use [Build from source](#build-from-source).
 
 1. Download `Switchyard-<version>.dmg` from [Releases](https://github.com/cyruspastelero/switchyard/releases), open it and drag Switchyard to Applications.
 2. Open Switchyard from Applications and click its menu bar icon. The panel says the server isn't reachable and shows the command that starts it. Click **Copy command**, then paste it into Terminal and run it. It looks like this:
