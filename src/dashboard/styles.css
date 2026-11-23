@@ -2894,6 +2894,9 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   opacity: 0; pointer-events: none;
 }
 .ctx-w:hover .ctx-w-acts, .ctx-w-acts:focus-within, .ctx-w-acts:has([aria-expanded="true"]) { opacity: 1; pointer-events: auto; }
+/* An open Move menu sits inside the row's own stacking context (.ctx-w-acts has a transform, a parked card has
+   opacity), so later rows and cards would paint over it. Lift the open row and its card above their siblings. */
+.ctx-w:has(.pick-btn[aria-expanded="true"]), .ctx-card:has(.pick-btn[aria-expanded="true"]) { position: relative; z-index: 30; }
 @media (hover: none) { .ctx-w-acts { position: static; transform: none; opacity: 1; pointer-events: auto; background: none; padding: 0; } }
 /* Unsorted: assigning is the point of the list, so its picker always shows and takes its own room. */
 .ctx-w-acts.ctx-w-acts-always { position: static; transform: none; opacity: 1; pointer-events: auto; background: none; padding: 0; }
