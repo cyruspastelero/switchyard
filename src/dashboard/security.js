@@ -1,14 +1,14 @@
 // ── Security System ───────────────────────────────────────────────────────────
 // 7-layer defense visualization with animated radar and threat detection.
-// Loaded after app.js — extends the global MissionControl object.
+// Loaded after app.js — extends the global Switchyard object.
 
 (function () {
   'use strict';
 
   // Wait for app.js to initialize
-  var MC = window.MissionControl;
+  var MC = window.Switchyard;
   if (!MC) {
-    console.warn('[security] MissionControl not found, security module disabled');
+    console.warn('[security] Switchyard not found, security module disabled');
     return;
   }
 
@@ -170,7 +170,7 @@
     setTimeout(function () { ring.remove(); }, 2500);
   }
 
-  // ── Render helpers (reuse from app.js via MissionControl) ─────────────────
+  // ── Render helpers (reuse from app.js via Switchyard) ─────────────────
 
   var formatTime = MC.formatTime;
   var createEl = MC.createEl;

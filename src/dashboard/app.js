@@ -1,6 +1,6 @@
 // ── Switchyard Dashboard ─────────────────────────────────────────────────
 // Copyright 2026 Cyrus David Pastelero. Apache-2.0 License.
-// https://github.com/cyruspastelero/claude-mission-control
+// https://github.com/cyruspastelero/switchyard
 //
 // Plain JS, no build step, no framework. Direct DOM manipulation for sub-100ms renders.
 // Classic scripts sharing one global scope, loaded in order: core.js, activity.js, usage.js, app.js.
@@ -348,13 +348,13 @@ applyCollapsedState();
 // This stub exists so the WS handler doesn't error before security.js loads.
 
 function handleSecurityEvent(evt) {
-  if (window.MissionControl && window.MissionControl.handleSecurityEvent) {
-    window.MissionControl.handleSecurityEvent(evt);
+  if (window.Switchyard && window.Switchyard.handleSecurityEvent) {
+    window.Switchyard.handleSecurityEvent(evt);
   }
 }
 
 // Expose API for security.js module
-window.MissionControl = {
+window.Switchyard = {
   showToast: showToast,
   formatTime: formatTime,
   createEl: createEl,
@@ -368,8 +368,8 @@ window.MissionControl = {
 var _origTrack = trackAgentActivity;
 trackAgentActivity = function (evt) {
   _origTrack(evt);
-  if (window.MissionControl && window.MissionControl.scanToolEvent) {
-    window.MissionControl.scanToolEvent(evt);
+  if (window.Switchyard && window.Switchyard.scanToolEvent) {
+    window.Switchyard.scanToolEvent(evt);
   }
 };
 
