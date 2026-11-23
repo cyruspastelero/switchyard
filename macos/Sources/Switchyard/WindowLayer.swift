@@ -14,10 +14,12 @@ struct ManagedWindow {
     let windowNumber: UInt32?
     /// Desktop number on the main display; nil on a second display, fullscreen, minimized or on all desktops.
     let desktop: Int?
+    /// Native tab titles of a terminal window with two or more tabs.
+    var tabTitles: [String] = []
 
     var snapshot: WindowSnapshot {
         WindowSnapshot(key: key, app: app, bundleId: bundleId, pid: pid, title: title, document: document, browser: browser,
-                       desktop: desktop)
+                       desktop: desktop, tabTitles: tabTitles.isEmpty ? nil : tabTitles)
     }
 }
 
@@ -31,12 +33,14 @@ private struct RawWindow: @unchecked Sendable {
     let frame: Rect
     let windowNumber: UInt32?
     let minimized: Bool
+    var tabTitles: [String] = []
 
-    /// The same window with title and frame read again from its element (it may sit on another desktop).
+    /// The same window with title, frame and tabs read again from its element (it may sit on another desktop).
     func reread() -> RawWindow {
         RawWindow(id: id, pid: pid, app: app, bundleId: bundleId,
                   title: AX.string(id.element, kAXTitleAttribute as String) ?? title, document: document,
-                  frame: AX.frame(id.element) ?? frame, windowNumber: windowNumber, minimized: minimized)
+                  frame: AX.frame(id.element) ?? frame, windowNumber: windowNumber, minimized: minimized,
+                  tabTitles: TerminalTabs.reads(bundleId: bundleId) ? TerminalTabs.titles(of: id.element) : [])
     }
 }
 
@@ -123,7 +127,7 @@ actor WindowLayer {
             let block = b.map { BrowserBlock(windowId: $0.id, name: $0.name, tabs: $0.tabs, activeTitle: $0.activeTitle) }
             result.append(ManagedWindow(id: raw.id, key: key, pid: raw.pid, app: raw.app, bundleId: raw.bundleId, title: raw.title,
                                         document: raw.document, frame: raw.frame, browser: block, windowNumber: raw.windowNumber,
-                                        desktop: desktop(of: raw)))
+                                        desktop: desktop(of: raw), tabTitles: raw.tabTitles))
         }
         keys = liveKeys
         hidden = HiddenRecords.surviving(hidden, listed: Set(liveKeys.keys), runningPids: Set(apps.map(\.pid)))
@@ -213,7 +217,8 @@ actor WindowLayer {
                          title: AX.string(w, kAXTitleAttribute as String) ?? "",
                          document: documentPath(AX.string(w, kAXDocumentAttribute as String)), frame: frame,
                          windowNumber: AX.windowNumber(w),
-                         minimized: AXBool.read(w, kAXMinimizedAttribute as String) == true)
+                         minimized: AXBool.read(w, kAXMinimizedAttribute as String) == true,
+                         tabTitles: TerminalTabs.reads(bundleId: app.bundleId) ? TerminalTabs.titles(of: w) : [])
     }
 
     private var remoteRetry = RemoteRetry()

@@ -41,13 +41,15 @@ struct WindowSnapshot: Codable, Equatable {
     let browser: BrowserBlock?
     /// Desktop number on the main display; nil on a second display, fullscreen, minimized or on all desktops.
     let desktop: Int?
+    /// Native tab titles of a terminal window with two or more tabs, in tab-bar order. Not sent when nil.
+    let tabTitles: [String]?
 
-    private enum CodingKeys: String, CodingKey { case key, app, bundleId, pid, title, document, browser, desktop }
+    private enum CodingKeys: String, CodingKey { case key, app, bundleId, pid, title, document, browser, desktop, tabTitles }
 
     init(key: String, app: String, bundleId: String, pid: Int32, title: String, document: String?, browser: BrowserBlock?,
-         desktop: Int? = nil) {
+         desktop: Int? = nil, tabTitles: [String]? = nil) {
         self.key = key; self.app = app; self.bundleId = bundleId; self.pid = pid; self.title = title
-        self.document = document; self.browser = browser; self.desktop = desktop
+        self.document = document; self.browser = browser; self.desktop = desktop; self.tabTitles = tabTitles
     }
 
     func encode(to encoder: Encoder) throws {
@@ -60,6 +62,7 @@ struct WindowSnapshot: Codable, Equatable {
         try c.encode(document, forKey: .document)
         try c.encode(browser, forKey: .browser)
         try c.encode(desktop, forKey: .desktop)
+        try c.encodeIfPresent(tabTitles, forKey: .tabTitles)
     }
 }
 
@@ -213,13 +216,25 @@ struct WindowMoveDTO: Decodable, Equatable {
     let desktop: Int
 }
 
+/// One tab a `splitTabs` pulls out: its place in the tab bar when the server decided, and its title.
+struct TabRefDTO: Decodable, Equatable {
+    let index: Int
+    let title: String
+}
+
+/// The tabs of one window that belong to another project.
+struct TabSplitDTO: Decodable, Equatable {
+    let windowKey: String
+    let tabs: [TabRefDTO]
+}
+
 /// One desktop of a `tidy` command and the windows to lay out on it.
 struct TidyDesktopDTO: Decodable, Equatable {
     let desktop: Int
     let windowKeys: [String]
 }
 
-/// Command types: show, moveWindows, tidy, nameWindow, openWindow, closeWindow, openTab, closeTab, showAll.
+/// Command types: show, moveWindows, tidy, nameWindow, openWindow, closeWindow, openTab, closeTab, showAll, splitTabs.
 /// Fields are read from the top level, or from a nested `payload` object if present.
 struct AppCommand: Decodable, Equatable {
     let seq: Int
@@ -241,6 +256,8 @@ struct AppCommand: Decodable, Equatable {
     let tidy: [Int]
     /// `tidy` only.
     let tidyDesktops: [TidyDesktopDTO]
+    /// `splitTabs` only.
+    let splits: [TabSplitDTO]
     /// `tidy`: true for an explicit Tidy; false skips a desktop whose window set did not change.
     let force: Bool
     let name: String?
@@ -253,6 +270,7 @@ struct AppCommand: Decodable, Equatable {
 
     private enum K: String, CodingKey {
         case seq, type, createdAt, payload, contextId, windowKey, windowKeys, hideKeys, strayKeys, focus, desktop, moves, tidy, desktops, force
+        case splits
         case name, browser, urls, url, tabId
     }
 
@@ -272,6 +290,7 @@ struct AppCommand: Decodable, Equatable {
         moves = (try? c.decode([WindowMoveDTO].self, forKey: .moves)) ?? []
         tidy = (try? c.decode([Int].self, forKey: .tidy)) ?? []
         tidyDesktops = (try? c.decode([TidyDesktopDTO].self, forKey: .desktops)) ?? []
+        splits = (try? c.decode([TabSplitDTO].self, forKey: .splits)) ?? []
         force = (try? c.decode(Bool.self, forKey: .force)) ?? false
         name = try? c.decode(String.self, forKey: .name)
         browser = try? c.decode(String.self, forKey: .browser)

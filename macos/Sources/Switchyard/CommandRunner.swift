@@ -49,6 +49,7 @@ struct CommandRunner {
         case "show": try await show(cmd, raise: raise)
         case "showAll": await windows.restoreAll()
         case "moveWindows": try await moveWindows(cmd)
+        case "splitTabs": try await splitTabs(cmd)
         case "tidy": await tidy(cmd)
         case "undoTidy":
             guard let desktop = cmd.desktop else { throw CommandError.missing("desktop") }
@@ -86,6 +87,13 @@ struct CommandRunner {
             await tidied(desktop, await tidier.tidy(desktop: desktop, keys: keys, force: false))
         }
         if !result.ok { throw MoveFailure(message: result.errorText ?? "not every window moved", failedKeys: result.failed.map(\.key)) }
+    }
+
+    private func splitTabs(_ cmd: AppCommand) async throws {
+        let failed = await TabSplitter(windows: windows, desktops: desktops).run(cmd.splits)
+        let asked = cmd.splits.reduce(0) { $0 + $1.tabs.count }
+        Log.timing.notice("split tabs asked=\(asked, privacy: .public) failed=\(failed.count, privacy: .public)")
+        if !failed.isEmpty { throw CommandError.unsupported("could not move \(failed.count) of \(asked) tabs to their own window") }
     }
 
     private func tidy(_ cmd: AppCommand) async {

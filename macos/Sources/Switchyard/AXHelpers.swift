@@ -62,6 +62,11 @@ enum AX {
         return unsafeBitCast(ref, to: AXUIElement.self)
     }
 
+    static func children(_ el: AXUIElement) -> [AXUIElement] {
+        guard let ref = copy(el, kAXChildrenAttribute as String) else { return [] }
+        return (ref as? [AXUIElement]) ?? []
+    }
+
     static func windows(of app: AXUIElement) -> [AXUIElement] {
         guard let ref = copy(app, kAXWindowsAttribute as String) else { return [] }
         return (ref as? [AXUIElement]) ?? []
