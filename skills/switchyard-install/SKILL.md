@@ -1,11 +1,32 @@
 ---
 name: switchyard-install
-description: Build and install Switchyard from source on a Mac - check Node and the Xcode tools, run the tests, start the server as a login service, build the menu bar app, grant Accessibility and open the dashboard. Use when someone asks to install, set up or reinstall Switchyard.
+description: Install Switchyard on a Mac, from the release .dmg or from source - check Node (and the Xcode tools for a source build), start the server as a login service, open the menu bar app, grant Accessibility and open the dashboard. Use when someone asks to install, set up or reinstall Switchyard.
 ---
 
-# Install Switchyard from source
+# Install Switchyard
 
-Run every command from the repository root. Stop and report the exact error if a step fails.
+Two ways in. Use the `.dmg` when the user just wants the app; build from source when they want to change it. Stop and report the exact error if a step fails.
+
+## From the .dmg
+
+1. `node --version` must print v22.18.0 or newer. If not, ask the user to install it (for example `brew install node`); don't change their Node setup yourself.
+2. The user downloads `Switchyard-<version>.dmg` from https://github.com/cyruspastelero/switchyard/releases, opens it and drags Switchyard to Applications.
+3. Start the server bundled in the app, and add the Claude Code hooks if they use Claude Code:
+
+   ```bash
+   SERVER="/Applications/Switchyard.app/Contents/Resources/server/src/index.ts"
+   node "$SERVER" install-service
+   node "$SERVER" install          # only if they use Claude Code
+   curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:4280/login.html   # expect 200
+   ```
+
+4. `open /Applications/Switchyard.app`, then continue at step 5 below (Accessibility) and step 6 (dashboard).
+
+To uninstall, run the same two commands with `uninstall-service` and `uninstall`, then move the app to the Trash.
+
+## From source
+
+Run every command from the repository root.
 
 ## 1. Check the tools
 

@@ -6,14 +6,28 @@ Everything runs on your Mac. Nothing is sent anywhere.
 
 ## Requirements
 
-- macOS 14 or newer.
+- macOS 14 or newer, on Apple silicon or Intel.
 - Node.js 22.18 or newer. The server has no runtime dependencies.
-- Xcode or the Xcode Command Line Tools, to build the Mac app.
 - [Claude Code](https://docs.claude.com/en/docs/claude-code), if you want the agent dashboard. Window sorting works without it.
+- To build from source: Xcode or the Xcode Command Line Tools.
 
 ## Install
 
-There's no download yet (a signed `.dmg` is coming soon). Build from source:
+### Download
+
+1. Download `Switchyard-<version>.dmg` from [Releases](https://github.com/cyruspastelero/switchyard/releases), open it and drag Switchyard to Applications.
+2. Open Switchyard from Applications and click its menu bar icon. The panel says the server isn't reachable and shows the command that starts it. Click **Copy command**, then paste it into Terminal and run it. It looks like this:
+
+   ```bash
+   node "/Applications/Switchyard.app/Contents/Resources/server/src/index.ts" install-service
+   ```
+
+   That installs a login service that runs the server bundled inside the app on `127.0.0.1:4280`, using the `node` from your Terminal.
+3. If you use Claude Code, add its hooks with the same path and `install` instead of `install-service`.
+
+The server lives inside the app, so drag Switchyard to Applications before you run the command, not from the mounted disk image. Installing a newer `.dmg` over the old app keeps the service working, because the path stays the same.
+
+### Build from source
 
 ```bash
 git clone https://github.com/cyruspastelero/switchyard.git
@@ -25,11 +39,13 @@ bash macos/build-app.sh                  # build macos/build/Switchyard.app
 open macos/build/Switchyard.app
 ```
 
-`install` edits `~/.claude/settings.json` and keeps a backup next to it. To undo the steps, run `node src/index.ts uninstall` and `node src/index.ts uninstall-service`.
+A source build is signed ad hoc, so macOS asks for Accessibility again after every rebuild. To keep the grant, set `SWITCHYARD_SIGN_IDENTITY` to a code-signing identity from your keychain (a self-signed one works) before running `build-app.sh`.
 
-If you'd rather not run a background service, start the server by hand with `node src/index.ts` and leave the terminal open.
+### Either way
 
-The app is signed ad hoc, so macOS asks for Accessibility again after every rebuild. To keep the grant, set `SWITCHYARD_SIGN_IDENTITY` to a code-signing identity from your keychain (a self-signed one works) before running `build-app.sh`.
+`install` edits `~/.claude/settings.json` and keeps a backup next to it. To undo the steps, run the same command with `uninstall` and `uninstall-service`.
+
+If you'd rather not run a background service, start the server by hand (`node src/index.ts`, or the bundled path without `install-service`) and leave the terminal open.
 
 ## Use
 
