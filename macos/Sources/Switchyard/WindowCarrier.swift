@@ -28,7 +28,13 @@ struct CarryTarget {
 /// State that cleanup must undo from any thread: the held mouse button and the moved pointer.
 /// `current` lets quit and SIGTERM let go of a window mid-carry.
 final class CarrySession: @unchecked Sendable {
-    static var current: CarrySession?
+    /// Written by the carry thread, read from the main thread and the tidier: always under `currentLock`.
+    static var current: CarrySession? {
+        get { currentLock.lock(); defer { currentLock.unlock() }; return storedCurrent }
+        set { currentLock.lock(); storedCurrent = newValue; currentLock.unlock() }
+    }
+    private static let currentLock = NSLock()
+    private static var storedCurrent: CarrySession?
     static let escapeKeyCode: CGKeyCode = 53
 
     let deadline: Date
