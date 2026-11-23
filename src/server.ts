@@ -394,6 +394,10 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
         serveDashboardFile('security.js', res);
         return;
       }
+      if (method === 'GET' && url === '/contexts-api.js') {
+        serveDashboardFile('contexts-api.js', res);
+        return;
+      }
       if (method === 'GET' && url === '/contexts-logic.js') {
         serveDashboardFile('contexts-logic.js', res);
         return;
