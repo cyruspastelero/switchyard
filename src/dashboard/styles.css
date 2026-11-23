@@ -251,15 +251,17 @@ html, body {
   background: var(--bg-panel);
 }
 
+/* Missions and Usage size to content up to a cap; Timeline keeps at least ~8 rows (B9). */
 #missions-panel {
-  flex: 0 0 auto;
-  max-height: 45%;
+  flex: 0 1 auto;
+  max-height: 34%;
+  min-height: 0;
   border-bottom: 1px solid var(--border);
 }
 
 #timeline-panel {
   flex: 1;
-  min-height: 0;
+  min-height: 200px;
 }
 
 /* Active panel accent — subtle white bar, no glow */
@@ -519,9 +521,10 @@ html, body {
 }
 
 /* Gentle pulse for active status dot */
+/* The low point stays above 3:1 on the panel (B15). */
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  50% { opacity: 0.7; }
 }
 
 .agent-dot.active {
@@ -864,7 +867,7 @@ html, body {
   font-weight: 600;
   flex-shrink: 0;
   min-width: 48px;
-  max-width: 80px;
+  max-width: 140px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -890,8 +893,10 @@ html, body {
 }
 
 .timeline-filter {
+  font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   color: var(--text-bright);
+  background: none;
   cursor: pointer;
   padding: 0 6px;
   border: 1px solid var(--border-bright);
@@ -972,6 +977,16 @@ html, body {
   font-size: var(--font-size-base);
   outline: none;
   caret-color: var(--accent);
+}
+
+/* The input has no border of its own, so the row shows focus (B10). */
+.command-body:focus-within {
+  outline: 1px solid var(--text-bright);
+  outline-offset: -1px;
+}
+
+#command-input:focus-visible {
+  outline: none;
 }
 
 #command-input:disabled {
@@ -1253,14 +1268,22 @@ html, body {
   color: var(--text-bright);
 }
 
-.security-close-btn {
+.security-close-btn,
+.kbd-close {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 18px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-lg);
   cursor: pointer;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0 4px;
   line-height: 1;
+}
+
+.kbd-close:hover {
+  color: var(--text-primary);
 }
 
 .security-close-btn:hover {
@@ -1614,15 +1637,29 @@ html, body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
+/* Stays on top while the help scrolls, so the close button is always there. */
+.kbd-head {
+  position: sticky;
+  top: -20px;
+  z-index: 1;
+  margin-top: -20px;
+  padding-top: 20px;
+  background: var(--bg-panel);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
 .kbd-title {
   font-family: var(--font-sans);
   font-size: var(--font-size-sm);
   font-weight: 500;
   letter-spacing: 2px;
   color: var(--text-bright);
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
 }
 
 .kbd-grid {
@@ -1872,7 +1909,7 @@ html, body {
 }
 
 .agent-row.subagent .agent-dot {
-  font-size: 7px;
+  font-size: var(--font-size-xs);
 }
 
 .agent-row.subagent .agent-activity {
@@ -1921,13 +1958,15 @@ html, body {
   transition: opacity 100ms;
 }
 
-.agent-row:hover .agent-quick-actions {
+.agent-row:hover .agent-quick-actions,
+.agent-quick-actions:focus-within {
   opacity: 1;
 }
 
 /* Always show on touch devices */
 @media (hover: none) {
-  .agent-quick-actions { opacity: 0.7; }
+  .agent-quick-actions { opacity: 1; }
+  .agent-quick-actions .agent-quick-btn { color: var(--text-secondary); }
 }
 
 .agent-quick-btn {
@@ -2057,7 +2096,6 @@ html, body {
   .stat:nth-child(n+5) { display: none; }
   .stat-sep:nth-child(n+4) { display: none; }
 
-  .kbd-hint { display: none; }
 
   /* Security shield: compact */
   .security-shield {
@@ -2173,14 +2211,15 @@ html, body {
     min-height: 36px;
   }
 
-  /* Timeline columns: tighter */
+  /* Timeline columns: tighter, but time and agent never touch (B13) */
+  .timeline-row { gap: 8px; }
   .timeline-time {
-    width: 44px;
+    width: auto;
     font-size: var(--font-size-xs);
   }
 
   .timeline-agent {
-    max-width: 50px;
+    max-width: 72px;
     min-width: 36px;
     font-size: var(--font-size-xs);
   }
@@ -2353,8 +2392,9 @@ html, body {
 /* ── Usage panel ─────────────────────────────────────── */
 @media (min-width: 641px) {
   #usage-panel {
-    flex: 0 0 auto;
-    max-height: 40%;
+    flex: 0 1 auto;
+    max-height: 30%;
+    min-height: 0;
     border-bottom: 1px solid var(--border);
   }
 }
@@ -2540,7 +2580,7 @@ html, body {
 
 .ctx-label {
   color: var(--text-secondary);
-  width: 60px;
+  width: 120px;
   flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -2618,7 +2658,7 @@ html, body {
 .session-label {
   color: var(--text-secondary);
   font-weight: 500;
-  width: 68px;
+  width: 120px;
   flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -3023,6 +3063,23 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   cursor: pointer;
 }
 .missions-toggle:hover { color: var(--text-bright); background: var(--bg-hover); }
+/* The toggle stays in view at the bottom of the list instead of scrolling out of reach (B9). */
+.missions-toggle { position: sticky; bottom: 0; z-index: 1; background: var(--bg-panel); }
+
+/* Activity, header and help controls: 44px touch targets on phones (B14). */
+@media (max-width: 640px) {
+  .agent-filters { flex-wrap: wrap; }
+  .agent-filter-btn, .agent-clear-btn, .period-tab, .agent-quick-btn, .mission-clear-btn,
+  .mission-action-btn, .missions-toggle, .timeline-filter, .kbd-hint, .kbd-close,
+  .security-close-btn, .sec-clear-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .ctx-label { width: 84px; }
+  /* The header is 36px tall: grow the security button's hit area, not its box. */
+  #security-btn { position: relative; }
+  #security-btn::after { content: ''; position: absolute; inset: -12px -6px; }
+}
 
 /* ── Keyboard focus: visible everywhere ── */
 button:focus-visible,
@@ -3166,7 +3223,9 @@ body.view-contexts .header-stats { display: none; }
 #contexts-view .panel-header { flex-wrap: wrap; }
 #contexts-view .panel-title { flex: none; }
 @media (max-width: 1180px) {
-  .kbd-hint { display: none; }
+  /* Narrow headers keep a compact "?" so help can still be opened (B8). */
+  .kbd-hint-label { display: none; }
+  .kbd-hint { font-size: var(--font-size-lg); padding: 0 6px; }
 }
 @media (min-width: 641px) and (max-width: 1100px) {
   .header-stats { display: none; }

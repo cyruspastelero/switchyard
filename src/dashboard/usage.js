@@ -94,20 +94,24 @@ function buildTimelineRowEl(evt) {
   var detail = getEventDetail(evt);
 
   var timeEl = createEl('span', { className: 'timeline-time', textContent: formatTime(evt.timestamp) });
-  var agentEl = createEl('span', { className: 'timeline-agent', style: 'color:' + color, textContent: agentLabel });
+  var agentEl = createEl('span', { className: 'timeline-agent', style: 'color:' + color, textContent: agentLabelFor(agentLabel), title: agentLabel });
   var toolEl = createEl('span', { className: 'timeline-tool', textContent: toolName });
   var detailEl = createEl('span', { className: 'timeline-detail', textContent: detail });
 
   var row = createEl('div', { className: 'timeline-row' }, [timeEl, agentEl, toolEl, detailEl]);
 
-  // Expandable: click to show full input/output
+  // Expandable: click, Enter or Space shows the full input/output
   if (evt.tool_input || evt.tool_output) {
     row.style.cursor = 'pointer';
-    row.addEventListener('click', function () {
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-expanded', 'false');
+    var toggle = function () {
       var existing = row.querySelector('.timeline-expanded');
       if (existing) {
         existing.remove();
         row.classList.remove('expanded');
+        row.setAttribute('aria-expanded', 'false');
         return;
       }
       var expanded = getExpandedDetail(evt);
@@ -115,7 +119,16 @@ function buildTimelineRowEl(evt) {
         var expandEl = createEl('pre', { className: 'timeline-expanded', textContent: expanded });
         row.appendChild(expandEl);
         row.classList.add('expanded');
+        row.setAttribute('aria-expanded', 'true');
+        row.scrollIntoView({ block: 'nearest' });
       }
+    };
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.stopPropagation();
+      toggle();
     });
   }
 
@@ -172,7 +185,10 @@ function scrollTimelineToBottom() {
 function setTimelineFilter(agentId) {
   state.timelineFilter = agentId;
   if (agentId) {
-    $timelineFilter.textContent = 'filter: ' + agentId + ' [x]';
+    var name = agentLabelFor(agentId);
+    $timelineFilter.textContent = name + ' \u00D7';
+    $timelineFilter.title = 'Showing only ' + agentId + '. Click to show every agent.';
+    $timelineFilter.setAttribute('aria-label', 'Clear filter: ' + name);
     $timelineFilter.classList.remove('hidden');
   } else {
     // Clearing filter also deselects the agent and resets usage to global
@@ -322,7 +338,7 @@ function renderUsage() {
       ctxSection.appendChild(createEl('div', { className: 'usage-section-title', textContent: 'Active Sessions — Context Health' }));
 
       activeSessions.forEach(function (s) {
-        var sid = s.sessionId.length > 10 ? s.sessionId.slice(0, 8) + '..' : s.sessionId;
+        var sid = sessionLabelFor(s.sessionId);
         var modelShort = (s.model || 'unknown').replace('claude-', '');
         var windowSize = contextWindowFor(s.model);
         var used = s.contextWindowUsed || 0;
@@ -401,7 +417,7 @@ function renderUsage() {
 
     sessionsList.slice(0, 8).forEach(function (s) {
       var sid = s.sessionId || s.session_id || '';
-      var sessionLabel = sid.length > 10 ? sid.slice(0, 8) + '..' : sid;
+      var sessionLabel = sessionLabelFor(sid);
       var sCost = s.cost !== undefined ? s.cost : (s.estimated_cost || 0);
       var sMessages = s.messageCount || s.tool_calls || 0;
       var sTime = s.lastTimestamp || s.last_event || '';

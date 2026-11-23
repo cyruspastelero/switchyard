@@ -34,12 +34,12 @@
       <span class="stat">Uptime <span id="uptime">00:00:00</span></span>
     </div>
     <div class="header-right">
-      <button id="security-btn" class="security-shield" title="Security Status (s)">
+      <button id="security-btn" class="security-shield" title="Security status">
         <span class="shield-icon">&#9741;</span>
         <span class="shield-label">SECURE</span>
         <span class="shield-count" id="security-count">0</span>
       </button>
-      <button type="button" class="kbd-hint" title="Help and shortcuts (?)" aria-haspopup="dialog" aria-controls="kbd-help">? HELP</button>
+      <button type="button" class="kbd-hint" title="Help and shortcuts (?)" aria-label="Help and shortcuts" aria-haspopup="dialog" aria-controls="kbd-help">?<span class="kbd-hint-label" aria-hidden="true"> HELP</span></button>
       <span id="connection-status" class="conn-status disconnected">
         <span class="conn-dot"></span>
         <span class="conn-text">DISCONNECTED</span>
@@ -65,9 +65,8 @@
         </div>
         <div class="panel-body" id="agents-list">
           <div class="empty-state">
-            <div class="empty-icon">&#9675;</div>
-            <div>No agents connected</div>
-            <div class="empty-hint">Agents appear when Claude Code sessions start</div>
+            <div class="empty-title">No agents yet</div>
+            <div class="empty-hint">Start Claude Code in a project folder and it appears here.</div>
           </div>
         </div>
       </section>
@@ -95,9 +94,8 @@
         </div>
         <div class="panel-body" id="missions-list">
           <div class="empty-state">
-            <div class="empty-icon">&#9633;</div>
-            <div>No missions yet</div>
-            <div class="empty-hint">Missions auto-create when agents start working</div>
+            <div class="empty-title">No missions yet</div>
+            <div class="empty-hint">A mission is added for each project an agent starts work in.</div>
           </div>
         </div>
         <div class="panel-footer" id="mission-create-bar">
@@ -122,9 +120,8 @@
         </div>
         <div class="panel-body" id="usage-list">
           <div class="empty-state">
-            <div class="empty-icon">&#9632;</div>
-            <div>No usage data yet</div>
-            <div class="empty-hint">Tool usage stats appear as agents work</div>
+            <div class="empty-title">No usage yet</div>
+            <div class="empty-hint">Tool calls and cost show up here once an agent has worked.</div>
           </div>
         </div>
       </section>
@@ -132,14 +129,13 @@
       <section id="timeline-panel" class="panel" data-panel="timeline">
         <div class="panel-header">
           <span class="panel-title"><span class="panel-chevron">&#9656;</span> TIMELINE</span>
-          <span id="timeline-filter" class="timeline-filter hidden"></span>
+          <button type="button" id="timeline-filter" class="timeline-filter hidden"></button>
           <span class="panel-badge" id="timeline-badge">0</span>
         </div>
         <div class="panel-body" id="timeline-list">
           <div class="empty-state">
-            <div class="empty-icon">&#9671;</div>
-            <div>Waiting for events...</div>
-            <div class="empty-hint">Events stream in as agents work</div>
+            <div class="empty-title">No activity yet</div>
+            <div class="empty-hint">Every tool call an agent makes is listed here as it happens.</div>
           </div>
         </div>
       </section>
@@ -265,7 +261,10 @@
   <!-- Keyboard help (toggle with ?) -->
   <div id="kbd-help" class="kbd-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="kbd-help-title">
     <div class="kbd-content" tabindex="-1">
-      <div class="kbd-title" id="kbd-help-title">Switchyard help</div>
+      <div class="kbd-head">
+        <div class="kbd-title" id="kbd-help-title">Switchyard help</div>
+        <button type="button" class="kbd-close" aria-label="Close help">&times;</button>
+      </div>
 
       <div class="help-section-title">Getting Started</div>
       <div class="help-text">
@@ -293,9 +292,9 @@
       <div class="help-section-title">Panels</div>
       <div class="help-text">
         <p><strong>Agents</strong> &mdash; Click an agent to filter timeline and send instructions. Shows live tool activity, diff stats (+/-), files touched, and session duration.</p>
-        <p><strong>Missions</strong> &mdash; Press <kbd>n</kbd> to create tasks. Assign to agents, set priority, add dependencies. Supports subtask progress tracking.</p>
+        <p><strong>Missions</strong> &mdash; One per project an agent starts work in. Open a mission to mark it done, reopen it, or delete it.</p>
         <p><strong>Usage</strong> &mdash; Real API costs from Claude Code logs. Switch periods (24H/7D/30D/All). Shows token breakdown, cost by model, context window health for active sessions, and cache hit rate.</p>
-        <p><strong>Timeline</strong> &mdash; Click any event row to expand full tool input/output. Filter by agent by clicking an agent name.</p>
+        <p><strong>Timeline</strong> &mdash; Click any event row to expand full tool input/output. Select an agent to show only its events.</p>
       </div>
 
       <div class="help-section-title">Alerts</div>
@@ -310,13 +309,13 @@
 
       <div class="help-section-title">Dashboard shortcuts (Activity view)</div>
       <div class="kbd-grid">
-        <kbd>Tab</kbd><span class="kbd-desc">Cycle panels</span>
+        <kbd>Tab</kbd><span class="kbd-desc">Move between controls and rows</span>
+        <kbd>[ / ]</kbd><span class="kbd-desc">Previous / next panel</span>
         <kbd>j / k</kbd><span class="kbd-desc">Navigate rows</span>
-        <kbd>Enter</kbd><span class="kbd-desc">Select agent / expand mission</span>
-        <kbd>n</kbd><span class="kbd-desc">New mission</span>
+        <kbd>Enter</kbd><span class="kbd-desc">Select agent / expand mission or event</span>
+        <kbd>&rarr; / &larr;</kbd><span class="kbd-desc">Show / hide an agent's subagents</span>
         <kbd>i</kbd><span class="kbd-desc">Send instruction to agent</span>
         <kbd>/</kbd><span class="kbd-desc">Clear timeline filter</span>
-        <kbd>s</kbd><span class="kbd-desc">Toggle security panel</span>
         <kbd>Esc</kbd><span class="kbd-desc">Cancel / close</span>
         <kbd>?</kbd><span class="kbd-desc">Toggle this help</span>
       </div>
@@ -331,10 +330,8 @@
       <div class="help-section-title">Mission Actions</div>
       <div class="help-text">
         <p>&bull; <strong>Click a mission</strong> to expand it and see action buttons.</p>
-        <p>&bull; <strong>Queued</strong>: Assign to an agent, start, or delete.</p>
-        <p>&bull; <strong>Active</strong>: Mark as complete or failed.</p>
-        <p>&bull; <strong>Blocked</strong>: Force unblock to move back to queued.</p>
-        <p>&bull; <strong>Completed/Failed</strong>: Requeue to run again.</p>
+        <p>&bull; <strong>Open</strong>: Done marks it complete; Delete removes it.</p>
+        <p>&bull; <strong>Done</strong>: Reopen puts it back on the list.</p>
       </div>
 
       <div class="help-section-title">Tips</div>
