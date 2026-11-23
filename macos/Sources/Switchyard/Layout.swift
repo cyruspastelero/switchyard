@@ -147,8 +147,7 @@ struct TidyMemory: Codable, Equatable {
         if !Self.untouched(frames, since: after?[d]) || sets[d] != keys.sorted() { before[d] = frames }
         after?[d] = nil
         sets[d] = keys.sorted()
-        sets[String(desktop)] = keys.sorted()
-        presets = (presets ?? [:]).merging([String(desktop): preset]) { _, new in new }
+        presets = (presets ?? [:]).merging([d: preset]) { _, new in new }
     }
 
     /// The frames read back after a tidy's layout.
