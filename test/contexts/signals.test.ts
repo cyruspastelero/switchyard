@@ -95,7 +95,7 @@ describe('findGitRoot', () => {
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
     const { findGitRoot } = await import('../../src/contexts/signals.ts');
-    const base = mkdtempSync(join(tmpdir(), 'sy-root-'));
+    const base = realpathSync(mkdtempSync(join(tmpdir(), 'sy-root-')));
     mkdirSync(join(base, 'repo', '.git'), { recursive: true });
     mkdirSync(join(base, 'repo', 'macos', 'Sources'), { recursive: true });
     mkdirSync(join(base, 'wt', 'src'), { recursive: true });
@@ -103,5 +103,15 @@ describe('findGitRoot', () => {
     expect(findGitRoot(join(base, 'repo', 'macos', 'Sources'))).toBe(join(base, 'repo'));
     expect(findGitRoot(join(base, 'wt', 'src'))).toBe(join(base, 'wt'));
     expect(findGitRoot(join(base, 'none'))).toBe(join(base, 'none'));
+  });
+  it('a_folder_reached_through_a_symlink_resolves_to_the_real_repository', async () => {
+    const { findGitRoot } = await import('../../src/contexts/signals.ts');
+    const { symlinkSync } = await import('node:fs');
+    const base = realpathSync(mkdtempSync(join(tmpdir(), 'sy-link-')));
+    mkdirSync(join(base, 'renamed', '.git'), { recursive: true });
+    mkdirSync(join(base, 'renamed', 'src'), { recursive: true });
+    symlinkSync('renamed', join(base, 'old-name'));
+    expect(findGitRoot(join(base, 'old-name', 'src'))).toBe(join(base, 'renamed'));
+    expect(findGitRoot(join(base, 'old-name'))).toBe(join(base, 'renamed'));
   });
 });

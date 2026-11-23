@@ -3,7 +3,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -111,10 +111,19 @@ async function run(file: string, args: readonly string[], cwd?: string): Promise
  * A filesystem walk rather than `git rev-parse`: no subprocess, so it can't time out under load
  * and turn a subfolder into a context of its own. Falls back to `cwd`.
  */
+/** A repository reached through a symlink (an old folder name, say) is the same project as its real path. */
+function realRoot(dir: string): string {
+  try {
+    return realpathSync(dir);
+  } catch {
+    return dir; // vanished between the existsSync and here: the path walk's answer is still the best guess
+  }
+}
+
 export function findGitRoot(cwd: string): string {
   let dir = resolve(cwd);
   for (;;) {
-    if (existsSync(join(dir, '.git'))) return dir;
+    if (existsSync(join(dir, '.git'))) return realRoot(dir);
     const parent = dirname(dir);
     if (parent === dir) return cwd;
     dir = parent;
