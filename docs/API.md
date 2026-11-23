@@ -30,7 +30,7 @@ Cookie, or the bearer token from loopback.
 |---|---|---|
 | `GET` | `/api/contexts` | Contexts, unsorted windows, suggestions, waiting count |
 | `POST` | `/api/contexts` | `{ name }`, create a topic context |
-| `PATCH` | `/api/contexts/:id` | `{ name?, color?, key?, layoutId? }` (`layoutId`: a preset id, or `null` for the default) |
+| `PATCH` | `/api/contexts/:id` | `{ name?, color?, key?, layoutId? }` (`layoutId`: a preset id, `"auto"` for the automatic layout, or `null` to follow the default) |
 | `PATCH` | `/api/contexts/settings` | `{ autoTidy?, defaultLayoutId? }` |
 | `GET` | `/api/contexts/layouts` | Layout presets `[{ id, name, slots, createdAt }]` |
 | `POST` | `/api/contexts/layouts` | `{ name, slots }`, save a preset (the Mac app posts captures here). Each slot: `{ bundleId, app, screen: { uuid, builtin }, frame: { x, y, w, h } }`, frame as fractions 0–1 of the screen's visible area |

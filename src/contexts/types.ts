@@ -91,7 +91,7 @@ export interface ContextView {
   readonly desktopShared: boolean;
   /** Its windows whose desktop is known and differs from the context's. 0 in off-screen mode. */
   readonly strays: number;
-  /** The preset the owner picked for this context; null follows the default. Set by `withLayouts`. */
+  /** The preset the owner picked for this context; 'auto' for the automatic layout; null follows the default. */
   readonly layoutId?: string | null;
   /** The preset Tidy uses here (own, else the default); null means auto layout. */
   readonly layout?: LayoutPreset | null;

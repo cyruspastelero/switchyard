@@ -1,7 +1,7 @@
 // Which preset a tidy uses, and the preset fields of the view. Pure.
 
 import { desktopFor, type TidyDesktop } from './desktops.ts';
-import type { LayoutPresets, LayoutSlot } from './layouts.ts';
+import { AUTO_LAYOUT, type LayoutPresets, type LayoutSlot } from './layouts.ts';
 import type { ContextsView } from './types.ts';
 
 interface OwnerRow {
@@ -39,7 +39,8 @@ export function withLayouts(view: ContextsView, presets: LayoutPresets): Context
   const defaultLayoutId = presets.defaultId();
   const contexts = view.contexts.map((c) => {
     const layoutId = own.get(c.id) ?? null;
-    return { ...c, layoutId, layout: byId.get(layoutId ?? defaultLayoutId ?? '') ?? null };
+    const effective = layoutId ?? defaultLayoutId;
+    return { ...c, layoutId, layout: effective === AUTO_LAYOUT ? null : (byId.get(effective ?? '') ?? null) };
   });
   return { ...view, contexts, layouts: list, defaultLayoutId };
 }

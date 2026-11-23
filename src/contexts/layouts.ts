@@ -23,6 +23,9 @@ export interface LayoutPreset {
 
 export interface CreateLayoutDto { readonly name: string; readonly slots: readonly LayoutSlot[] }
 
+/** A context's `layoutId` that means "automatic layout, whatever the default". Not valid as the default. */
+export const AUTO_LAYOUT = 'auto';
+
 export const LAYOUT_LIMITS = { name: 100, slots: 50, bundleId: 200, app: 100, uuid: 64 } as const;
 
 // --- DTOs ---------------------------------------------------------------------
@@ -218,7 +221,7 @@ export class LayoutPresets {
   }
 
   setContextLayout(contextId: string, layoutId: string | null): void {
-    if (layoutId !== null) this.require(layoutId);
+    if (layoutId !== null && layoutId !== AUTO_LAYOUT) this.require(layoutId);
     this.db.prepare('UPDATE contexts SET layout_id = ? WHERE id = ?').run(layoutId, contextId);
     this.changed();
   }
@@ -235,9 +238,9 @@ export class LayoutPresets {
     this.changed();
   }
 
-  /** The preset a context's desktop is tidied with: its own, else the default, else none (auto layout). */
+  /** The preset a context's desktop is tidied with: its own, else the default, else none (auto layout, also for 'auto'). */
   effective(contextId: string): LayoutPreset | null {
     const id = this.contextLayouts().get(contextId) ?? this.defaultId();
-    return id === null ? null : (this.get(id) ?? null);
+    return id === null || id === AUTO_LAYOUT ? null : (this.get(id) ?? null);
   }
 }

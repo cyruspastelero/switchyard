@@ -122,6 +122,20 @@ describe('layout presets in the service', () => {
     expect(ctx?.layout?.slots).toEqual(solo.slots);
   });
 
+  it('auto_on_a_context_overrides_the_default_with_the_automatic_layout', async () => {
+    const svc = newService();
+    const id = await contextOn(svc, 2, ['a']);
+    const desk = svc.layouts.create({ name: 'Desk', slots: [slot()] });
+    svc.setSettings({ defaultLayoutId: desk.id });
+    svc.patchContext(id, { layoutId: 'auto' });
+    const ctx = (await svc.view()).contexts.find((c) => c.id === id);
+    expect(ctx?.layoutId).toBe('auto');
+    expect(ctx?.layout).toBeNull();
+    svc.tidy({ contextId: id });
+    expect('slots' in (last(svc, 'tidy')?.desktops as Record<string, unknown>[])[0]).toBe(false);
+    expect(() => svc.setSettings({ defaultLayoutId: 'auto' })).toThrow('No layout');
+  });
+
   it('an_unknown_layout_id_is_refused', async () => {
     const svc = newService();
     const id = await contextOn(svc, 2, ['a']);
