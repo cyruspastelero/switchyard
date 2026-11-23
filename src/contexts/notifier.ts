@@ -9,7 +9,7 @@ const DEBOUNCE_MS = 250;
 export class ViewNotifier {
   private listeners: readonly ((view: ContextsView) => void)[] = [];
   private lastJson = '';
-  private timers: ReturnType<typeof setTimeout>[] = [];
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private tick: ReturnType<typeof setInterval> | null = null;
   private readonly onBus = (): void => this.schedule();
 
@@ -31,8 +31,8 @@ export class ViewNotifier {
     eventBus.off('agent:update', this.onBus);
     eventBus.off('event:new', this.onBus);
     if (this.tick) clearInterval(this.tick);
-    this.timers.forEach(clearTimeout);
-    this.timers = [];
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
     this.tick = null;
   }
 
@@ -43,16 +43,17 @@ export class ViewNotifier {
     };
   }
 
+  /** One recompute for a burst of calls: a call while one is already waiting joins it. */
   schedule(): void {
-    const timer = setTimeout(() => {
-      this.timers = this.timers.filter((t) => t !== timer);
+    if (this.timer) return;
+    this.timer = setTimeout(() => {
+      this.timer = null;
       this.compute().then(
         (view) => this.emitIfChanged(view),
         (err) => console.error('[contexts] view refresh failed:', err),
       );
     }, DEBOUNCE_MS);
-    timer.unref?.();
-    this.timers = [...this.timers, timer];
+    this.timer.unref?.();
   }
 
   private emitIfChanged(view: ContextsView): void {
