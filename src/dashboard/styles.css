@@ -3124,6 +3124,8 @@ input:focus-visible,
 @media (max-width: 480px) { .ctx-toggle { flex-wrap: wrap; } .ctx-toggle-hint { flex-basis: 100%; padding-left: 38px; } }
 @media (prefers-reduced-motion: reduce) { .ctx-switch, .ctx-switch::after { transition: none; } }
 .ctx-ok .ctx-btn { margin-left: 8px; }
+/* Undo / Go links: a 24px target instead of the 12px text line (44px on a phone, above). */
+@media (min-width: 641px) { .ctx-ok .ctx-btn { min-height: 24px; } }
 
 .empty-state .empty-title { color: var(--text-secondary); }
 
