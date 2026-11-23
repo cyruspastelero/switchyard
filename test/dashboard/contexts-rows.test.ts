@@ -28,10 +28,11 @@ describe('window rows', () => {
     expect(logic.windowLabel(w({ name: 'test', tabCount: 3 }))).toBe('test · Meta Business Suite · 3 tabs');
   });
 
-  it('the_tab_count_sits_apart_so_a_long_title_never_cuts_it_off', () => {
+  it('the_tab_count_sits_apart_and_gives_way_before_the_title', () => {
     expect(logic.windowParts(w({ name: 'test', tabCount: 2 }))).toEqual({ text: 'test · Meta Business Suite', tabs: '2 tabs' });
     expect(logic.windowParts(w({ app: 'Ghostty', title: 'zsh' }))).toEqual({ text: 'zsh', tabs: '' });
-    expect(rule('.ctx-w-tabs')).toMatch(/flex: none/);
+    expect(rule('.ctx-w-label')).toMatch(/flex: 0 1 auto/);
+    expect(rule('.ctx-w-tabs, .ctx-w-place')).toMatch(/flex: 0 1000 auto/);
   });
 
   it('a_name_that_is_the_title_is_not_repeated', () => {
@@ -72,8 +73,8 @@ describe('uniform cards', () => {
       .toBe('2 agents · 1 waiting, 1 working · $0.10');
   });
 
-  it('cards_in_a_row_share_one_height', () => {
-    expect(rule('.ctx-cards')).toMatch(/align-items: stretch/);
+  it('each_card_takes_its_own_height', () => {
+    expect(rule('.ctx-cards')).toMatch(/align-items: start/);
     expect(rule('.ctx-card')).toMatch(/display: flex/);
     expect(rule('.ctx-card')).toMatch(/flex-direction: column/);
   });
