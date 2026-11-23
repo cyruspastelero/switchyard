@@ -78,6 +78,11 @@ enum Layout {
         return result
     }
 
+    /// Indexes of `new` slots that differ from `old` (or are new). Empty: another pass would change nothing.
+    static func changedSlots(from old: [Rect], to new: [Rect]) -> [Int] {
+        new.indices.filter { $0 >= old.count || old[$0] != new[$0] }
+    }
+
     private static func deck(_ n: Int, in column: Rect) -> [Rect] {
         let step = min(deckStep, ((column.height - minDeckHeight) / Double(n - 1)).rounded(.down))
         return (0..<n).map { i in

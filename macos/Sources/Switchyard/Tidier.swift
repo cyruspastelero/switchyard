@@ -124,8 +124,15 @@ actor Tidier {
             let learned = Layout.minimums(slots: slots, got: got.map { $0 ?? Rect(x: 0, y: 0, width: 0, height: 0) })
             guard !learned.isEmpty else { break }
             minimums.merge(learned) { a, b in Size(width: max(a.width, b.width), height: max(a.height, b.height)) }
-            slots = Layout.frames(count: wins.count, area: screen.area, minimums: minimums)
-            got = Self.apply(wins, slots)
+            let next = Layout.frames(count: wins.count, area: screen.area, minimums: minimums)
+            let changed = Layout.changedSlots(from: slots, to: next)
+            guard !changed.isEmpty else { break }
+            slots = next
+            // Only windows whose slot moved are set again, so the rest do not jump.
+            for i in changed where i < wins.count && i < got.count {
+                Self.setFrame(wins[i].id.element, slots[i])
+                got[i] = AX.frame(wins[i].id.element)
+            }
         }
         var outcome = TidyOutcome()
         var unread = 0
