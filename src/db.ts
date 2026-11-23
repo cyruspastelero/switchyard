@@ -251,8 +251,11 @@ function openDatabase(): Db {
   // Migration: add subtasks column to missions (JSON array of {id, title, done})
   try {
     db.exec(`ALTER TABLE missions ADD COLUMN subtasks TEXT`);
-  } catch {
-    // Column already exists — ignore
+  } catch (err) {
+    // Already added on an earlier start; any other failure (locked, read-only, corrupt) must surface.
+    if (!(err instanceof Error && err.message.includes("duplicate column name"))) {
+      throw new Error("Adding missions.subtasks failed", { cause: err });
+    }
   }
 
   // Usage summary table — persists aggregated daily stats even after raw events are purged
