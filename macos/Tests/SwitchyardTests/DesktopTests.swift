@@ -75,11 +75,52 @@ final class DesktopTests: XCTestCase {
         XCTAssertNil(DesktopList.number(ofSpaces: [9], in: list))
     }
 
-    func test_second_display_windows_have_no_desktop() {
+    func test_second_display_windows_get_the_desktop_number_ctrl_n_uses() {
         let list = DesktopList.parse([
             ["Display Identifier": "Main", "Spaces": [space(1)]], ["Display Identifier": "BBBB", "Spaces": [space(2)]],
         ], mainDisplayId: nil)
-        XCTAssertNil(DesktopList.number(ofSpaces: [2], in: list))
+        XCTAssertEqual(DesktopList.number(ofSpaces: [2], in: list), 2)
+    }
+
+    private var twoDisplays: [Desktop] {
+        DesktopList.parse([
+            ["Display Identifier": "Main", "Spaces": [space(1), space(4)]],
+            ["Display Identifier": "EXT", "Spaces": [space(20), space(21)]],
+        ], mainDisplayId: nil)
+    }
+
+    func test_active_desktop_is_the_focused_displays_when_focus_is_on_the_second_display() {
+        XCTAssertEqual(DesktopList.activeNumber(focused: 21, mainCurrent: 4, in: twoDisplays), 4)
+    }
+
+    func test_active_desktop_falls_back_to_the_main_display_when_focus_is_on_a_fullscreen_space() {
+        XCTAssertEqual(DesktopList.activeNumber(focused: 99, mainCurrent: 4, in: twoDisplays), 2)
+    }
+
+    func test_no_active_desktop_when_no_display_shows_one() {
+        XCTAssertNil(DesktopList.activeNumber(focused: 99, mainCurrent: 98, in: twoDisplays))
+    }
+
+    func test_current_spaces_lists_what_every_display_shows() {
+        let displays: [[String: Any]] = [
+            ["Display Identifier": "Main", "Current Space": space(4)], ["Display Identifier": "EXT", "Current Space": space(20)],
+            ["Display Identifier": "OLD"],
+        ]
+        XCTAssertEqual(DesktopList.currentSpaces(displays), [4, 20])
+    }
+
+    func test_a_window_moved_to_another_display_is_centred_below_the_menu_bar() {
+        let spot = CrossDisplay.position(window: Rect(x: 0, y: 0, width: 800, height: 600),
+                                         screen: Rect(x: 1440, y: -200, width: 1920, height: 1080))
+        XCTAssertEqual(spot.x, 1440 + 560)
+        XCTAssertEqual(spot.y, -200 + 240)
+    }
+
+    func test_a_window_bigger_than_the_other_screen_starts_at_its_corner_below_the_menu_bar() {
+        let spot = CrossDisplay.position(window: Rect(x: 0, y: 0, width: 3000, height: 2000),
+                                         screen: Rect(x: 1440, y: 0, width: 1920, height: 1080))
+        XCTAssertEqual(spot.x, 1440)
+        XCTAssertEqual(spot.y, CrossDisplay.menuBarClearance)
     }
 
     // MARK: desktop keys (step 3)

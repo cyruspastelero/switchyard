@@ -119,12 +119,17 @@ struct WindowCarrier {
     let shortcuts: [Int: DesktopShortcut]
 
     func carry(_ window: CarryTarget, to number: Int) throws {
-        let desktops = Spaces.mainDesktops()
+        let desktops = Spaces.desktops()
         guard let target = desktops.first(where: { $0.number == number }) else { throw CarryError.failed("Desktop \(number) does not exist") }
         guard let key = shortcuts[number] else { throw CarryError.failed("no shortcut for Desktop \(number)") }
-        let home = Spaces.activeSpace()
+        let spaces = Spaces.spaces(ofWindow: window.windowId)
+        guard spaces.count == 1, let from = desktops.first(where: { $0.id == spaces[0] }) else {
+            throw CarryError.failed("window is not on one desktop")
+        }
+        let home = from.id
         try waitForButtonsUp()
         try checkCarryable(window, on: home)
+        if from.displayId != target.displayId { return try moveAcross(window, to: target, key: key) }
         let worked = try CarryRetry.run { scale in
             if scale > 1 {
                 Log.windows.notice("window \(window.windowId, privacy: .public) did not move; retrying with doubled delays")
@@ -144,14 +149,32 @@ struct WindowCarrier {
     private func checkCarryable(_ window: CarryTarget, on space: UInt64) throws {
         if AXBool.read(window.element, kAXMinimizedAttribute as String) == true { throw CarryError.failed("window is minimized") }
         if AXBool.read(window.element, "AXFullScreen") == true { throw CarryError.failed("window is fullscreen") }
-        let spaces = Spaces.spaces(ofWindow: window.windowId)
-        guard spaces == [space] else { throw CarryError.failed("window is not on the current desktop") }
+        guard Spaces.isShowing(space) else { throw CarryError.failed("window is not on the current desktop") }
+    }
+
+    /// Another display: dragging while that display switches leaves the window behind. Show the target desktop
+    /// there, then move the window onto that screen; a window takes the space its display shows.
+    private func moveAcross(_ window: CarryTarget, to target: Desktop, key: DesktopShortcut) throws {
+        DesktopKeys.post(key)
+        try DesktopSwitch.wait(for: target.id, number: target.number, abort: session.check)
+        try session.sleep(CarryDelays.settleAfterSwitch)
+        guard let display = Spaces.displayId(of: target), let frame = AX.frame(window.element) else {
+            throw CarryError.failed("cannot find Desktop \(target.number)'s screen")
+        }
+        let b = CGDisplayBounds(display)
+        let screen = Rect(x: b.origin.x, y: b.origin.y, width: b.width, height: b.height)
+        let spot = CrossDisplay.position(window: frame, screen: screen)
+        _ = AX.setPosition(window.element, x: spot.x, y: spot.y)
+        try session.sleep(CarryDelays.beforeVerify)
+        guard CarryCheck.moved(spacesAfter: Spaces.spaces(ofWindow: window.windowId), target: target.id) else {
+            throw CarryError.failed("window did not move to the other display")
+        }
     }
 
     /// After a failed try the screen may have slid away; come back to the window's desktop.
     private func goBack(to home: UInt64, window: CarryTarget) throws {
-        guard Spaces.activeSpace() != home else { return }
-        guard let back = Spaces.mainDesktops().first(where: { $0.id == home }), let key = shortcuts[back.number] else {
+        guard !Spaces.isShowing(home) else { return }
+        guard let back = Spaces.desktops().first(where: { $0.id == home }), let key = shortcuts[back.number] else {
             throw CarryError.failed("cannot return to the window's desktop")
         }
         DesktopKeys.post(key)

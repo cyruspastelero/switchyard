@@ -24,7 +24,7 @@ struct DesktopCommands {
 
     /// Goes to the desktop unless already there. Returns milliseconds taken.
     func goTo(_ number: Int) async throws -> Int {
-        if Spaces.activeDesktopNumber() == number { return 0 } // no shortcut to turn on, no wait
+        if Spaces.isShowingDesktop(number) { return 0 } // no shortcut to turn on, no wait
         return try await Self.onThread {
             let lease = HotKeyLease.shared
             let keys = try lease.acquire([number])
@@ -46,7 +46,7 @@ struct DesktopCommands {
         for m in moves {
             guard let w = await windows.window(forKey: m.windowKey) else { result.failed.append((m.windowKey, "window not found")); continue }
             guard let from = w.desktop else {
-                result.failed.append((m.windowKey, "window is not on a desktop (fullscreen, minimized or second display)")); continue
+                result.failed.append((m.windowKey, "window is not on a desktop (fullscreen or minimized)")); continue
             }
             guard from != m.desktop else { continue }
             guard let target = await windows.carryTarget(forKey: m.windowKey) else {

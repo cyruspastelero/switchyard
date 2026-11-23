@@ -155,7 +155,7 @@ final class AppModel: ObservableObject {
             while true {
                 try? await Task.sleep(nanoseconds: UInt64(ShowBounce.checkDelay * 1_000_000_000))
                 guard generation == bounceGeneration, sortProgress == nil else { return }
-                let landed = Spaces.activeDesktopNumber()
+                let landed = Spaces.isShowingDesktop(target) ? target : Spaces.activeDesktopNumber()
                 switch ShowBounce.decide(target: target, landed: landed, alreadyCorrected: corrected) {
                 case .ok: return
                 case .giveUp:

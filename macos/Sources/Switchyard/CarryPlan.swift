@@ -89,3 +89,14 @@ enum CarryReport {
         return (["moved \(moved)"] + parts).joined(separator: ", ")
     }
 }
+
+/// Where a window lands when it moves to another display: centred, kept below the menu bar, never off the screen. Pure.
+enum CrossDisplay {
+    static let menuBarClearance = 30.0
+
+    static func position(window: Rect, screen: Rect) -> (x: Double, y: Double) {
+        let x = screen.x + max(0, (screen.width - window.width) / 2)
+        let y = screen.y + max(menuBarClearance, (screen.height - window.height) / 2)
+        return (x, y)
+    }
+}

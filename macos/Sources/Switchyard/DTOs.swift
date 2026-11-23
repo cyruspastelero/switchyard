@@ -39,7 +39,7 @@ struct WindowSnapshot: Codable, Equatable {
     let title: String
     let document: String?
     let browser: BrowserBlock?
-    /// Desktop number on the main display; nil on a second display, fullscreen, minimized or on all desktops.
+    /// Desktop number, counted across displays as Ctrl+N does; nil when fullscreen, minimized or on all desktops.
     let desktop: Int?
     /// Native tab titles of a terminal window with two or more tabs, in tab-bar order. Not sent when nil.
     let tabTitles: [String]?

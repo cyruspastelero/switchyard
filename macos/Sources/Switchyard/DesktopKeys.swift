@@ -174,8 +174,8 @@ enum DesktopSwitch {
     static func go(to number: Int, shortcuts: [Int: DesktopShortcut], abort: () throws -> Void = {}) throws -> Int {
         let start = Date()
         let list = Spaces.desktops()
-        guard let target = list.first(where: { $0.number == number && $0.isMain }) else { throw DesktopError.noSuchDesktop(number) }
-        if Spaces.activeSpace() == target.id { return 0 }
+        guard let target = list.first(where: { $0.number == number }) else { throw DesktopError.noSuchDesktop(number) }
+        if Spaces.isShowing(target.id) { return 0 }
         guard let key = shortcuts[number] else { throw DesktopError.noShortcut(number) }
         DesktopKeys.post(key)
         try wait(for: target.id, number: number, abort: abort)
@@ -185,10 +185,10 @@ enum DesktopSwitch {
     static func wait(for space: UInt64, number: Int, abort: () throws -> Void) throws {
         let end = Date().addingTimeInterval(CarryDelays.switchTimeout)
         while Date() < end {
-            if Spaces.activeSpace() == space { return }
+            if Spaces.isShowing(space) { return }
             try abort()
             Thread.sleep(forTimeInterval: CarryDelays.switchPollInterval)
         }
-        if Spaces.activeSpace() != space { throw DesktopError.switchTimeout(number) }
+        if !Spaces.isShowing(space) { throw DesktopError.switchTimeout(number) }
     }
 }

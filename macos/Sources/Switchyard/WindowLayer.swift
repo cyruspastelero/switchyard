@@ -12,7 +12,7 @@ struct ManagedWindow {
     let frame: Rect
     let browser: BrowserBlock?
     let windowNumber: UInt32?
-    /// Desktop number on the main display; nil on a second display, fullscreen, minimized or on all desktops.
+    /// Desktop number, counted across displays as Ctrl+N does; nil when fullscreen, minimized or on all desktops.
     let desktop: Int?
     /// Native tab titles of a terminal window with two or more tabs.
     var tabTitles: [String] = []
@@ -140,9 +140,8 @@ actor WindowLayer {
     /// Adds windows seen earlier that now sit on another desktop, and reads the desktop list for this refresh.
     private func withOtherDesktops(_ listed: [RawWindow], livePids: Set<pid_t>) -> [RawWindow] {
         desktopList = Spaces.desktops()
-        let main = desktopList.filter(\.isMain)
         let active = Spaces.activeDesktopNumber(in: desktopList)
-        desktops = main.isEmpty ? nil : DesktopsInfo(count: main.count, active: active)
+        desktops = desktopList.isEmpty ? nil : DesktopsInfo(count: desktopList.count, active: active)
         let listedIds = Set(listed.compactMap(\.windowNumber))
         // A slow app's windows stay listed from the cache (no Accessibility call): the server takes an unlisted window as closed.
         let candidates = seen.filter { !listedIds.contains($0.key) && livePids.contains($0.value.pid) }
@@ -382,7 +381,7 @@ actor WindowLayer {
     private func onActiveDesktop(_ wins: [ManagedWindow], target: Int?) -> [ManagedWindow] {
         guard let target else { return wins }
         let list = Spaces.desktops()
-        let active = Spaces.activeDesktopNumber(in: list) ?? target
+        let active = Spaces.isShowingDesktop(target, in: list) ? target : Spaces.activeDesktopNumber(in: list) ?? target
         let live = wins.map { w in (key: w.key, desktop: w.windowNumber.flatMap { Spaces.desktopNumber(ofWindow: $0, in: list) }) }
         let kept = Set(RaiseFilter.onDesktop(live, active: active))
         let strays = wins.filter { !kept.contains($0.key) }

@@ -43,8 +43,9 @@ actor Tidier {
         let here = await windows.tidyCandidates(keys).filter { w in
             w.windowNumber.flatMap { Spaces.desktopNumber(ofWindow: $0, in: list) } == desktop
         }
-        guard let screen = await MainActor.run(body: { Self.mainScreen() }) else { return TidyOutcome(skipped: "no screen") }
-        // Desktop numbers are main-display only, so a window here touches the main screen (it may hang off it).
+        let display = list.first { $0.number == desktop }.flatMap(Spaces.displayId(of:))
+        guard let screen = await MainActor.run(body: { Self.screen(display) }) else { return TidyOutcome(skipped: "no screen") }
+        // Only windows on the desktop's own screen (one may hang off it).
         let onMain = here.filter { screen.frame.intersects($0.frame) }
         let keySet = Set(onMain.map(\.key))
         guard TidyGate.shouldRun(keys: keySet, last: memory.lastKeys(desktop: desktop), force: force) else { return TidyOutcome() }
@@ -139,9 +140,12 @@ actor Tidier {
 
     /// The main display (menu bar) in Accessibility coordinates, and its usable area.
     @MainActor
-    private static func mainScreen() -> (frame: Rect, area: Rect)? {
-        guard let main = NSScreen.screens.first else { return nil }
-        let h = main.frame.height
+    /// The screen showing `display`, else the main one.
+    private static func screen(_ display: CGDirectDisplayID?) -> (frame: Rect, area: Rect)? {
+        guard let primary = NSScreen.screens.first else { return nil }
+        let number = NSDeviceDescriptionKey("NSScreenNumber")
+        let main = NSScreen.screens.first { ($0.deviceDescription[number] as? NSNumber)?.uint32Value == display } ?? primary
+        let h = primary.frame.height
         let f = main.frame, v = main.visibleFrame
         return (FrameMath.fromCocoa(Rect(x: f.minX, y: f.minY, width: f.width, height: f.height), primaryHeight: h),
                 Layout.area(visibleFrame: Rect(x: v.minX, y: v.minY, width: v.width, height: v.height), primaryHeight: h))

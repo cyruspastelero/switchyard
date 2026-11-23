@@ -50,10 +50,20 @@ enum DesktopList {
         } ?? 0
     }
 
-    /// The main-display desktop a window is on; nil for no space, several (All Desktops), or a non-desktop space.
+    /// The desktop a window is on, on any display; nil for no space, several (All Desktops), or a non-desktop space.
     static func number(ofSpaces spaces: [UInt64], in desktops: [Desktop]) -> Int? {
-        guard spaces.count == 1, let d = desktops.first(where: { $0.id == spaces[0] }), d.isMain else { return nil }
+        guard spaces.count == 1, let d = desktops.first(where: { $0.id == spaces[0] }) else { return nil }
         return d.number
+    }
+
+    /// The space each display shows now.
+    static func currentSpaces(_ displays: [[String: Any]]) -> Set<UInt64> {
+        Set(displays.compactMap { (($0["Current Space"] as? [String: Any])?["ManagedSpaceID"] as? NSNumber)?.uint64Value })
+    }
+
+    /// The desktop the person works on: the focused display's, else the main display's (focus on a fullscreen space).
+    static func activeNumber(focused: UInt64, mainCurrent: UInt64?, in desktops: [Desktop]) -> Int? {
+        number(ofSpaces: [focused], in: desktops) ?? mainCurrent.flatMap { number(ofSpaces: [$0], in: desktops) }
     }
 }
 
@@ -62,24 +72,48 @@ enum Spaces {
     private static let connection = cgsMainConnection()
     private static let allSpacesMask: Int32 = 7
 
+    private static func displays() -> [[String: Any]] {
+        cgsCopyManagedDisplaySpaces(connection) as? [[String: Any]] ?? []
+    }
+
     /// Every desktop, numbered across displays. Read live for every command: the owner may add or remove one.
     static func desktops() -> [Desktop] {
-        let displays = cgsCopyManagedDisplaySpaces(connection) as? [[String: Any]] ?? []
-        return DesktopList.parse(displays, mainDisplayId: mainDisplayUUID())
+        DesktopList.parse(displays(), mainDisplayId: mainDisplayUUID())
     }
 
     static func mainDesktops() -> [Desktop] { desktops().filter(\.isMain) }
 
-    /// The main display's current space. Not `CGSGetActiveSpace`: that follows focus, so with focus on a
-    /// second display it names a space no main-display command can use (issue #11).
-    static func activeSpace() -> UInt64 {
-        let displays = cgsCopyManagedDisplaySpaces(connection) as? [[String: Any]] ?? []
-        return DesktopList.currentMainSpace(displays, mainDisplayId: mainDisplayUUID()) ?? cgsActiveSpace(connection)
+    /// The focused display's space (follows the pointer and key window across displays).
+    static func activeSpace() -> UInt64 { cgsActiveSpace(connection) }
+
+    /// True while any display shows the space. A switch to a desktop on another display may leave focus where it was.
+    static func isShowing(_ space: UInt64) -> Bool { DesktopList.currentSpaces(displays()).contains(space) }
+
+    /// True while some display shows desktop `number`.
+    static func isShowingDesktop(_ number: Int, in list: [Desktop]? = nil) -> Bool {
+        guard let d = (list ?? desktops()).first(where: { $0.number == number }) else { return false }
+        return isShowing(d.id)
     }
 
-    /// Nil when the main display shows a fullscreen or other non-desktop space.
+    /// The focused display's desktop, else the main display's. Nil only when neither shows a desktop.
     static func activeDesktopNumber(in list: [Desktop]? = nil) -> Int? {
-        DesktopList.number(ofSpaces: [activeSpace()], in: list ?? desktops())
+        let all = displays()
+        return DesktopList.activeNumber(focused: activeSpace(),
+                                        mainCurrent: DesktopList.currentMainSpace(all, mainDisplayId: mainDisplayUUID()),
+                                        in: list ?? DesktopList.parse(all, mainDisplayId: mainDisplayUUID()))
+    }
+
+    /// The display a desktop is on, as `CGDirectDisplayID`. "Main" (one shared set of Spaces) is the main display.
+    static func displayId(of desktop: Desktop) -> CGDirectDisplayID? {
+        if desktop.displayId == "Main" { return CGMainDisplayID() }
+        var count: UInt32 = 0
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        guard CGGetActiveDisplayList(UInt32(ids.count), &ids, &count) == .success else { return nil }
+        return ids.prefix(Int(count)).first { id in
+            guard let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue(),
+                  let text = CFUUIDCreateString(nil, uuid) as String? else { return false }
+            return text.caseInsensitiveCompare(desktop.displayId) == .orderedSame
+        }
     }
 
     static func spaces(ofWindow id: UInt32) -> [UInt64] {
