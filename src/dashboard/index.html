@@ -3,25 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mission Control</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>Switchyard</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icon.png" type="image/png" sizes="180x180">
+  <link rel="apple-touch-icon" href="/icon.png">
 </head>
-<body>
+<body class="view-contexts">
 
   <!-- Scanline overlay (subtle) -->
   <div id="scanlines"></div>
-
-  <!-- Classification banner -->
-  <div id="classification-banner">Mission Control &mdash; Internal Use Only</div>
 
   <!-- Header bar -->
   <header id="header">
     <div class="header-left">
       <span class="logo-icon">&#9678;</span>
-      <span class="logo">{ SENTINEL }</span>
+      <span class="logo">SWITCHYARD</span>
+      <div class="view-tabs" role="group" aria-label="View">
+        <button type="button" id="view-tab-contexts" class="view-tab active" aria-pressed="true">Contexts <span class="view-tab-count" id="contexts-badge" title="Contexts waiting on you">0</span></button>
+        <button type="button" id="view-tab-overview" class="view-tab" aria-pressed="false">Activity</button>
+      </div>
     </div>
     <div class="header-stats">
       <span class="stat"><span id="agent-count">0</span> Agents</span>
@@ -55,9 +56,9 @@
         <div class="panel-header">
           <span class="panel-title"><span class="panel-chevron">&#9656;</span> AGENTS</span>
           <div class="agent-filters" id="agent-filters">
-            <button class="agent-filter-btn active" data-filter="all">ALL</button>
-            <button class="agent-filter-btn" data-filter="active">ACTIVE</button>
-            <button class="agent-filter-btn" data-filter="idle">IDLE</button>
+            <button class="agent-filter-btn active" data-filter="active" title="Agents seen in the last 24 hours">ACTIVE</button>
+            <button class="agent-filter-btn" data-filter="idle" title="Idle agents seen in the last 24 hours">IDLE</button>
+            <button class="agent-filter-btn" data-filter="all" title="Every agent, including old ones">ALL</button>
             <button class="agent-clear-btn" id="clear-old-agents" title="Remove disconnected agents">clear old</button>
           </div>
           <span class="panel-badge" id="agents-badge">0</span>
@@ -146,28 +147,53 @@
 
   </main>
 
+  <!-- Contexts view (shown instead of the main grid) -->
+  <section id="contexts-view" class="panel active" aria-label="Contexts">
+    <div class="panel-header" style="cursor:default">
+      <span class="panel-title">CONTEXTS</span>
+      <span class="ctx-head-acts">
+        <button type="button" id="contexts-show-all" class="ctx-btn" title="Bring back every window Switchyard has hidden">Show all windows</button>
+        <button type="button" id="contexts-sort" class="ctx-btn">Sort windows</button>
+      </span>
+    </div>
+    <div class="panel-body" id="contexts-body" aria-live="polite">
+      <div class="ctx-loading" role="status">
+        <span class="sr-only">Loading contexts…</span>
+        <div class="ctx-skel ctx-skel-summary"></div>
+        <div class="ctx-skel ctx-skel-row"></div>
+        <div class="ctx-skel ctx-skel-row"></div>
+        <div class="ctx-skel ctx-skel-row"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Mobile tab bar -->
-  <nav id="mobile-tabs">
+  <nav id="mobile-tabs" aria-label="Views">
     <div class="mobile-tab-bar">
-      <button class="mobile-tab active" data-tab="agents">
-        <span class="mobile-tab-icon">&#9679;</span>
-        <span>Agents</span>
+      <button class="mobile-tab active" data-tab="contexts">
+        <span class="mobile-tab-icon" aria-hidden="true">&#9638;</span>
+        <span class="mobile-tab-label">Contexts</span>
+        <span class="mobile-tab-count" id="mob-contexts-count" title="Waiting on you">0</span>
+      </button>
+      <button class="mobile-tab" data-tab="agents">
+        <span class="mobile-tab-icon" aria-hidden="true">&#9679;</span>
+        <span class="mobile-tab-label">Agents</span>
         <span class="mobile-tab-count" id="mob-agent-count">0</span>
       </button>
       <button class="mobile-tab" data-tab="missions">
-        <span class="mobile-tab-icon">&#9633;</span>
-        <span>Missions</span>
+        <span class="mobile-tab-icon" aria-hidden="true">&#9633;</span>
+        <span class="mobile-tab-label">Missions</span>
         <span class="mobile-tab-count" id="mob-mission-count">0</span>
       </button>
       <button class="mobile-tab" data-tab="usage">
-        <span class="mobile-tab-icon">&#9632;</span>
-        <span>Usage</span>
-        <span class="mobile-tab-count" id="mob-usage-count">0</span>
+        <span class="mobile-tab-icon" aria-hidden="true">&#9632;</span>
+        <span class="mobile-tab-label">Usage</span>
+        <span class="mobile-tab-count" id="mob-usage-count" hidden>0</span>
       </button>
       <button class="mobile-tab" data-tab="timeline">
-        <span class="mobile-tab-icon">&#9671;</span>
-        <span>Timeline</span>
-        <span class="mobile-tab-count" id="mob-event-count">0</span>
+        <span class="mobile-tab-icon" aria-hidden="true">&#9671;</span>
+        <span class="mobile-tab-label">Timeline</span>
+        <span class="mobile-tab-count" id="mob-event-count" hidden>0</span>
       </button>
     </div>
   </nav>
@@ -235,7 +261,7 @@
   <!-- Keyboard help (toggle with ?) -->
   <div id="kbd-help" class="kbd-overlay hidden">
     <div class="kbd-content">
-      <div class="kbd-title">MISSION CONTROL HELP</div>
+      <div class="kbd-title">SWITCHYARD HELP</div>
 
       <div class="help-section-title">Getting Started</div>
       <div class="help-text">
@@ -293,8 +319,8 @@
 
       <div class="help-section-title">Tips</div>
       <div class="help-text">
-        <p>&bull; Set <code>MC_COST_PER_TOOL_CALL=0.01</code> to adjust estimated costs when JSONL logs aren't available.</p>
-        <p>&bull; Data persists in <code>~/.claude-mission-control/data.db</code> &mdash; survives restarts.</p>
+        <p>&bull; Set <code>SWITCHYARD_COST_PER_TOOL_CALL=0.01</code> to adjust estimated costs when JSONL logs aren't available.</p>
+        <p>&bull; Data persists in <code>~/.switchyard/data.db</code> &mdash; survives restarts.</p>
         <p>&bull; Real costs are read from <code>~/.claude/projects/</code> JSONL session logs.</p>
         <p>&bull; The secret scanner checks every tool output for leaked API keys, tokens, and private keys.</p>
       </div>
@@ -303,7 +329,13 @@
     </div>
   </div>
 
+  <script src="/core.js"></script>
+  <script src="/activity.js"></script>
+  <script src="/usage.js"></script>
   <script src="/app.js"></script>
+  <script src="/contexts-logic.js"></script>
+  <script src="/picker.js"></script>
+  <script src="/contexts.js"></script>
   <script src="/security.js"></script>
 </body>
 </html>

@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mission Control — Access</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>Switchyard — Access</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icon.png" type="image/png" sizes="180x180">
+  <link rel="apple-touch-icon" href="/icon.png">
   <style>
     body {
       display: flex;
@@ -28,6 +28,12 @@
       .login-box { padding: 24px 16px; }
       .login-input { font-size: 20px; letter-spacing: 6px; padding: 14px; }
       .login-btn { padding: 12px; font-size: var(--font-size-base); }
+    }
+    .login-icon {
+      display: block;
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 12px;
     }
     .login-logo {
       font-family: var(--font-sans);
@@ -108,89 +114,22 @@
 </head>
 <body>
   <div class="login-box">
-    <div class="login-logo">{ SENTINEL }</div>
-    <div class="login-sub">MISSION CONTROL</div>
+    <img class="login-icon" src="/icon.svg" alt="" width="56" height="56">
+    <div class="login-logo">SWITCHYARD</div>
     <form id="login-form">
-      <label class="login-label" for="code-input">Access Code</label>
+      <label class="login-label" for="code-input">Access code</label>
       <input type="text" id="code-input" class="login-input"
              placeholder="------" maxlength="6" pattern="\d{6}"
              inputmode="numeric" autocomplete="off" autofocus>
-      <button type="submit" class="login-btn">Authenticate</button>
+      <button type="submit" class="login-btn">Open dashboard</button>
     </form>
     <div class="login-error" id="login-error"></div>
     <div class="login-hint">
-      The 6-digit access code is shown in the<br>terminal when the server starts.
+      A new 6-digit code is made each time the server starts.<br>
+      On this Mac: Switchyard menu bar icon &rsaquo; Copy dashboard access code.<br>
+      It is also printed in the terminal and in ~/.switchyard/server.log.
     </div>
   </div>
-  <script>
-    (function() {
-      var form = document.getElementById('login-form');
-      var input = document.getElementById('code-input');
-      var error = document.getElementById('login-error');
-
-      form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        var code = input.value.trim();
-        if (code.length !== 6) {
-          error.textContent = 'Enter the 6-digit code';
-          return;
-        }
-        error.textContent = '';
-
-        error.textContent = 'Authenticating...';
-        error.style.color = 'var(--text-muted)';
-
-        fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: code }),
-          credentials: 'include',
-        })
-          .then(function(res) {
-            error.style.color = '';
-            if (res.ok) {
-              error.textContent = '';
-              // Small delay to let the cookie settle
-              setTimeout(function() { window.location.href = '/'; }, 200);
-            } else if (res.status === 429) {
-              error.textContent = 'Too many attempts. Wait 15 minutes.';
-              input.value = '';
-            } else if (res.status === 401) {
-              return res.json().then(function(body) {
-                error.textContent = 'Wrong code. Check the terminal and try again.';
-                input.value = '';
-                input.focus();
-              });
-            } else {
-              error.textContent = 'Server error (' + res.status + '). Try again.';
-              input.value = '';
-              input.focus();
-            }
-          })
-          .catch(function(err) {
-            error.style.color = '';
-            error.textContent = 'Cannot reach server. Is it running?';
-          });
-      });
-
-      // Auto-submit when 6 digits entered
-      input.addEventListener('input', function() {
-        input.value = input.value.replace(/\D/g, '');
-        if (input.value.length === 6) {
-          form.dispatchEvent(new Event('submit'));
-        }
-      });
-
-      // Auto-login from QR code URL: /login?code=123456
-      var params = new URLSearchParams(window.location.search);
-      var qrCode = params.get('code');
-      if (qrCode && qrCode.length === 6) {
-        input.value = qrCode;
-        // Clear the code from URL so it's not visible in browser history
-        window.history.replaceState({}, '', '/login');
-        form.dispatchEvent(new Event('submit'));
-      }
-    })();
-  </script>
+  <script src="/login.js"></script>
 </body>
 </html>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="100 100 824 824">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26262b"/>
+      <stop offset="1" stop-color="#0a0a0c"/>
+    </linearGradient>
+  </defs>
+  <!-- Dashboard favicon: AppIcon.svg cropped to the icon body (no grid margin). -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#bg)"/>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" ry="184.5" fill="none" stroke="#ffffff" stroke-opacity="0.08"/>
+  <!-- The mark from MenuBarIcon.svg, 18 pt grid, scaled 32x around the canvas centre. -->
+  <g transform="translate(512 512) scale(32) translate(-9.5 -9)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 13C6 9 13 9.5 13 5.5V2" stroke="#4ade80"/>
+    <path d="M6 16V2" stroke="#ededf0"/>
+  </g>
+</svg>
