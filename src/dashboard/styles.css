@@ -298,7 +298,7 @@ html, body {
   display: inline-block;
   color: var(--text-muted);
   margin-right: 2px;
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   transition: transform 150ms ease;
 }
 
@@ -415,7 +415,7 @@ html, body {
 
 .agent-dot {
   flex-shrink: 0;
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   line-height: 1;
 }
 
@@ -451,7 +451,7 @@ html, body {
 }
 
 .agent-stats {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin-top: 1px;
   margin-left: 15px;
@@ -461,14 +461,14 @@ html, body {
 }
 
 .agent-activity.cwd {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   font-family: var(--font-mono);
 }
 
 /* ── Agent alerts (STUCK / LOOP) ──────────────────────── */
 .agent-alert {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.5px;
   margin-left: auto;
@@ -559,7 +559,7 @@ html, body {
 }
 
 .status-tag {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.5px;
   padding: 0 5px;
@@ -668,7 +668,7 @@ html, body {
 .mission-info-value.mono {
   font-family: var(--font-mono);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
 }
 
 .mission-timestamps {
@@ -718,7 +718,7 @@ html, body {
 
 .mission-clear-btn {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   background: none;
   border: none;
@@ -733,7 +733,7 @@ html, body {
 
 .mission-footer-sep {
   color: var(--border-bright);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
 }
 
 .btn-action.danger-text:hover {
@@ -752,7 +752,7 @@ html, body {
 
 .mission-action-btn {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   letter-spacing: 0.5px;
   padding: 3px 10px;
@@ -787,7 +787,7 @@ html, body {
 
 .mission-agent-select {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   background: var(--bg-base);
   color: var(--text-secondary);
   border: 1px solid var(--border-bright);
@@ -828,7 +828,7 @@ html, body {
 }
 
 .subtask-progress-label {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
 
@@ -1061,7 +1061,7 @@ html, body {
 }
 
 .btn-action kbd {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   border: 1px solid var(--border);
   padding: 0 3px;
@@ -1131,7 +1131,7 @@ html, body {
 
 .empty-hint kbd {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-bright);
   border: 1px solid var(--border-bright);
   padding: 0 3px;
@@ -1194,7 +1194,7 @@ html, body {
 }
 
 .shield-count {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
   padding: 0 4px;
@@ -1487,7 +1487,7 @@ html, body {
 
 .sec-clear-btn {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.5px;
   color: var(--text-muted);
   background: none;
@@ -1654,7 +1654,7 @@ html, body {
 
 .kbd-footer kbd {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-bright);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
@@ -1701,7 +1701,7 @@ html, body {
 
 .help-text kbd {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-bright);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
@@ -1779,7 +1779,7 @@ html, body {
 
 .agent-filter-btn {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.5px;
   padding: 1px 6px;
   background: none;
@@ -1801,7 +1801,7 @@ html, body {
 
 .agent-clear-btn {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   background: none;
   border: none;
@@ -1874,7 +1874,7 @@ html, body {
 
 /* Sub-count toggle on main agents */
 .agent-sub-toggle {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   border: 1px solid var(--border);
   padding: 0 6px;
@@ -1898,7 +1898,7 @@ html, body {
 
 /* Session toggle in group label */
 .session-toggle {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin-left: 8px;
   cursor: pointer;
@@ -1925,7 +1925,7 @@ html, body {
 
 .agent-quick-btn {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   background: none;
   border: 1px solid var(--border);
@@ -1976,7 +1976,7 @@ html, body {
   border-top: 2px solid transparent;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.3px;
   text-transform: uppercase;
   cursor: pointer;
@@ -2005,7 +2005,7 @@ html, body {
   top: 4px;
   left: 50%;
   margin-left: 8px;
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-bright);
   background: var(--bg-active);
   border: 1px solid var(--border-bright);
@@ -2042,7 +2042,7 @@ html, body {
   }
 
   .stat {
-    font-size: 9px;
+    font-size: var(--font-size-xs);
     letter-spacing: 0.5px;
   }
 
@@ -2169,22 +2169,22 @@ html, body {
   /* Timeline columns: tighter */
   .timeline-time {
     width: 44px;
-    font-size: 9px;
+    font-size: var(--font-size-xs);
   }
 
   .timeline-agent {
     max-width: 50px;
     min-width: 36px;
-    font-size: 9px;
+    font-size: var(--font-size-xs);
   }
 
   .timeline-tool {
-    font-size: 9px;
+    font-size: var(--font-size-xs);
     min-width: 30px;
   }
 
   .timeline-detail {
-    font-size: 9px;
+    font-size: var(--font-size-xs);
   }
 
   /* Panel headers: larger tap target */
@@ -2258,7 +2258,7 @@ html, body {
 
   .period-tab {
     padding: 2px 6px;
-    font-size: 9px;
+    font-size: var(--font-size-xs);
   }
 }
 
@@ -2365,7 +2365,7 @@ html, body {
   border: 1px solid var(--border);
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   letter-spacing: 0.5px;
   padding: 0 6px;
@@ -2423,7 +2423,7 @@ html, body {
 }
 
 .usage-stat-label {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -2673,7 +2673,7 @@ html, body {
 }
 
 .view-tab-count {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   border: 1px solid var(--border);
   padding: 0 4px;
@@ -2793,7 +2793,7 @@ body.view-contexts #contexts-view { display: flex; }
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-primary);
@@ -2871,7 +2871,7 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   background: var(--bg-hover);
   border: 1px solid var(--border-bright);
   color: var(--text-primary);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 .ctx-app-empty { background: none; border-style: dashed; border-color: var(--border); }
@@ -2943,7 +2943,7 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
 .pick-opt { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; color: var(--text-primary); font-size: var(--font-size-sm); }
 .pick-opt.on { background: var(--bg-active); color: var(--text-bright); }
 .pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pick-tag { font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-secondary); border: 1px solid var(--border-bright); padding: 0 4px; }
+.pick-tag { font-size: var(--font-size-xs); letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-secondary); border: 1px solid var(--border-bright); padding: 0 4px; }
 .pick-meta { flex: none; color: var(--text-secondary); font-size: var(--font-size-xs); }
 .pick-new { border-top: 1px solid var(--border); color: var(--text-secondary); }
 
