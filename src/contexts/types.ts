@@ -1,5 +1,6 @@
 // Shared types for the Contexts feature (server side).
 
+import type { DesktopsListView } from './desktop-admin.ts';
 import type { LayoutPreset } from './layouts.ts';
 
 export type ContextStatus = 'working' | 'waiting' | 'idle' | 'parked';
@@ -146,6 +147,8 @@ export interface ContextsView {
   readonly unsortedToMove: number;
   /** Lay out the desktops a Sort or Move changed. */
   readonly autoTidy: boolean;
+  /** Desktop mode with an app that reports its desktops: one row per desktop, and the screens. */
+  readonly desktopList: DesktopsListView | null;
   /** Saved layout presets, oldest first. Set by `withLayouts`. */
   readonly layouts?: readonly LayoutPreset[];
   readonly defaultLayoutId?: string | null;

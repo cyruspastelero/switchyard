@@ -32,7 +32,11 @@ export type CommandBody =
   // Save the windows on the desktop on screen as a layout preset (the app POSTs it to /layouts).
   | { readonly type: 'captureLayout'; readonly name: string }
   // Put back the frames from before the last Tidy of that desktop.
-  | { readonly type: 'undoTidy'; readonly desktop: number };
+  | { readonly type: 'undoTidy'; readonly desktop: number }
+  // Desktops list: go to a desktop; add one at the end of a screen's row; close one, only while it is still `spaceCheck`.
+  | { readonly type: 'showDesktop'; readonly desktop: number }
+  | { readonly type: 'addDesktop'; readonly screen: number }
+  | { readonly type: 'closeDesktop'; readonly number: number; readonly spaceCheck: number };
 
 export type Command = CommandBody & { readonly seq: number; readonly createdAt: string };
 

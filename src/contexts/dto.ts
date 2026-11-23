@@ -358,3 +358,16 @@ export function parseSettings(body: unknown): Parsed<SettingsDto> {
   }
   return Object.keys(out).length === 0 ? fail('no settings to update') : ok(out);
 }
+
+/** POST /desktops: `{ screen }`, the 1-based screen to add a desktop to. */
+export function parseAddDesktop(body: unknown): Parsed<{ readonly screen: number }> {
+  const o = strict(body, ['screen']);
+  if (!o.ok) return o;
+  const screen = desktopNumber(o.value.screen, 'screen');
+  return screen.ok ? ok({ screen: screen.value }) : screen;
+}
+
+/** The `:n` of /desktops/:n/…, already known to be digits. */
+export function parseDesktopParam(raw: string): Parsed<number> {
+  return desktopNumber(Number(raw), 'desktop');
+}

@@ -21,9 +21,11 @@ import {
 import { readEnv } from '../paths.ts';
 import { IconStore } from './icons.ts';
 import { pathsFromToolInput, pickWorkFolder } from './workfolder.ts';
+import { nameChromeWindow } from './naming.ts';
 import { claimOpened, EXPECT_OPEN_MS, type ExpectedOpen } from './reopen.ts';
 import { LayoutPresets } from './layouts.ts';
 import { presetSlots, withLayouts } from './layout-plan.ts';
+import { desktopsListView, planDesktopAction, type DesktopAction } from './desktop-admin.ts';
 
 const PALETTE = ['#4f8cff', '#e8833a', '#3fb68b', '#b46bff', '#e5566d', '#d4a72c', '#2fb5c9', '#8c8f99', '#6dbb3f'] as const;
 
@@ -210,6 +212,8 @@ export class ContextsService {
       desktops: this.desktopCount() === null ? null : (this.snapshot?.desktops ?? null),
       desktopNote: offscreenReason(this.snapshot), toSort: this.moves().length,
       unsortedToMove: this.sweep().length, autoTidy: this.store.autoTidy(),
+      desktopList: this.desktopCount() !== null && this.snapshot?.desktops?.list
+        ? desktopsListView(this.snapshot.desktops.list, rows, this.snapshot.windows, this.desktopCount() as number) : null,
     };
   }
 
@@ -409,6 +413,13 @@ export class ContextsService {
 
   private withPresets = (d: readonly TidyDesktop[]) => presetSlots(d, this.store.listContexts(), this.desktopCount(), this.activeContextId, this.layouts);
 
+  /** Desktops list: go to, add or close a desktop. The rules (and the refusals) are in desktop-admin.ts. */
+  desktopAction(action: DesktopAction): void {
+    this.requireApp();
+    this.commands.enqueue(planDesktopAction(action, this.snapshot, this.store.listContexts(), this.desktopCount()));
+    this.scheduleEmit();
+  }
+
   /** Asks the app to save the windows on the desktop on screen as a preset. */
   captureLayout(dto: { name?: string }): { name: string } {
     this.requireApp();
@@ -454,7 +465,7 @@ export class ContextsService {
       if (keptUnsorted.has(w.key)) continue;
       const existing = assignments.get(w.key);
       if (existing?.source === 'owner') {
-        this.nameChromeWindow(w, existing.contextId);
+        nameChromeWindow(this.store, this.commands, w, existing.contextId);
         continue;
       }
       const isBrowser = w.browser !== null || isBrowserBundle(w.bundleId);
@@ -472,7 +483,7 @@ export class ContextsService {
       } else if (existing.reason !== match.reason) {
         this.store.setAssignment(w.key, match.contextId, 'auto', at, match.reason);
       }
-      this.nameChromeWindow(w, match.contextId);
+      nameChromeWindow(this.store, this.commands, w, match.contextId);
     }
     return changed;
   }
@@ -496,27 +507,7 @@ export class ContextsService {
       return;
     }
     this.store.setAssignment(w.key, match.contextId, 'auto', at, match.reason);
-    this.nameChromeWindow(w, match.contextId);
-  }
-
-  /** Names a Chrome window after its context, unless the owner (or anyone but us) named it. */
-  private nameChromeWindow(w: SnapshotWindow, contextId: string): void {
-    if (!w.browser || !canBeNamed(w.bundleId)) return;
-    const ctx = this.store.getContext(contextId);
-    if (!ctx) return;
-    const record = this.store.getNames().get(w.key);
-    if (record?.set_by === 'owner') return;
-    const current = w.browser.name;
-    if (current && current !== record?.name) {
-      this.store.setName(w.key, current, 'owner'); // someone named it: keep their name
-      return;
-    }
-    if (current === ctx.name) return;
-    // Already asked. If the browser did not take the name, asking again on every snapshot only queues
-    // slow browser scripts in front of the next switch.
-    if (record?.set_by === 'switchyard' && record.name === ctx.name) return;
-    this.store.setName(w.key, ctx.name, 'switchyard');
-    this.commands.enqueue({ type: 'nameWindow', windowKey: w.key, name: ctx.name });
+    nameChromeWindow(this.store, this.commands, w, match.contextId);
   }
 
   /** Re-applies the active context after sorting changed. Never takes focus: the owner may be typing. */
@@ -724,7 +715,7 @@ export class ContextsService {
         const pattern = learnPattern(tab.url);
         if (pattern) this.store.learnRule(pattern, contextId);
       }
-      this.nameChromeWindow(win, contextId);
+      nameChromeWindow(this.store, this.commands, win, contextId);
     }
     this.refresh().then(() => undefined, () => undefined);
     return this.afterMove(windowKey, this.contextDesktop(ctx));
