@@ -253,9 +253,10 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
         }
         const code = typeof body.code === 'string' ? body.code.trim() : '';
 
-        // Constant-time comparison for access code
-        const codeMatch = code.length === accessCode.length &&
-          crypto.timingSafeEqual(Buffer.from(code), Buffer.from(accessCode));
+        // Constant-time comparison for access code. Byte lengths, not string lengths: "é" is one char but two bytes.
+        const given = Buffer.from(code);
+        const expected = Buffer.from(accessCode);
+        const codeMatch = given.length === expected.length && crypto.timingSafeEqual(given, expected);
 
         if (codeMatch) {
           const token = crypto.randomBytes(32).toString('hex');

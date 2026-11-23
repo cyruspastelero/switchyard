@@ -32,3 +32,29 @@ describe('access code rate limit', () => {
     expect(statuses).toContain(429);
   });
 });
+
+describe('access codes with multibyte characters', () => {
+  // Its own server: the lockout above has already locked this address out of the first one.
+  const port = 14293;
+  let fresh: ReturnType<typeof createServer>;
+  const loginFresh = (code: string) => fetch(`http://localhost:${port}/api/auth`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+  });
+  const multibyte = () => '0'.repeat(fresh.accessCode.length - 1) + '\u00e9';
+
+  beforeAll(async () => {
+    fresh = createServer(port, true);
+    fresh.start();
+    await new Promise((r) => setTimeout(r, 300));
+  });
+  afterAll(() => fresh.stop());
+
+  it('a_multibyte_code_of_the_right_length_is_a_wrong_code_not_a_server_error', async () => {
+    expect((await loginFresh(multibyte())).status).toBe(401);
+  });
+
+  it('multibyte_wrong_codes_count_toward_the_lockout', async () => {
+    for (let i = 0; i < 4; i++) await loginFresh(multibyte());
+    expect((await loginFresh(fresh.accessCode)).status).toBe(429);
+  });
+});
