@@ -978,6 +978,16 @@ html, body {
   caret-color: var(--accent);
 }
 
+/* The input has no border of its own, so the row shows focus (B10). */
+.command-body:focus-within {
+  outline: 1px solid var(--text-bright);
+  outline-offset: -1px;
+}
+
+#command-input:focus-visible {
+  outline: none;
+}
+
 #command-input:disabled {
   color: var(--text-muted);
 }
