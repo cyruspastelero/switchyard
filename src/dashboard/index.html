@@ -152,18 +152,21 @@
     <div class="panel-header" style="cursor:default">
       <span class="panel-title">CONTEXTS</span>
       <span class="ctx-head-acts">
-        <button type="button" id="contexts-new" class="ctx-btn" title="Make a context and choose its windows">New context</button>
-        <button type="button" id="contexts-show-all" class="ctx-btn" title="Bring back every window Switchyard has hidden">Show all windows</button>
-        <button type="button" id="contexts-sort" class="ctx-btn">Sort windows</button>
+        <button type="button" id="contexts-new" class="ctx-btn" disabled title="Make a context and choose its windows">New context</button>
+        <button type="button" id="contexts-show-all" class="ctx-btn" disabled title="Bring back every window Switchyard has hidden">Show all windows</button>
+        <button type="button" id="contexts-sort" class="ctx-btn" disabled>Sort windows</button>
       </span>
     </div>
     <div class="panel-body" id="contexts-body" aria-live="polite">
       <div class="ctx-loading" role="status">
         <span class="sr-only">Loading contexts…</span>
         <div class="ctx-skel ctx-skel-summary"></div>
-        <div class="ctx-skel ctx-skel-row"></div>
-        <div class="ctx-skel ctx-skel-row"></div>
-        <div class="ctx-skel ctx-skel-row"></div>
+        <div class="ctx-cards">
+          <div class="ctx-skel ctx-skel-card"></div>
+          <div class="ctx-skel ctx-skel-card"></div>
+          <div class="ctx-skel ctx-skel-card"></div>
+          <div class="ctx-skel ctx-skel-card"></div>
+        </div>
       </div>
     </div>
   </section>

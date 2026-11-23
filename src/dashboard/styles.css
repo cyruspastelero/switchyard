@@ -3150,7 +3150,8 @@ input:focus-visible,
   animation: ctx-shimmer 1.4s linear infinite;
 }
 .ctx-skel-summary { height: 28px; width: 40%; }
-.ctx-skel-row { height: 72px; }
+/* Card-sized, in the card grid, so the page doesn't jump when the cards arrive. */
+.ctx-skel-card { height: 160px; }
 @keyframes ctx-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 
 @media (prefers-reduced-motion: reduce) {

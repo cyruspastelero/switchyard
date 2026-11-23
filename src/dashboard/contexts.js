@@ -308,6 +308,8 @@
       $sortBtn.textContent = st.busy.sort ? logic.busyLabel('sort') : label;
       if (control && label !== 'Sort windows') $sortBtn.title = label.replace(/^Sort \u00B7 /, '') + '. Keep hands off the mouse while it runs; Esc stops it.';
     }
+    var $newCtx = document.getElementById('contexts-new');
+    if ($newCtx) $newCtx.disabled = !d;
     if ($showAllBtn) {
       $showAllBtn.disabled = !control || !!st.busy.showAll;
       $showAllBtn.title = control ? 'Bring back every window Switchyard has hidden' : NO_CONTROL_NOTE;
