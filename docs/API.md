@@ -20,7 +20,7 @@ All endpoints return JSON. Dashboard endpoints need the session cookie (`switchy
 | `POST` | `/api/instructions` | Cookie | `{ target_agent_id, message }` |
 | `GET` | `/api/instructions/:agentId` | Hook token | Pending instructions for an agent |
 | `GET` | `/api/usage?hours=24` | Cookie | Tool calls, sessions, daily costs. `hours=0` for all time |
-| `GET` | `/api/tokens?hours=24` | Cookie | Token usage and costs from JSONL logs |
+| `GET` | `/api/tokens?hours=24` | Cookie | Token usage and costs from JSONL logs. `hours=0` for all time; 400 unless a whole number up to 87600 |
 
 ## Contexts
 

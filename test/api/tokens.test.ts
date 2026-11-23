@@ -52,4 +52,15 @@ describe('GET /api/tokens', () => {
     // Server returns 404 because POST /api/tokens route doesn't exist
     expect([404, 405]).toContain(res.status);
   });
+
+  it.each([['abc'], ['-1'], ['1.5'], ['99999999'], ['1e9'], ['']])('rejects_hours_%s_with_400', async (hours) => {
+    const res = await f(`${BASE}/api/tokens?hours=${hours}`);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.includes('hours')).toBe(true);
+  });
+
+  it('accepts_hours_zero_for_all_time', async () => {
+    const res = await f(`${BASE}/api/tokens?hours=0`);
+    expect(res.status).toBe(200);
+  });
 });

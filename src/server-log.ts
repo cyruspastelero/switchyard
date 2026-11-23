@@ -26,6 +26,11 @@ export function tidyLogText(text: string, maxBytes: number = LOG_MAX_BYTES): str
 /**
  * Rewrites the log in place when it holds access codes or is too big. launchd keeps the file open in append
  * mode, so later writes land at the new end. Returns true when the file changed.
+ *
+ * No lines are lost between the read and the write: launchd itself never writes to the file, it only hands
+ * it to this process as stdout and stderr. This process is the only writer, Node writes to a file stdout
+ * synchronously, and this function is synchronous, so nothing can be appended while it runs. Child processes
+ * use piped stdio, not the log. If a child ever inherits stdout, this read-then-rewrite would race with it.
  */
 export function tidyServerLog(file: string, maxBytes: number = LOG_MAX_BYTES): boolean {
   let text: string;
