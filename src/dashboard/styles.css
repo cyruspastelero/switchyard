@@ -3175,11 +3175,12 @@ body.view-contexts .header-stats { display: none; }
 .ctx-layout-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .ctx-layout-name { color: var(--text-primary); overflow-wrap: anywhere; }
 .ctx-layout-hint { flex-basis: 100%; }
+/* Same type and select size as the desktop select on the meta line above it. */
 .ctx-card-layout {
-  display: flex; align-items: center; gap: 8px; margin-top: 6px;
-  font-family: var(--font-sans); font-size: var(--font-size-sm);
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  font-family: var(--font-mono); font-size: var(--font-size-xs);
 }
-.ctx-card-layout .ctx-select { flex: 1 1 auto; }
+.ctx-card-layout .ctx-select { flex: 0 1 auto; height: 18px; padding: 0 4px; font-size: var(--font-size-xs); line-height: 16px; }
 
 /* Desktops section and the desktop select on each card's meta line. */
 .ctx-card-meta .ctx-key-select { flex: 0 1 auto; height: 18px; padding: 0 4px; font-size: var(--font-size-xs); line-height: 16px; }
