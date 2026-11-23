@@ -36,9 +36,24 @@ export interface SnapshotWindow {
   readonly tabTitles?: readonly string[];
 }
 
+/** One usable desktop as the Mac app sees it. */
+export interface DesktopEntry {
+  readonly number: number;
+  /** macOS ManagedSpaceID; the app checks it again before closing the desktop. */
+  readonly space: number;
+  /** 1-based display index, in the order desktops are numbered. */
+  readonly screen: number;
+  /** The screen is the laptop's own. */
+  readonly builtin: boolean;
+  /** Some display shows this desktop now. */
+  readonly showing: boolean;
+}
+
 export interface DesktopsInfo {
   readonly count: number;
   readonly active: number | null;
+  /** Absent from apps that predate the Desktops list. */
+  readonly list?: readonly DesktopEntry[];
 }
 
 export interface Snapshot {

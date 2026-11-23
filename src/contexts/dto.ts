@@ -1,6 +1,6 @@
 // Request DTO validation. Every body is parsed into a typed value; unknown fields are rejected.
 
-import type { BrowserInfo, BrowserTab, DesktopsInfo, Snapshot, SnapshotWindow } from './types.ts';
+import type { BrowserInfo, BrowserTab, DesktopEntry, DesktopsInfo, Snapshot, SnapshotWindow } from './types.ts';
 import { parseLayoutRef } from './layouts.ts';
 
 export type Parsed<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
@@ -114,14 +114,47 @@ function parseDesktops(raw: unknown): Parsed<DesktopsInfo | null> {
   if (raw === null) return ok(null);
   const o = asObject(raw, 'desktops');
   if (!o.ok) return o;
-  const extra = checkKeys(o.value, ['count', 'active'], 'desktops');
+  const extra = checkKeys(o.value, ['count', 'active', 'list'], 'desktops');
   if (extra) return fail(extra);
   const count = desktopNumber(o.value.count, 'desktops.count');
   if (!count.ok) return count;
   const active = nullableDesktop(o.value.active ?? null, 'desktops.active');
   if (!active.ok) return active;
   if (active.value !== null && active.value > count.value) return fail('desktops.active exceeds desktops.count');
-  return ok({ count: count.value, active: active.value });
+  if (!('list' in o.value)) return ok({ count: count.value, active: active.value });
+  const list = parseDesktopList(o.value.list, count.value);
+  return list.ok ? ok({ count: count.value, active: active.value, list: list.value }) : list;
+}
+
+function parseDesktopEntry(raw: unknown, expected: number): Parsed<DesktopEntry> {
+  const o = asObject(raw, 'desktop');
+  if (!o.ok) return o;
+  const extra = checkKeys(o.value, ['number', 'space', 'screen', 'builtin', 'showing'], 'desktop');
+  if (extra) return fail(extra);
+  const { number, space, screen, builtin, showing } = o.value;
+  if (number !== expected) return fail(`desktops.list must number desktops 1-N in order (expected ${expected})`);
+  if (typeof space !== 'number' || !Number.isSafeInteger(space) || space < 0) return fail('desktop.space must be a non-negative integer');
+  const s = desktopNumber(screen, 'desktop.screen');
+  if (!s.ok) return s;
+  if (typeof builtin !== 'boolean' || typeof showing !== 'boolean') return fail('desktop.builtin and desktop.showing must be booleans');
+  return ok({ number, space, screen: s.value, builtin, showing });
+}
+
+/** One entry per usable desktop, in Ctrl+N order; screens start at 1 and never come back once left. */
+function parseDesktopList(raw: unknown, count: number): Parsed<readonly DesktopEntry[]> {
+  if (!Array.isArray(raw) || raw.length !== count) return fail('desktops.list must hold one entry per desktop');
+  const out: DesktopEntry[] = [];
+  for (const [i, item] of raw.entries()) {
+    const e = parseDesktopEntry(item, i + 1);
+    if (!e.ok) return e;
+    const prev = out[i - 1];
+    if (prev ? e.value.screen !== prev.screen && e.value.screen !== prev.screen + 1 : e.value.screen !== 1) {
+      return fail('desktops.list screens must run 1, 2, … in order');
+    }
+    if (out.some((d) => d.space === e.value.space)) return fail('desktops.list has a duplicate space');
+    out.push(e.value);
+  }
+  return ok(out);
 }
 
 function parseWindow(raw: unknown): Parsed<SnapshotWindow> {
