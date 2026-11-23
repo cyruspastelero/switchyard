@@ -87,6 +87,13 @@ describe('createSignalSource', () => {
     const titles = await createSignalSource({ claudeDir }).sessionTitles(['s1']);
     expect([...titles]).toEqual([['s1', 'Final title']]);
   });
+  it('session_titles_never_follow_a_session_id_out_of_the_project_folders', async () => {
+    const claudeDir = join(dir, 'claude-escape');
+    mkdirSync(join(claudeDir, '-work-proj'), { recursive: true });
+    writeFileSync(join(claudeDir, 'outside.jsonl'), '{"type":"ai-title","aiTitle":"Outside"}\n');
+    const titles = await createSignalSource({ claudeDir }).sessionTitles(['../outside']);
+    expect([...titles]).toEqual([]);
+  });
 });
 
 describe('findGitRoot', () => {
