@@ -19,6 +19,7 @@ import {
 import { readEnv } from '../paths.ts';
 import { IconStore } from './icons.ts';
 import { pathsFromToolInput, pickWorkFolder } from './workfolder.ts';
+import { claimOpened, EXPECT_OPEN_MS, type ExpectedOpen } from './reopen.ts';
 
 const PALETTE = ['#4f8cff', '#e8833a', '#3fb68b', '#b46bff', '#e5566d', '#d4a72c', '#2fb5c9', '#8c8f99', '#6dbb3f'] as const;
 
@@ -41,6 +42,7 @@ interface MatchState {
 }
 
 const OWNER_REASON = 'assigned by you';
+const REOPENED_REASON = 'reopened in this context';
 /** How many of a session's latest tool calls say where it works. */
 const WORK_SAMPLE = 300;
 
@@ -250,9 +252,11 @@ export class ContextsService {
   async applySnapshot(snapshot: Snapshot): Promise<void> {
     await this.refresh();
     const previousActive = this.desktopCount() === null ? null : (this.snapshot?.desktops?.active ?? null);
+    const known = new Set(this.lastSeen.keys());
     this.rememberWindows(snapshot);
     this.snapshot = snapshot;
     this.snapshotAt = this.now();
+    this.claimOpenedWindows(snapshot.windows, known);
     const changed = this.sortWindows(snapshot.windows, { onlyNew: true });
     this.followDesktop(previousActive);
     if (changed > 0) this.reshowActive();
@@ -644,7 +648,7 @@ export class ContextsService {
     const desktopFirst = this.desktopCount() !== null;
     if (desktopFirst) this.switchTo(id);
     for (const p of saved) {
-      const command = this.commands.enqueue({
+      const command = this.enqueueOpenWindow({
         type: 'openWindow', browser: p.browser, name: p.name, urls: p.urls, contextId: id,
       });
       this.pendingParked.set(command.seq, p.id);
@@ -654,6 +658,21 @@ export class ContextsService {
   }
 
   private readonly pendingParked = new Map<number, number>();
+  private readonly expectedOpens = new Map<number, ExpectedOpen>();
+
+  private enqueueOpenWindow(body: Extract<CommandBody, { type: 'openWindow' }>): Command {
+    const command = this.commands.enqueue(body);
+    this.expectedOpens.set(command.seq, { ...body, until: this.now() + EXPECT_OPEN_MS });
+    return command;
+  }
+  /** The app cannot say which window an open made, so new windows that fit are assigned here (reopen.ts). */
+  private claimOpenedWindows(windows: readonly SnapshotWindow[], known: ReadonlySet<string>): void {
+    const { claims, done } = claimOpened(this.expectedOpens, windows, known, this.now());
+    for (const seq of done) this.expectedOpens.delete(seq);
+    const at = new Date(this.now()).toISOString();
+    for (const [key, id] of claims) if (this.store.getContext(id)) this.store.setAssignment(key, id, 'owner', at, REOPENED_REASON);
+  }
+
   /** Open command seq -> the closeTab to queue once that open succeeds (accepted tab suggestions). */
   private readonly closeAfterOpen = new Map<number, CommandBody>();
 
@@ -664,6 +683,7 @@ export class ContextsService {
     if (command.type === 'splitTabs' && this.splitWait?.seq === seq) this.splitWait = { ...this.splitWait, acked: true };
     const parkedId = this.pendingParked.get(seq);
     this.pendingParked.delete(seq);
+    if (!ok) this.expectedOpens.delete(seq);
     const closeTab = this.closeAfterOpen.get(seq);
     this.closeAfterOpen.delete(seq);
     if (ok && closeTab) this.commands.enqueue(closeTab);
@@ -768,7 +788,7 @@ export class ContextsService {
       ? { type: 'openTab', windowKey: target.key, url: tab.url }
       : { type: 'openWindow', browser: source.app, name: ctx.name, urls: [tab.url], contextId: ctx.id };
     // The source tab closes only once the app acks the open: a failed open must not lose the tab.
-    const opened = this.commands.enqueue(open);
+    const opened = open.type === 'openWindow' ? this.enqueueOpenWindow(open) : this.commands.enqueue(open);
     this.closeAfterOpen.set(opened.seq, { type: 'closeTab', windowKey: source.key, tabId: tab.id });
     this.scheduleEmit();
   }

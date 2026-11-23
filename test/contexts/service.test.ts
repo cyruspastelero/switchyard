@@ -559,6 +559,49 @@ describe('switch, park, restore', () => {
     expect(svc.store.listParked(id)).toHaveLength(0);
   });
 
+  it('a_restored_topic_window_with_generic_tabs_stays_in_its_topic', async () => {
+    const svc = newService();
+    const search = 'https://www.google.com/search?q=receipts';
+    await svc.applySnapshot({ windows: [chrome('w1', [search])] });
+    const topic = svc.createTopic('Taxes');
+    svc.assign('w1', topic.id);
+    svc.park(topic.id);
+    await svc.applySnapshot({ windows: [] });
+    const before = svc.commands.lastSeq;
+    svc.restore(topic.id);
+    const open = svc.commands.since(before).find((c) => c.type === 'openWindow')!;
+    svc.ack(open.seq, true, null);
+    await svc.applySnapshot({ windows: [chrome('w9', [search], 'Taxes')] });
+    expect(contextOf(await svc.view(), 'w9')).toBe('Taxes');
+  });
+
+  it('a_window_that_was_already_open_is_not_taken_for_a_restored_one', async () => {
+    const svc = newService();
+    const search = 'https://www.google.com/search?q=receipts';
+    await svc.applySnapshot({ windows: [chrome('w1', [search]), chrome('other', [search], 'Taxes')] });
+    const topic = svc.createTopic('Taxes');
+    svc.assign('w1', topic.id);
+    svc.park(topic.id);
+    svc.restore(topic.id);
+    await svc.applySnapshot({ windows: [chrome('other', [search], 'Taxes')] });
+    expect(contextOf(await svc.view(), 'other')).toBeNull();
+  });
+
+  it('a_failed_restore_open_claims_no_window', async () => {
+    const svc = newService();
+    const search = 'https://www.google.com/search?q=receipts';
+    await svc.applySnapshot({ windows: [chrome('w1', [search])] });
+    const topic = svc.createTopic('Taxes');
+    svc.assign('w1', topic.id);
+    svc.park(topic.id);
+    await svc.applySnapshot({ windows: [] });
+    const before = svc.commands.lastSeq;
+    svc.restore(topic.id);
+    svc.ack(svc.commands.since(before).find((c) => c.type === 'openWindow')!.seq, false, 'chrome not running');
+    await svc.applySnapshot({ windows: [chrome('w9', [search], 'Taxes')] });
+    expect(contextOf(await svc.view(), 'w9')).toBeNull();
+  });
+
   it('switching_to_a_parked_context_is_rejected', async () => {
     addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
     const svc = newService();
