@@ -153,24 +153,85 @@ struct WindowCarrier {
     }
 
     /// Another display: dragging while that display switches leaves the window behind. Show the target desktop
-    /// there, then move the window onto that screen; a window takes the space its display shows.
+    /// there, then move the window onto that screen; a window takes the space its display shows. When the app
+    /// ignores the move (issue #14), drag the window across by its title bar instead.
     private func moveAcross(_ window: CarryTarget, to target: Desktop, key: DesktopShortcut) throws {
         if !Spaces.isShowing(target.id) { // an extra Ctrl+N would switch the focused display instead
             DesktopKeys.post(key)
             try DesktopSwitch.wait(for: target.id, number: target.number, abort: session.check)
             try session.sleep(CarryDelays.settleAfterSwitch)
         }
-        guard let display = Spaces.displayId(of: target), let frame = AX.frame(window.element) else {
+        guard let display = Spaces.displayId(of: target), let original = AX.frame(window.element) else {
             throw CarryError.failed("cannot find Desktop \(target.number)'s screen")
         }
         let b = CGDisplayBounds(display)
         let screen = Rect(x: b.origin.x, y: b.origin.y, width: b.width, height: b.height)
-        let spot = CrossDisplay.position(window: frame, screen: screen)
-        _ = AX.setPosition(window.element, x: spot.x, y: spot.y)
-        try session.sleep(CarryDelays.beforeVerify)
-        guard CarryCheck.moved(spacesAfter: Spaces.spaces(ofWindow: window.windowId), target: target.id) else {
-            throw CarryError.failed("window did not move to the other display")
+        let spot = CrossDisplay.frame(window: original, screen: screen)
+        let accepted = place(window, at: spot, resize: CrossDisplay.needsResize(window: original, screen: screen))
+        if try waitMoved(window, to: target.id) { return }
+        Log.windows.notice("window \(window.windowId, privacy: .public) stayed on its display (position \(accepted ? "accepted" : "refused", privacy: .public)); dragging it across")
+        let dragFailure: String
+        do {
+            guard let why = try dragAcross(window, from: original, to: spot, space: target.id) else { return }
+            dragFailure = why
+        } catch CarryError.failed(let why) {
+            dragFailure = why
         }
+        // Leave the window as the owner had it, not shrunk or half way between screens.
+        _ = AX.setPosition(window.element, x: original.x, y: original.y)
+        _ = AX.setSize(window.element, width: original.width, height: original.height)
+        let moveFailure = accepted ? "it stayed on its own display" : "the app refused the new position"
+        throw CarryError.failed("window did not move to Desktop \(target.number)'s display (\(moveFailure); drag: \(dragFailure)); move it there by hand")
+    }
+
+    /// Sets size and position through Accessibility. Size goes first and again last: apps clamp a size that
+    /// does not fit where the window is. False when the app refused the position.
+    private func place(_ window: CarryTarget, at spot: Rect, resize: Bool) -> Bool {
+        if resize { _ = AX.setSize(window.element, width: spot.width, height: spot.height) }
+        let accepted = AX.setPosition(window.element, x: spot.x, y: spot.y)
+        if resize { _ = AX.setSize(window.element, width: spot.width, height: spot.height) }
+        return accepted
+    }
+
+    /// Polls until the window is on the target space alone, or the sort's time cap is reached.
+    private func waitMoved(_ window: CarryTarget, to space: UInt64) throws -> Bool {
+        try session.sleep(CarryDelays.beforeVerify)
+        let end = min(Date().addingTimeInterval(CrossDisplay.verifyTimeout), session.deadline)
+        while true {
+            if CarryCheck.moved(spacesAfter: Spaces.spaces(ofWindow: window.windowId), target: space) { return true }
+            if Date() > end { return false }
+            try session.sleep(CarryDelays.switchPollInterval * 5)
+        }
+    }
+
+    /// Holds the title bar and drags the pointer onto the other screen, so the window lands at `spot`.
+    /// First puts the window back where it is drawn: after a refused move its AX frame can point at the
+    /// other screen while the window is still on its own, and a grab there would click something else.
+    /// Returns nil when the window moved, else why the drag did not work.
+    private func dragAcross(_ window: CarryTarget, from original: Rect, to spot: Rect, space: UInt64) throws -> String? {
+        if session.timedOut { return "the sort ran out of time" }
+        try session.check()
+        _ = AX.setPosition(window.element, x: original.x, y: original.y)
+        NSRunningApplication(processIdentifier: window.pid)?.activate(options: [])
+        AX.perform(window.element, kAXRaiseAction as String)
+        try session.sleep(CarryDelays.afterRaise)
+        guard let frame = AX.frame(window.element), let drawn = Spaces.bounds(ofWindow: window.windowId),
+              CrossDisplay.sameOrigin(frame, drawn) else { return "the window is not drawn where it reports" }
+        let titleBar = CGPoint(x: frame.centerX, y: frame.y + 8)
+        guard AX.pid(at: titleBar) == window.pid else { return "another window covers its title bar" }
+        let saved = CarrySession.pointer
+        defer { session.releaseMouse() }
+        let held = try grab(window, pointer: saved, scale: 1)
+        let end = CGPoint(x: held.x + spot.x - frame.x, y: held.y + spot.y - frame.y)
+        let steps = 12
+        for i in 1...steps {
+            let t = Double(i) / Double(steps)
+            session.drag(to: CGPoint(x: held.x + (end.x - held.x) * t, y: held.y + (end.y - held.y) * t))
+            try session.sleep(CarryDelays.betweenDragSteps)
+        }
+        try session.sleep(CarryDelays.settleAfterSwitch)
+        session.releaseMouse()
+        return try waitMoved(window, to: space) ? nil : "the window did not follow the pointer"
     }
 
     /// After a failed try the screen may have slid away; come back to the window's desktop.
@@ -201,7 +262,8 @@ struct WindowCarrier {
     }
 
     /// Tries each grab point until one really drags the window, and leaves the mouse down on it.
-    private func grab(_ window: CarryTarget, pointer saved: CGPoint, scale: Double) throws {
+    @discardableResult
+    private func grab(_ window: CarryTarget, pointer saved: CGPoint, scale: Double) throws -> CGPoint {
         guard let frame = AX.frame(window.element) else { throw CarryError.failed("no window frame") }
         let zoom = AX.element(window.element, kAXZoomButtonAttribute as String).flatMap(AX.frame)
         let candidates = CarryGrab.candidates(zoomButton: zoom, window: frame, screens: Spaces.screenFrames(),
@@ -211,7 +273,7 @@ struct WindowCarrier {
             session.savePointer(saved)
             if try startDrag(candidate, window: window, scale: scale) {
                 CarrySession.remember(candidate.kind, for: window.bundleId)
-                return
+                return candidate.point
             }
             session.releaseMouse()
             try session.sleep(CarryDelays.betweenGrabTries * scale)

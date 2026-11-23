@@ -93,10 +93,34 @@ enum CarryReport {
 /// Where a window lands when it moves to another display: centred, kept below the menu bar, never off the screen. Pure.
 enum CrossDisplay {
     static let menuBarClearance = 30.0
+    /// Points a window may exceed the room below the menu bar before it is shrunk.
+    static let fitSlack = 8.0
+    /// How long a moved window may take to show up on the other display's space.
+    static let verifyTimeout: TimeInterval = 1.0
 
     static func position(window: Rect, screen: Rect) -> (x: Double, y: Double) {
-        let x = screen.x + max(0, (screen.width - window.width) / 2)
-        let y = screen.y + max(menuBarClearance, (screen.height - window.height) / 2)
-        return (x, y)
+        let f = frame(window: window, screen: screen)
+        return (f.x, f.y)
+    }
+
+    /// Where a window lands on another display: shrunk to fit below the menu bar, then centred. A window bigger
+    /// than the screen would hang over onto its old display, and macOS keeps it there (issue #14).
+    static func frame(window: Rect, screen: Rect) -> Rect {
+        let width = min(window.width, screen.width)
+        let room = max(1, screen.height - menuBarClearance)
+        // A maximized window (screen height minus a 24-25 pt menu bar) keeps its height.
+        let height = window.height <= room + fitSlack ? window.height : room
+        let x = screen.x + (screen.width - width) / 2
+        let y = screen.y + max(menuBarClearance, (screen.height - height) / 2)
+        return Rect(x: x, y: y, width: width, height: height)
+    }
+
+    /// The AX frame and the drawn (CGWindow) bounds agree, so the window really is where AX says.
+    static func sameOrigin(_ a: Rect, _ b: Rect) -> Bool { abs(a.x - b.x) <= 2 && abs(a.y - b.y) <= 2 }
+
+    /// True when the window has to shrink to fit.
+    static func needsResize(window: Rect, screen: Rect) -> Bool {
+        let f = frame(window: window, screen: screen)
+        return f.width < window.width || f.height < window.height
     }
 }

@@ -33,13 +33,11 @@ struct BrowserWindow {
 enum BrowserError: Error, LocalizedError {
     case unsupported(String)
     case badURL(String)
-    case badOutput
 
     var errorDescription: String? {
         switch self {
         case .unsupported(let m): return m
         case .badURL: return "URL scheme not allowed"
-        case .badOutput: return "unexpected script output"
         }
     }
 }

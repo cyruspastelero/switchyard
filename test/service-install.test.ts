@@ -48,7 +48,7 @@ describe('server LaunchAgent', () => {
   it('install_writes_the_plist_and_reloads_the_agent', () => {
     installService(opts);
     expect(fs.readFileSync(opts.plistPath, 'utf-8')).toBe(buildServicePlist(opts));
-    expect(fs.statSync(opts.logPath).mode & 0o777).toBe(0o600); // the log holds the access code
+    expect(fs.statSync(opts.logPath).mode & 0o777).toBe(0o600); // owner-only log
     expect(calls).toEqual([
       ['bootout', `gui/501/${SERVICE_LABEL}`],
       ['bootstrap', 'gui/501', opts.plistPath],

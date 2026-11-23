@@ -14,7 +14,7 @@ import { tabSplits, type TabSplit } from './tabsplit.ts';
 import {
   desktopFor, desktopMode, desktopWindows, misplaced, offscreenReason, sweepMoves, tidyPlan, windowTargets, type TidyDesktop, type WindowMove,
 } from './desktops.ts';
-import { buildView, canBeNamed, computeSuggestions, SNAPSHOT_FRESH_MS, type ViewInput } from './view.ts';
+import { buildView, canBeNamed, computeSuggestions, SNAPSHOT_FRESH_MS, suggestionId, type ViewInput } from './view.ts';
 import {
   ContextsError, type CommandFailure, type ContextsView, type Snapshot, type SnapshotWindow,
 } from './types.ts';
@@ -779,7 +779,7 @@ export class ContextsService {
     const suggestion = computeSuggestions(this.viewInput()).find((s) => s.id === id);
     if (!suggestion) throw new ContextsError(404, `Suggestion not found: ${id}`);
     const source = this.snapshot?.windows.find((w) => w.key === suggestion.fromWindowKey);
-    const tab = source?.browser?.tabs.find((t) => t.url === suggestion.url);
+    const tab = source?.browser?.tabs.find((t) => suggestionId(suggestion.fromWindowKey, t.id, suggestion.toContextId) === id); // not by URL: duplicates
     if (!source?.browser || !tab) throw new ContextsError(409, 'Source tab is gone');
     const assignments = this.store.getAssignments();
     const target = (this.snapshot?.windows ?? []).find(

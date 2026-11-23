@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url);
 const logic = require('../../src/dashboard/contexts-logic.js') as {
   setupSteps: (d: object) => { id: string; title: string; text: string; done: boolean }[];
   needsSetup: (d: object) => boolean;
-  failureText: (f: { action: string; error: string } | null) => string;
+  failureText: (f: { action: string; error: string; at?: string } | null, nowMs?: number) => string;
   doneText: (action: string, name?: string) => string;
   canRename: (w: { app: string; bundleId: string }) => boolean;
   moveItems: (contexts: { id: string; name: string; color: string; desktop: number | null; key: number | null }[], currentId: string) =>
@@ -56,6 +56,15 @@ describe('feedback', () => {
     expect(logic.failureText({ action: 'nameWindow', error: 'osascript timed out' }))
       .toBe('The Mac app could not rename a browser window: osascript timed out');
     expect(logic.failureText({ action: 'teleport', error: 'x' })).toBe('The Mac app could not finish the last action: x');
+  });
+
+  it('a_failure_says_how_long_ago_it_happened', () => {
+    const now = Date.parse('2026-01-01T12:00:00Z');
+    const f = (at: string) => logic.failureText({ action: 'show', error: 'x', at }, now);
+    expect(f('2026-01-01T11:59:40Z')).toBe('The Mac app could not switch windows: x');
+    expect(f('2026-01-01T11:59:00Z')).toBe('The Mac app could not switch windows: x (1 min ago)');
+    expect(f('2026-01-01T11:48:00Z')).toBe('The Mac app could not switch windows: x (12 min ago)');
+    expect(f('not a date')).toBe('The Mac app could not switch windows: x');
   });
 
   it('every_action_has_a_busy_label_and_a_done_message', () => {

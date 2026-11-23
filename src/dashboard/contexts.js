@@ -57,7 +57,6 @@
     tidy: function (contextId) { return request('POST', '/api/contexts/tidy', contextId ? { contextId: contextId } : {}); },
     undoTidy: function (desktop) { return request('POST', '/api/contexts/tidy/undo', { desktop: desktop }); },
     setAutoTidy: function (on) { return request('PATCH', '/api/contexts/settings', { autoTidy: on }); },
-    accept: function (id) { return request('POST', '/api/contexts/suggestions/' + seg(id) + '/accept', {}); },
     // Resolves to the new context's id (accepts { id } or { context: { id } }).
     create: function (name) {
       return request('POST', '/api/contexts', { name: name }).then(function (res) {
@@ -101,7 +100,7 @@
       ? raw.waitingCount
       : contexts.filter(function (c) { return c.status === 'waiting'; }).length;
     var failure = raw.lastFailure && typeof raw.lastFailure === 'object'
-      ? { action: str(raw.lastFailure.action), error: str(raw.lastFailure.error, 'no detail') } : null;
+      ? { action: str(raw.lastFailure.action), error: str(raw.lastFailure.error, 'no detail'), at: str(raw.lastFailure.at, '') } : null;
     return {
       windowControl: raw.windowControl === true,
       activeContextId: raw.activeContextId == null ? null : String(raw.activeContextId),
@@ -217,10 +216,6 @@
     return '$' + n.toFixed(n >= 0.01 ? 3 : 4);
   }
 
-  function host(url) {
-    try { return new URL(url).hostname; } catch (e) { return url; }
-  }
-
   // Windows from these apps are never project work: Unsorted hides them behind a toggle.
   var SYSTEM_BUNDLE_PREFIXES = ['com.apple.systempreferences', 'com.apple.finder', 'ph.pastelero.switchyard'];
 
@@ -323,7 +318,7 @@
     var errorText = st.error || st.actionError;
     if (errorText) frag.appendChild(h('div', 'ctx-error', errorText, { role: 'alert' }));
     else if (st.notice && !(d && d.lastFailure)) frag.appendChild(noticeLine());
-    if (d && d.lastFailure) frag.appendChild(h('div', 'ctx-error', logic.failureText(d.lastFailure), { role: 'alert' }));
+    if (d && d.lastFailure) frag.appendChild(h('div', 'ctx-error', logic.failureText(d.lastFailure, Date.now()), { role: 'alert' }));
 
     if (!st.loaded) {
       frag.appendChild(h('div', 'ctx-note', 'Loading contexts\u2026'));
@@ -333,7 +328,7 @@
         frag.appendChild(summary(d));
         var needs = needsYou(d, control);
         if (needs) frag.appendChild(needs);
-        if (d.suggestions.length) frag.appendChild(suggestions(d, control));
+        if (d.suggestions.length && suggestionsUi) frag.appendChild(suggestionsUi.section(d, control, control ? '' : NO_CONTROL_NOTE));
         frag.appendChild(cards(d, control));
         if (d.unsorted.length) frag.appendChild(unsortedSection(d));
         if (control && d.desktopNote) frag.appendChild(h('div', 'ctx-foot ctx-muted', d.desktopNote));
@@ -361,6 +356,7 @@
   var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy };
   var layoutsUi = window.MCLayouts ? window.MCLayouts(uiDeps) : null;
   var desktopsUi = window.MCDesktops ? window.MCDesktops(uiDeps) : null;
+  var suggestionsUi = window.MCSuggestions ? window.MCSuggestions(uiDeps) : null;
 
   function noticeLine() {
     var line = h('div', 'ctx-ok', st.notice, { role: 'status' });
@@ -439,25 +435,6 @@
         button('Jump', 'primary', 'jump:' + c.id, function () {
           act('switch:' + c.id, function () { return api.switchTo(c.id); }, c.name);
         }, !control || !!st.busy['switch:' + c.id], control ? '' : NO_CONTROL_NOTE));
-      box.appendChild(line);
-    });
-    return box;
-  }
-
-  function suggestions(d, control) {
-    var box = h('section', 'ctx-suggest', null, { 'aria-label': 'Tab suggestions' });
-    add(box, h('div', 'ctx-section-title', 'Tabs that look like they belong elsewhere'));
-    d.suggestions.forEach(function (s) {
-      var target = d.contexts.filter(function (c) { return c.id === s.toContextId; })[0];
-      var line = h('div', 'ctx-suggest-row');
-      var text = h('span', 'ctx-suggest-text');
-      add(text,
-        h('span', 'ctx-suggest-title', s.title || host(s.url)),
-        h('span', 'ctx-muted', ' ' + host(s.url) + ' looks like '),
-        h('b', null, target ? target.name : 'another context'));
-      add(line, text, button('Move', '', 'move:' + s.id, function () {
-        act('accept:' + s.id, function () { return api.accept(s.id); });
-      }, !control || !!st.busy['accept:' + s.id], control ? '' : NO_CONTROL_NOTE));
       box.appendChild(line);
     });
     return box;

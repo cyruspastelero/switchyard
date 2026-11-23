@@ -511,6 +511,19 @@ describe('switch, park, restore', () => {
     expect((await svc.view()).lastFailure).toBeNull();
   });
 
+  it('an_old_failure_stops_showing_after_fifteen_minutes', async () => {
+    addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
+    let clock = Date.parse('2026-01-01T01:00:00Z');
+    const svc = new ContextsService({ db, listAgents: getAgents, signals, now: () => clock, autoContextWindowMs: Infinity });
+    await svc.applySnapshot({ windows: [] });
+    const id = (await svc.view()).contexts[0].id;
+    svc.ack(svc.switchTo(id).seq, false, 'window not found');
+    clock += 14 * 60_000;
+    expect((await svc.view()).lastFailure).toMatchObject({ error: 'window not found' });
+    clock += 2 * 60_000;
+    expect((await svc.view()).lastFailure).toBeNull();
+  });
+
   it('park_saves_tabs_before_close_commands', async () => {
     addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
     patternsByFolder['/work/tala'] = ['github.com/cyrus/tala'];
@@ -648,6 +661,24 @@ describe('contexts management', () => {
     svc.ack(cmds[0].seq, true, null);
     expect(svc.commands.since(cmds[0].seq).find((c) => c.type === 'closeTab')).toMatchObject({ windowKey: 'w1', tabId: 2 });
     await expect(svc.acceptSuggestion('nope')).rejects.toThrow(/not found/);
+  });
+
+  it('the_same_url_in_two_tabs_gives_two_suggestions_that_each_close_their_own_tab', async () => {
+    addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
+    addAgent('a2', '/work/arki', '2026-01-01T00:01:00Z');
+    patternsByFolder['/work/tala'] = ['github.com/cyrus/tala'];
+    patternsByFolder['/work/arki'] = ['github.com/cyrus/shea-coach'];
+    const svc = newService();
+    const arki = ['https://github.com/cyrus/shea-coach', 'https://github.com/cyrus/shea-coach/pulls', 'https://github.com/cyrus/shea-coach/issues'];
+    const w1 = chrome('w1', [...arki, 'https://github.com/cyrus/tala', 'https://github.com/cyrus/tala']);
+    await svc.applySnapshot({ windows: [w1, chrome('w2', ['https://github.com/cyrus/tala/issues'])] });
+    const ids = (await svc.view()).suggestions.map((s) => s.id);
+    expect(ids).toHaveLength(2);
+    const before = svc.commands.lastSeq;
+    await svc.acceptSuggestion(ids[1]);
+    const open = svc.commands.since(before).find((c) => c.type === 'openTab')!;
+    svc.ack(open.seq, true, null);
+    expect(svc.commands.since(open.seq).find((c) => c.type === 'closeTab')).toMatchObject({ windowKey: 'w1', tabId: 4 });
   });
 
   it('a_failed_target_open_keeps_the_source_tab', async () => {

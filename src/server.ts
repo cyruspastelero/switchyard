@@ -397,6 +397,10 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
         serveDashboardFile('desktops.js', res);
         return;
       }
+      if (method === 'GET' && url === '/suggestions.js') {
+        serveDashboardFile('suggestions.js', res);
+        return;
+      }
       if (method === 'GET' && url === '/contexts.js') {
         serveDashboardFile('contexts.js', res);
         return;

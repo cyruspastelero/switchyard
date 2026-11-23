@@ -10,6 +10,8 @@ import type {
 } from './types.ts';
 
 export const SNAPSHOT_FRESH_MS = 15_000;
+/** A failed command stops showing after this long; it reads as current otherwise (issue #16). */
+export const FAILURE_SHOW_MS = 15 * 60_000;
 const MAX_SUGGESTIONS = 20;
 
 export interface ViewInput {
@@ -128,7 +130,7 @@ export function buildView(input: ViewInput): ContextsView {
     windowControl: control,
     activeContextId: input.activeContextId && known.has(input.activeContextId) ? input.activeContextId : null,
     contexts,
-    lastFailure: input.lastFailure ?? null,
+    lastFailure: recentFailure(input.lastFailure ?? null, input.nowMs),
     unsorted,
     suggestions: computeSuggestions(input),
     waitingCount: contexts.filter((c) => c.status === 'waiting').length,
@@ -140,4 +142,10 @@ export function buildView(input: ViewInput): ContextsView {
     unsortedToMove: input.unsortedToMove ?? 0,
     autoTidy: input.autoTidy ?? true,
   };
+}
+
+function recentFailure(failure: CommandFailure | null, nowMs: number): CommandFailure | null {
+  if (!failure) return null;
+  const at = Date.parse(failure.at);
+  return Number.isNaN(at) || nowMs - at < FAILURE_SHOW_MS ? failure : null;
 }

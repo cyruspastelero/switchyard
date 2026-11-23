@@ -27,19 +27,33 @@ enum ChromeBridge {
         }
     }
 
-    /// `urls` are already sanitized by the caller.
+    /// `urls` are already sanitized by the caller. The window and extra tabs are made with raw Apple Events
+    /// (see ChromeEvents); the first URL and the name are set through ScriptingBridge, which can set by pid.
     static func openWindow(pid: pid_t, name: String?, urls: [String]) async throws {
         try await run(pid: pid, timeout: commandTimeout) { s in
-            let w = try s.make("window", properties: [:])
-            try s.windows().add(w)
-            try s.check()
+            let windowId = try ChromeEvents.make(pid: pid, scriptingClass: ChromeEvents.windowClass, container: nil,
+                                                 properties: [:], timeout: commandTimeout)
+            let w = try s.window(in: try s.windows(), id: windowId)
             if let first = urls.first {
-                (w.value(forKey: "activeTab") as? SBObject)?.setValue(first, forKey: "URL")
+                guard let tab = w.value(forKey: "activeTab") as? SBObject else {
+                    try s.check(); throw BrowserError.unsupported("the new window has no tab to load the first URL")
+                }
+                tab.setValue(first, forKey: "URL")
                 try s.check()
             }
-            if urls.count > 1, let tabs = w.value(forKey: "tabs") as? SBElementArray {
-                for url in urls.dropFirst() { tabs.add(try s.make("tab", properties: ["URL": url])) }
-                try s.check()
+            if urls.count > 1 {
+                guard let container = ChromeEvents.windowSpecifier(id: windowId) else { throw BrowserError.unsupported("cannot address the new window") }
+                let started = Date()
+                for (index, url) in urls.enumerated().dropFirst() {
+                    do {
+                        if Date().timeIntervalSince(started) > commandTimeout * 2 { throw BrowserError.unsupported("Chrome is too slow") }
+                        _ = try ChromeEvents.make(pid: pid, scriptingClass: ChromeEvents.tabClass, container: container,
+                                                  properties: ["URL ": url], timeout: commandTimeout)
+                    } catch {
+                        // The window exists with `index` tabs: say so, so nobody retries into a second window blindly.
+                        throw BrowserError.unsupported("opened the window with \(index) of \(urls.count) tabs, then: \(error.localizedDescription)")
+                    }
+                }
             }
             if let name, !name.isEmpty { w.setValue(name, forKey: "givenName"); try s.check() }
         }
@@ -47,10 +61,10 @@ enum ChromeBridge {
 
     static func openTab(pid: pid_t, windowId: String, url: String) async throws {
         try await run(pid: pid, timeout: commandTimeout) { s in
-            let w = try s.window(in: try s.windows(), id: windowId)
-            guard let tabs = w.value(forKey: "tabs") as? SBElementArray else { throw BrowserError.badOutput }
-            tabs.add(try s.make("tab", properties: ["URL": url]))
-            try s.check()
+            _ = try s.window(in: try s.windows(), id: windowId) // the window must still exist
+            guard let container = ChromeEvents.windowSpecifier(id: windowId) else { throw BrowserError.unsupported("cannot address the window") }
+            _ = try ChromeEvents.make(pid: pid, scriptingClass: ChromeEvents.tabClass, container: container,
+                                      properties: ["URL ": url], timeout: commandTimeout)
         }
     }
 
@@ -121,18 +135,13 @@ enum ChromeBridge {
             // Without Chrome's dictionary (a process still starting, or not Chrome) the key is unknown and
             // value(forKey:) raises an Objective-C exception that Swift cannot catch: it took the app down.
             guard app.responds(to: NSSelectorFromString("windows")) else { throw BrowserError.unsupported("this process does not offer Chrome's scripting") }
-            guard let w = app.value(forKey: "windows") as? SBElementArray else { try check(); throw BrowserError.badOutput }
+            guard let w = app.value(forKey: "windows") as? SBElementArray else { try check(); throw BrowserError.unsupported("Chrome did not return its window list") }
             return w
         }
 
         func window(in windows: SBElementArray, id: String) throws -> SBObject {
-            guard let n = Int(id), let w = windows.object(withID: n) as? SBObject else { throw BrowserError.unsupported("window not found") }
+            guard let n = Int(id), let w = windows.object(withID: n) as? SBObject else { throw BrowserError.unsupported("window \(id) not found in this Chrome") }
             return w
-        }
-
-        func make(_ scriptingClass: String, properties: [String: Any]) throws -> SBObject {
-            guard let cls = app.class(forScriptingClass: scriptingClass) as? SBObject.Type else { throw BrowserError.badOutput }
-            return cls.init(properties: properties)
         }
 
         func close(_ object: SBObject) throws {

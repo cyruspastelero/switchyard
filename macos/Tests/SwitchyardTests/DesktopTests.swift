@@ -126,11 +126,32 @@ final class DesktopTests: XCTestCase {
         XCTAssertEqual(spot.y, -200 + 240)
     }
 
-    func test_a_window_bigger_than_the_other_screen_starts_at_its_corner_below_the_menu_bar() {
-        let spot = CrossDisplay.position(window: Rect(x: 0, y: 0, width: 3000, height: 2000),
-                                         screen: Rect(x: 1440, y: 0, width: 1920, height: 1080))
-        XCTAssertEqual(spot.x, 1440)
-        XCTAssertEqual(spot.y, CrossDisplay.menuBarClearance)
+    func test_a_window_bigger_than_the_other_screen_shrinks_to_fit_below_the_menu_bar() {
+        let window = Rect(x: 0, y: 0, width: 3000, height: 2000)
+        let screen = Rect(x: 1440, y: 0, width: 1920, height: 1080)
+        let f = CrossDisplay.frame(window: window, screen: screen)
+        XCTAssertEqual(f, Rect(x: 1440, y: CrossDisplay.menuBarClearance, width: 1920, height: 1080 - CrossDisplay.menuBarClearance))
+        XCTAssertTrue(CrossDisplay.needsResize(window: window, screen: screen))
+        XCTAssertTrue(f.maxX <= screen.maxX)
+        XCTAssertTrue(f.maxY <= screen.maxY)
+    }
+
+    func test_a_maximized_window_keeps_its_height_on_a_screen_of_the_same_size() {
+        let screen = Rect(x: 0, y: -1080, width: 1920, height: 1080)
+        let window = Rect(x: 0, y: 25, width: 1920, height: 1080 - 25)
+        XCTAssertFalse(CrossDisplay.needsResize(window: window, screen: screen))
+    }
+
+    func test_the_drag_only_starts_when_the_window_is_drawn_where_it_reports() {
+        XCTAssertTrue(CrossDisplay.sameOrigin(Rect(x: 10, y: 20, width: 5, height: 5), Rect(x: 11, y: 21, width: 9, height: 9)))
+        XCTAssertFalse(CrossDisplay.sameOrigin(Rect(x: 1440, y: 30, width: 5, height: 5), Rect(x: 0, y: 30, width: 5, height: 5)))
+    }
+
+    func test_a_window_that_fits_the_other_screen_keeps_its_size() {
+        let window = Rect(x: 0, y: 0, width: 800, height: 600)
+        let screen = Rect(x: -1512, y: 0, width: 1512, height: 982)
+        XCTAssertFalse(CrossDisplay.needsResize(window: window, screen: screen))
+        XCTAssertEqual(CrossDisplay.frame(window: window, screen: screen).width, 800)
     }
 
     // MARK: desktop keys (step 3)

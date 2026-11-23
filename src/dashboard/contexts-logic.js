@@ -50,9 +50,12 @@
     captureLayout: 'save the layout',
   };
 
-  function failureText(f) {
+  function failureText(f, nowMs) {
     if (!f) return '';
-    return 'The Mac app could not ' + (FAILED[f.action] || 'finish the last action') + ': ' + f.error;
+    var text = 'The Mac app could not ' + (FAILED[f.action] || 'finish the last action') + ': ' + f.error;
+    var at = f.at ? Date.parse(f.at) : NaN;
+    var minutes = isNaN(at) || typeof nowMs !== 'number' ? 0 : Math.floor((nowMs - at) / 60000);
+    return minutes >= 1 ? text + ' (' + minutes + ' min ago)' : text;
   }
 
   var BUSY = {
@@ -294,7 +297,49 @@
 
   function closeDesktopConfirm(n) { return 'Close Desktop ' + n + '? Its windows move to another desktop on that screen.'; }
 
-  var api = { keyOptions: keyOptions, keyDoneText: keyDoneText, desktopOwnerText: desktopOwnerText, desktopMeta: desktopMeta, closeDesktopConfirm: closeDesktopConfirm, desktopOwnerOptions: desktopOwnerOptions, statusWord: statusWord, sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
+  // Batch close: the picked desktops from the highest number down (so lower numbers never shift), skipping any
+  // the server blocks (rows carry its closeBlocked reason) and the last one left on a screen.
+  function closePlan(rows, picked) {
+    var left = {};
+    rows.forEach(function (r) { left[r.screen] = (left[r.screen] || 0) + 1; });
+    var close = [], skipped = [];
+    rows.filter(function (r) { return picked.indexOf(r.number) !== -1; })
+      .sort(function (a, b) { return b.number - a.number; })
+      .forEach(function (r) {
+        if (r.closeBlocked) skipped.push({ number: r.number, reason: r.closeBlocked });
+        else if (left[r.screen] < 2) skipped.push({ number: r.number, reason: 'Desktop ' + r.number + ' is the only desktop left on its screen.' });
+        else { left[r.screen]--; close.push(r.number); }
+      });
+    skipped.sort(function (a, b) { return a.number - b.number; });
+    return { close: close, skipped: skipped };
+  }
+
+  function closeBatchLabel(plan) { return plan.close.length ? 'Close ' + plural(plan.close.length, 'desktop') : 'Close selected'; }
+
+  function closeBatchConfirm(plan) {
+    var n = plan.close.length;
+    return 'Close ' + plural(n, 'desktop') + '? ' + (n === 1 ? 'Its' : 'Their') + ' windows move to another desktop on the same screen.'
+      + (plan.skipped.length ? ' ' + plan.skipped.length + ' can’t close and will be skipped.' : '');
+  }
+
+  function closeBatchDoneText(closed, skipped) {
+    return 'Closed ' + plural(closed, 'desktop') + (skipped ? ' · ' + skipped + ' skipped' : '');
+  }
+
+  // Resolves true once check() resolves true, false after timeoutMs. For commands the Mac app runs later.
+  function pollUntil(check, intervalMs, timeoutMs) {
+    var end = Date.now() + timeoutMs;
+    function next() {
+      return check().then(function (ok) {
+        if (ok) return true;
+        if (Date.now() >= end) return false;
+        return new Promise(function (r) { setTimeout(r, intervalMs); }).then(next);
+      });
+    }
+    return next();
+  }
+
+  var api = { closePlan: closePlan, closeBatchLabel: closeBatchLabel, closeBatchConfirm: closeBatchConfirm, closeBatchDoneText: closeBatchDoneText, pollUntil: pollUntil,keyOptions: keyOptions, keyDoneText: keyDoneText, desktopOwnerText: desktopOwnerText, desktopMeta: desktopMeta, closeDesktopConfirm: closeDesktopConfirm, desktopOwnerOptions: desktopOwnerOptions, statusWord: statusWord, sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MCContextsLogic = api;
 })(typeof window !== 'undefined' ? window : this);

@@ -57,6 +57,15 @@ enum AX {
         return nil
     }
 
+    /// The process that owns whatever is at this global (top-left) point on screen.
+    static func pid(at point: CGPoint) -> pid_t? {
+        var hit: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit) == .success,
+              let hit else { return nil }
+        var pid: pid_t = 0
+        return AXUIElementGetPid(hit, &pid) == .success ? pid : nil
+    }
+
     static func element(_ el: AXUIElement, _ attr: String) -> AXUIElement? {
         guard let ref = copy(el, attr), CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
         return unsafeBitCast(ref, to: AXUIElement.self)
