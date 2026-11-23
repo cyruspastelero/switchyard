@@ -24,10 +24,7 @@ enum DesktopList {
     /// `mainDisplayId`; when none matches, the first display.
     static func parse(_ displays: [[String: Any]], mainDisplayId: String?) -> [Desktop] {
         let ids = displays.map { $0["Display Identifier"] as? String ?? "" }
-        let isMain: (String) -> Bool = { id in
-            id == "Main" || (mainDisplayId.map { id.caseInsensitiveCompare($0) == .orderedSame } ?? false)
-        }
-        let mainIndex = ids.firstIndex(where: isMain) ?? 0
+        let mainIndex = mainDisplayIndex(ids, mainDisplayId: mainDisplayId)
         var result: [Desktop] = []
         for (index, display) in displays.enumerated() {
             for space in display["Spaces"] as? [[String: Any]] ?? [] {
@@ -37,6 +34,20 @@ enum DesktopList {
             }
         }
         return result
+    }
+
+    /// The space the main display shows now, whichever display has focus. Nil without displays.
+    static func currentMainSpace(_ displays: [[String: Any]], mainDisplayId: String?) -> UInt64? {
+        guard !displays.isEmpty else { return nil }
+        let ids = displays.map { $0["Display Identifier"] as? String ?? "" }
+        let current = displays[mainDisplayIndex(ids, mainDisplayId: mainDisplayId)]["Current Space"] as? [String: Any]
+        return (current?["ManagedSpaceID"] as? NSNumber)?.uint64Value
+    }
+
+    private static func mainDisplayIndex(_ ids: [String], mainDisplayId: String?) -> Int {
+        ids.firstIndex { id in
+            id == "Main" || (mainDisplayId.map { id.caseInsensitiveCompare($0) == .orderedSame } ?? false)
+        } ?? 0
     }
 
     /// The main-display desktop a window is on; nil for no space, several (All Desktops), or a non-desktop space.
@@ -59,9 +70,14 @@ enum Spaces {
 
     static func mainDesktops() -> [Desktop] { desktops().filter(\.isMain) }
 
-    static func activeSpace() -> UInt64 { cgsActiveSpace(connection) }
+    /// The main display's current space. Not `CGSGetActiveSpace`: that follows focus, so with focus on a
+    /// second display it names a space no main-display command can use (issue #11).
+    static func activeSpace() -> UInt64 {
+        let displays = cgsCopyManagedDisplaySpaces(connection) as? [[String: Any]] ?? []
+        return DesktopList.currentMainSpace(displays, mainDisplayId: mainDisplayUUID()) ?? cgsActiveSpace(connection)
+    }
 
-    /// Nil when the active space is fullscreen, on another display, or not a desktop.
+    /// Nil when the main display shows a fullscreen or other non-desktop space.
     static func activeDesktopNumber(in list: [Desktop]? = nil) -> Int? {
         DesktopList.number(ofSpaces: [activeSpace()], in: list ?? desktops())
     }

@@ -43,6 +43,26 @@ final class DesktopTests: XCTestCase {
         XCTAssertEqual(list.map(\.isMain), [true, false])
     }
 
+    func test_current_space_is_the_main_displays_even_when_the_second_display_has_focus() {
+        let displays: [[String: Any]] = [
+            ["Display Identifier": "Main", "Current Space": space(4), "Spaces": [space(1), space(4)]],
+            ["Display Identifier": "EXT", "Current Space": space(20), "Spaces": [space(20), space(21)]],
+        ]
+        XCTAssertEqual(DesktopList.currentMainSpace(displays, mainDisplayId: nil), 4)
+    }
+
+    func test_current_space_follows_the_main_display_id_when_no_display_is_called_main() {
+        let displays: [[String: Any]] = [
+            ["Display Identifier": "AAAA", "Current Space": space(20), "Spaces": [space(20)]],
+            ["Display Identifier": "BBBB", "Current Space": space(7), "Spaces": [space(7)]],
+        ]
+        XCTAssertEqual(DesktopList.currentMainSpace(displays, mainDisplayId: "bbbb"), 7)
+    }
+
+    func test_no_current_space_without_displays() {
+        XCTAssertNil(DesktopList.currentMainSpace([], mainDisplayId: nil))
+    }
+
     func test_no_displays_means_no_desktops() {
         XCTAssertEqual(DesktopList.parse([], mainDisplayId: nil), [])
     }
