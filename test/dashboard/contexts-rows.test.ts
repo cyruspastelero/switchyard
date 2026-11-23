@@ -9,6 +9,8 @@ const logic = require('../../src/dashboard/contexts-logic.js') as {
   windowParts: (w: Win) => { text: string; tabs: string };
   windowTip: (w: Win) => string;
   windowPlace: (w: Win, activeDesktop: number | null, unsorted?: boolean) => string;
+  placeTag: (w: Win, activeDesktop: number | null) => string;
+  visibleWindows: <T>(list: T[], expanded: boolean) => { shown: T[]; more: number };
   cardMeta: (c: { desktop: number | null; key: number | null; status: string }) => string;
   agentSummary: (c: { agents: { status: string; costToday: number | null }[] }) => string;
 };
@@ -53,6 +55,24 @@ describe('window rows', () => {
     expect(logic.windowPlace(w(), null)).toBe('');
   });
 
+  it('a_window_elsewhere_gets_a_short_desktop_tag_so_the_title_keeps_its_room', () => {
+    expect(logic.placeTag(w({ desktop: 5 }), 1)).toBe('D5');
+    expect(logic.placeTag(w({ hidden: true, desktop: 1 }), 1)).toBe('hidden');
+    expect(logic.placeTag(w({ desktop: 1 }), 1)).toBe('');
+    expect(logic.placeTag(w(), null)).toBe('');
+  });
+
+  it('a_long_window_list_shows_four_rows_and_counts_the_rest', () => {
+    expect(logic.visibleWindows([1, 2, 3, 4, 5, 6], false)).toEqual({ shown: [1, 2, 3, 4], more: 2 });
+    expect(logic.visibleWindows([1, 2, 3, 4, 5, 6], true)).toEqual({ shown: [1, 2, 3, 4, 5, 6], more: 0 });
+    // One hidden row is not worth a toggle: show it.
+    expect(logic.visibleWindows([1, 2, 3, 4, 5], false)).toEqual({ shown: [1, 2, 3, 4, 5], more: 0 });
+  });
+
+  it('cards_in_a_row_share_one_height', () => {
+    expect(rule('.ctx-cards')).toMatch(/align-items: stretch/);
+  });
+
   it('titles_get_the_full_row_width_with_actions_overlaid_not_reserved', () => {
     expect(rule('.ctx-w-acts')).toMatch(/position: absolute/);
     expect(rule('.ctx-w-text')).toMatch(/text-overflow: ellipsis/);
@@ -73,8 +93,7 @@ describe('uniform cards', () => {
       .toBe('2 agents · 1 waiting, 1 working · $0.10');
   });
 
-  it('each_card_takes_its_own_height', () => {
-    expect(rule('.ctx-cards')).toMatch(/align-items: start/);
+  it('a_card_is_a_column_so_its_window_list_can_fill_the_row_height', () => {
     expect(rule('.ctx-card')).toMatch(/display: flex/);
     expect(rule('.ctx-card')).toMatch(/flex-direction: column/);
   });

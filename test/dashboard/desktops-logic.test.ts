@@ -16,6 +16,7 @@ const logic = require('../../src/dashboard/contexts-logic.js') as {
   closeBatchLabel: (plan: Plan) => string;
   closeBatchConfirm: (plan: Plan) => string;
   closeBatchDoneText: (closed: number, skipped: number) => string;
+  swapTarget: (dragged: { id: string; name: string; key: number | null }, row: Row & { number: number }) => { ok: boolean; note: string };
   pollUntil: (check: () => Promise<boolean>, intervalMs: number, timeoutMs: number) => Promise<boolean>;
 };
 type Batch = { number: number; screen: number; closeBlocked: string | null };
@@ -118,5 +119,24 @@ describe('closing several desktops at once', () => {
     expect(await logic.pollUntil(() => Promise.resolve(++calls >= 3), 1, 1000)).toBe(true);
     expect(calls).toBe(3);
     expect(await logic.pollUntil(() => Promise.resolve(false), 5, 20)).toBe(false);
+  });
+});
+
+describe('dragging a project from one desktop tile to another', () => {
+  const row = (number: number, owners: { id: string; name: string }[] = [], shared = false) =>
+    ({ number, screenLabel: 'Laptop', shared, owners, windows: 0, showing: false });
+
+  it('onto_another_project_swaps_the_two', () => {
+    expect(logic.swapTarget(me, row(2, [aral]))).toEqual({ ok: true, note: 'Swap with aral' });
+  });
+
+  it('onto_a_free_desktop_moves_the_project_there', () => {
+    expect(logic.swapTarget(me, row(4))).toEqual({ ok: true, note: 'Move switchyard here' });
+  });
+
+  it('refuses_its_own_desktop_the_shared_one_and_desktops_past_nine', () => {
+    expect(logic.swapTarget(me, row(1, [me]))).toEqual({ ok: false, note: 'Already on Desktop 1' });
+    expect(logic.swapTarget(me, row(6, [], true))).toEqual({ ok: false, note: 'The shared desktop holds no project' });
+    expect(logic.swapTarget(me, row(10))).toEqual({ ok: false, note: 'Only Desktops 1–9 have a ⌥ key' });
   });
 });
