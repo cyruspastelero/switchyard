@@ -3075,7 +3075,17 @@ input:focus-visible,
 .ctx-step-state { font-size: var(--font-size-xs); letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-secondary); padding-top: 4px; }
 .ctx-step.done .ctx-step-state { color: var(--success); }
 .ctx-setup-foot, .ctx-foot { font-family: var(--font-sans); font-size: var(--font-size-sm); line-height: 1.5; margin-top: 10px; color: var(--text-muted); }
-.ctx-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.ctx-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: var(--font-mono); user-select: none; }
+.ctx-toggle-name { color: var(--text-primary); letter-spacing: 0.04em; text-transform: uppercase; font-size: var(--font-size-sm); }
+.ctx-toggle-hint { color: var(--text-muted); font-size: var(--font-size-sm); }
+.ctx-switch { appearance: none; -webkit-appearance: none; flex: none; margin: 0; width: 28px; height: 16px; border: 1px solid var(--border-bright); background: var(--bg-panel-alt); position: relative; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.ctx-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; background: var(--text-muted); transition: transform 0.15s, background 0.15s; }
+.ctx-switch:checked { background: var(--glow-success); border-color: var(--success-dim); }
+.ctx-switch:checked::after { transform: translateX(12px); background: var(--success); }
+.ctx-toggle:hover .ctx-switch { border-color: var(--border-focus); }
+.ctx-switch:focus-visible { outline: 1px solid var(--text-bright); outline-offset: 2px; }
+@media (max-width: 480px) { .ctx-toggle { flex-wrap: wrap; } .ctx-toggle-hint { flex-basis: 100%; padding-left: 38px; } }
+@media (prefers-reduced-motion: reduce) { .ctx-switch, .ctx-switch::after { transition: none; } }
 .ctx-ok .ctx-btn { margin-left: 8px; }
 
 .empty-state .empty-title { color: var(--text-secondary); }

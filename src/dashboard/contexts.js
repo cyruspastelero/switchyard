@@ -362,12 +362,13 @@
 
   function autoTidyToggle(d) {
     var label = h('label', 'ctx-foot ctx-muted ctx-toggle');
-    var box = h('input', null, null, { type: 'checkbox', 'data-fk': 'auto-tidy' });
+    var box = h('input', 'ctx-switch', null, { type: 'checkbox', role: 'switch', 'data-fk': 'auto-tidy' });
     box.checked = d.autoTidy;
     box.addEventListener('change', function () {
       act('autoTidy', function () { return api.setAutoTidy(box.checked).then(function () { return { notice: box.checked ? 'Sort and Move tidy the desktops they change' : 'Only Tidy lays out windows now' }; }); });
     });
-    return add(label, box, document.createTextNode(' Tidy desktops after Sort and Move'));
+    return add(label, box, h('span', 'ctx-toggle-name', 'Auto-tidy'),
+      h('span', 'ctx-toggle-hint', 'Lay out each desktop after Sort and Move'));
   }
 
   // First run, and any time a step is still open: what Switchyard does and what to do next.
