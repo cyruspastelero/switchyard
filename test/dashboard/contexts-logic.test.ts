@@ -208,3 +208,16 @@ describe('layout presets', () => {
     expect(lx.layoutMeta({ slots: [{ screen: { uuid: 'A' } }] })).toBe('1 window');
   });
 });
+
+describe('unsorted header', () => {
+  const ul = logic as unknown as { unsortedCountText: (n: number) => string };
+
+  it('counts_the_windows_left_to_sort', () => {
+    expect(ul.unsortedCountText(1)).toBe('1 window not on a desktop');
+    expect(ul.unsortedCountText(3)).toBe('3 windows not on a desktop');
+  });
+
+  it('says_nothing_when_only_hidden_system_windows_are_unsorted', () => {
+    expect(ul.unsortedCountText(0)).toBe('');
+  });
+});

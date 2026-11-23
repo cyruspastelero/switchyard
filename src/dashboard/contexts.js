@@ -642,8 +642,8 @@
     var system = d.unsorted.filter(isSystemWindow);
     var shown = st.showSystem ? d.unsorted.slice() : d.unsorted.filter(function (w) { return !isSystemWindow(w); });
     var head = h('div', 'ctx-unsorted-head');
-    add(head, h('span', 'ctx-section-title', 'Unsorted'),
-      h('span', 'ctx-muted', d.unsorted.length + (d.unsorted.length === 1 ? ' window' : ' windows') + ' not on a desktop'));
+    var count = logic.unsortedCountText(d.unsorted.length - system.length);
+    add(head, h('span', 'ctx-section-title', 'Unsorted'), count ? h('span', 'ctx-muted', count) : null);
     box.appendChild(head);
 
     var list = h('ul', 'ctx-unsorted-list');
