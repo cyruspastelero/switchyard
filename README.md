@@ -21,7 +21,7 @@ Everything runs on your Mac. Nothing is sent anywhere.
 
 ### Download
 
-The first signed release is on its way. Until it lands, use [Build from source](#build-from-source).
+The app is signed with a Developer ID but not notarized yet, so macOS blocks the first open. After step 1, open **System Settings → Privacy & Security** and click **Open Anyway** next to Switchyard (or run `xattr -dr com.apple.quarantine /Applications/Switchyard.app`).
 
 1. Download `Switchyard-<version>.dmg` from [Releases](https://github.com/cyruspastelero/switchyard/releases), open it and drag Switchyard to Applications.
 2. Open Switchyard from Applications and click its menu bar icon. The panel says the server isn't reachable and shows the command that starts it. Click **Copy command**, then paste it into Terminal and run it. It looks like this:
