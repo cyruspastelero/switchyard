@@ -75,13 +75,13 @@ describe('desktops panel', () => {
     const close = rows[0].all().find((e) => e.attrs['data-fk'] === 'desktopClose:1')!;
     expect(close.disabled).toBe(true);
     expect(close.title).toBe(owned);
-    expect(rows[0].children[0].disabled).toBe(true);
+    expect(rows[0].children[0].children[0].disabled).toBe(true); // the box sits in its hit-area label
   });
 
   it('ticking_boxes_updates_one_close_button_with_the_real_count', () => {
     const batch = box.all().find((e) => e.attrs['data-fk'] === 'desktopBatch')!;
     expect(batch.disabled).toBe(true);
-    for (const r of rows.slice(1, 3)) { r.children[0].checked = true; r.children[0].listeners.change(); }
+    for (const r of rows.slice(1, 3)) { const box = r.children[0].children[0]; box.checked = true; box.listeners.change(); }
     expect(batch.textContent).toBe('Close 2 desktops');
     expect(batch.disabled).toBe(false);
   });
