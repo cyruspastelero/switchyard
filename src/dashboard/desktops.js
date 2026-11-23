@@ -192,7 +192,7 @@
       var box = h('div', 'ctx-foot ctx-layouts ctx-desktops');
       var head = h('div', 'ctx-toggle');
       head.appendChild(h('span', 'ctx-toggle-name', 'Desktops'));
-      if (deps.drag) head.appendChild(h('span', 'ctx-muted ctx-drop-hint', 'Drop a window on a context’s desktop to move it there'));
+      if (deps.drag) head.appendChild(h('span', 'ctx-muted ctx-drop-hint', 'Drop a window on a context’s desktop or card to move it there'));
       list.screens.forEach(function (s) {
         var key = 'desktopAdd:' + s.screen;
         var label = list.screens.length > 1 ? 'Add to ' + s.label : 'Add desktop';
