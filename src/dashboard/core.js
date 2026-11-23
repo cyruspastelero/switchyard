@@ -529,7 +529,8 @@ function handleMessage(msg) {
       if (isMobile()) { setMobileTab(mobileActiveTab); }
       break;
     case 'events':
-      state.events = msg.data || [];
+      // The server sends newest first; the timeline reads oldest to newest and live events append at the bottom.
+      state.events = (msg.data || []).slice().sort(function (a, b) { return (a.id || 0) - (b.id || 0); });
       eventCount = state.events.length;
       state.events.forEach(function (e) { trackAgentActivity(e); trackAgentPatterns(e); });
       renderTimeline();
