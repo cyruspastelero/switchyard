@@ -164,6 +164,7 @@
     showSystem: false, // show windows from system/utility apps in Unsorted
     picking: null,     // window key whose assign picker is open
     noIcon: {},        // bundle ids the server has no icon for: show the letter instead
+    expanded: {},      // context ids whose full window list is open
   };
 
   var $view = document.getElementById('contexts-view');
@@ -355,7 +356,7 @@
   }
 
   // editing(on) holds re-renders while a window is dragged, the way an open picker does.
-  var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy, appIcon: appIcon, isSystemWindow: isSystemWindow, data: function () { return st.data; },
+  var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy, appIcon: appIcon, dot: dot, isSystemWindow: isSystemWindow, data: function () { return st.data; },
     editing: function (on) { st.picking = on ? 'drag' : null; if (!on && st.dirty) endEdit(); } };
   var dragUi = uiDeps.drag = window.MCDragDrop ? window.MCDragDrop(uiDeps) : null;
   var newContextUi = window.MCNewContext ? window.MCNewContext(uiDeps) : null;
@@ -474,7 +475,9 @@
     } else if (c.windows.length) {
       var moveTo = logic.moveItems(d.contexts, c.id);
       var home = c.desktop != null ? c.desktop : d.activeDesktop;
-      c.windows.forEach(function (w) { wins.appendChild(windowLine(w, moveTo, home, c)); });
+      var list = logic.visibleWindows(c.windows, !!st.expanded[c.id]);
+      list.shown.forEach(function (w) { wins.appendChild(windowLine(w, moveTo, home, c)); });
+      if (list.more || st.expanded[c.id]) wins.appendChild(moreRow(c, list.more));
       var stray = logic.strayHint(c);
       if (stray) wins.appendChild(add(noteRow(stray), button('Move here', 'link', 'gather:' + c.id, function () {
         act('gather:' + c.id, function () { return api.gather(c.id); }, c.name);
@@ -545,9 +548,20 @@
     b.appendChild(h('span', 'ctx-w-label', parts.text));
     if (parts.tabs) b.appendChild(h('span', 'ctx-w-tabs', '\u00B7 ' + parts.tabs));
     var place = logic.windowPlace(w, activeDesktop, unsorted);
-    if (place) b.appendChild(h('span', 'ctx-w-place', place));
+    var tag = logic.placeTag(w, activeDesktop);
+    if (tag) b.appendChild(h('span', 'ctx-w-place', tag, { title: place, 'aria-label': place }));
     b.addEventListener('click', function () { act(key, function () { return api.focusWindow(w.key); }); });
     return b;
+  }
+
+  // "+ 3 more" / "Show less": the rest of a long list, kept open across re-renders.
+  function moreRow(c, more) {
+    var li = h('li', 'ctx-w ctx-w-more');
+    li.appendChild(button(more ? '+ ' + more + ' more' : 'Show less', 'link', 'more:' + c.id, function () {
+      if (more) st.expanded[c.id] = true; else delete st.expanded[c.id];
+      render();
+    }));
+    return li;
   }
 
   function noteRow(text) {

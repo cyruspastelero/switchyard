@@ -187,6 +187,19 @@
     return '';
   }
 
+  // The short form a card row shows ("D5"); the long form above goes in the tooltip.
+  function placeTag(w, home) {
+    if (w.hidden) return 'hidden';
+    return typeof w.desktop === 'number' && home != null && w.desktop !== home ? 'D' + w.desktop : '';
+  }
+
+  // Cards show four windows so one long list doesn't stretch every card in its row. One extra row shows as is.
+  var WINDOW_LIMIT = 4;
+  function visibleWindows(list, expanded) {
+    if (expanded || list.length <= WINDOW_LIMIT + 1) return { shown: list, more: 0 };
+    return { shown: list.slice(0, WINDOW_LIMIT), more: list.length - WINDOW_LIMIT };
+  }
+
   var STATUS_WORD = { working: 'Working', waiting: 'Waiting on you', idle: 'Idle', parked: 'Parked' };
 
   // The same three parts on every card: "Desktop N · ⌥N · Status".
@@ -276,6 +289,15 @@
     return name + ' is now Desktop ' + key + ' \u00B7 \u2325' + key;
   }
 
+  // A project chip dragged onto another desktop tile: { ok, note }. Owned tiles swap, free ones take the project.
+  function swapTarget(dragged, row) {
+    if (row.shared) return { ok: false, note: 'The shared desktop holds no project' };
+    if (row.number > 9) return { ok: false, note: 'Only Desktops 1\u20139 have a \u2325 key' };
+    if (dragged.key === row.number) return { ok: false, note: 'Already on Desktop ' + row.number };
+    var owner = (row.owners || [])[0];
+    return { ok: true, note: owner ? 'Swap with ' + owner.name : 'Move ' + dragged.name + ' here' };
+  }
+
   // Desktops list rows (server-built: number, screenLabel, shared, owners, windows, showing, closeBlocked).
   function desktopOwnerText(row) {
     if (row.shared) return 'Shared';
@@ -346,7 +368,7 @@
     return next();
   }
 
-  var api = { closePlan: closePlan, closeBatchLabel: closeBatchLabel, closeBatchConfirm: closeBatchConfirm, closeBatchDoneText: closeBatchDoneText, pollUntil: pollUntil,keyOptions: keyOptions, keyDoneText: keyDoneText, desktopOwnerText: desktopOwnerText, desktopMeta: desktopMeta, closeDesktopConfirm: closeDesktopConfirm, desktopOwnerOptions: desktopOwnerOptions, statusWord: statusWord, unsortedCountText: unsortedCountText, countBadge: countBadge, sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
+  var api = { closePlan: closePlan, closeBatchLabel: closeBatchLabel, closeBatchConfirm: closeBatchConfirm, closeBatchDoneText: closeBatchDoneText, pollUntil: pollUntil,keyOptions: keyOptions, keyDoneText: keyDoneText, swapTarget: swapTarget, desktopOwnerText: desktopOwnerText, desktopMeta: desktopMeta, closeDesktopConfirm: closeDesktopConfirm, desktopOwnerOptions: desktopOwnerOptions, statusWord: statusWord, unsortedCountText: unsortedCountText, countBadge: countBadge, sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, placeTag: placeTag, visibleWindows: visibleWindows, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MCContextsLogic = api;
 })(typeof window !== 'undefined' ? window : this);

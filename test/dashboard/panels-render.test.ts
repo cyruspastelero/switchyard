@@ -66,26 +66,72 @@ describe('desktops panel', () => {
   const box = desktops(deps).section(d, true);
   const rows = box.all().filter((e) => e.className.startsWith('ctx-desktop-row'));
 
-  it('owned_free_and_shared_rows_have_the_same_cells_and_no_warning_line', () => {
+  const find = (root: El, key: string) => root.all().find((e) => e.attrs['data-fk'] === key)!;
+
+  it('every_tile_has_the_same_parts_and_owners_show_as_chips', () => {
     expect(rows).toHaveLength(4);
-    expect(rows.map((r) => r.children.length)).toEqual([6, 6, 6, 6]);
-    expect(box.all().some((e) => e.className.includes('ctx-layout-hint'))).toBe(false);
+    expect(rows.map((r) => r.children.length)).toEqual([3, 3, 3, 3]);
+    expect(rows[0].text()).toMatch(/devx/);
+    expect(rows[0].all().some((e) => e.className.includes('ctx-desk-chip'))).toBe(true);
+    expect(rows[1].text()).toMatch(/Free/);
+    expect(rows[3].text()).toMatch(/Shared/);
     expect(box.text()).not.toMatch(/Give devx another desktop first/);
+    expect(box.all().some((e) => e.attrs['data-fk'] === 'desktopAdd:1')).toBe(true);
   });
 
-  it('a_blocked_desktop_says_why_on_its_disabled_close_and_box', () => {
-    const close = rows[0].all().find((e) => e.attrs['data-fk'] === 'desktopClose:1')!;
-    expect(close.disabled).toBe(true);
-    expect(close.title).toBe(owned);
-    expect(rows[0].children[0].children[0].disabled).toBe(true); // the box sits in its hit-area label
+  it('clicking_a_tile_goes_to_that_desktop', () => {
+    const { window, deps, acted } = load(['contexts-logic.js', 'desktops.js']);
+    const ui = (window.MCDesktops as typeof desktops)(deps).section(d, true);
+    const tile = ui.all().filter((e) => e.className.startsWith('ctx-desktop-row'))[1];
+    tile.listeners.click({ target: tile });
+    expect(acted).toEqual(['desktopShow:2']);
+  });
+
+  it('select_mode_shows_boxes_and_a_blocked_desktop_says_why', () => {
+    find(box, 'desktopSelect').listeners.click();
+    expect(box.className).toContain('selecting');
+    const blocked = find(rows[0], 'desktopPick:1');
+    expect(blocked.disabled).toBe(true);
+    expect(blocked.title).toBe(owned);
   });
 
   it('ticking_boxes_updates_one_close_button_with_the_real_count', () => {
-    const batch = box.all().find((e) => e.attrs['data-fk'] === 'desktopBatch')!;
+    const batch = find(box, 'desktopBatch');
     expect(batch.disabled).toBe(true);
-    for (const r of rows.slice(1, 3)) { const box = r.children[0].children[0]; box.checked = true; box.listeners.change(); }
+    for (const n of [2, 3]) { const b = find(box, `desktopPick:${n}`); b.checked = true; b.listeners.change(); }
     expect(batch.textContent).toBe('Close 2 desktops');
     expect(batch.disabled).toBe(false);
+  });
+});
+
+describe('dragging a project chip onto another desktop tile', () => {
+  const { window, deps, acted, body, page } = load(['contexts-logic.js', 'desktops.js']);
+  const desktops = window.MCDesktops as ((d: unknown) => { section: (d: unknown, control: boolean) => El }) & { normalize: (r: unknown) => unknown };
+  const d = { desktopList: desktops.normalize(raw), contexts: [{ id: 'd', name: 'devx', key: 1 }], desktopCount: 4 };
+  const editing: boolean[] = [];
+  const box = desktops({ ...deps, editing: (on: boolean) => editing.push(on) }).section(d, true);
+  page.rows = box.all().filter((e) => e.className.includes('ctx-desk-tile'));
+  const chip = page.rows[0].all().find((e) => e.className.includes('ctx-desk-chip'))!;
+  const transfer = { setData: () => {}, effectAllowed: '', dropEffect: '' };
+  const event = () => { const e = { prevented: false, dataTransfer: transfer, stopPropagation: () => {}, preventDefault: () => { e.prevented = true; } }; return e; };
+
+  it('free_tiles_invite_the_drop_while_its_own_and_the_shared_tile_fade', () => {
+    expect(chip.attrs.draggable).toBe('true');
+    chip.listeners.dragstart(event());
+    expect(body.className).toContain('ctx-swapping');
+    expect(page.rows.map((r) => r.className.includes('swap-ok'))).toEqual([false, true, true, false]);
+    expect(page.rows[1].attrs['data-drop-note']).toBe('Move devx here');
+    expect(page.rows[3].attrs['data-drop-note']).toBe('The shared desktop holds no project');
+  });
+
+  it('dropping_gives_the_project_that_desktop', () => {
+    const own = event();
+    page.rows[0].listeners.dragover(own);
+    expect(own.prevented).toBe(false);
+    page.rows[2].listeners.drop(event());
+    expect(acted).toEqual(['desktopKey:d']);
+    expect(body.className).not.toContain('ctx-swapping');
+    expect(editing).toEqual([true, false]);
   });
 });
 

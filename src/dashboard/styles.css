@@ -8,23 +8,28 @@
 /* ── Palantir Gotham Color System ─────────────────────── */
 /* True Palantir: near-black, neutral grays, no blue tint */
 :root {
-  --bg-base: #0a0a0c;
-  --bg-primary: #101114;
-  --bg-panel: #161619;
-  --bg-panel-alt: #1a1a1e;
-  --bg-hover: #222226;
-  --bg-active: #2a2a2e;
-  --bg-focus: rgba(255, 255, 255, 0.04);
-  --border: #252528;
-  --border-bright: #333338;
-  --border-focus: #555;
+  /* Surfaces step up from the canvas (Linear-style ladder: void, carbon, obsidian, graphite); edges are hairlines. */
+  --bg-base: #08090a;
+  --bg-primary: #0b0c0d;
+  --bg-panel: #0f1011;
+  --bg-panel-alt: #161718;
+  --bg-hover: #1b1c1f;
+  --bg-active: #23252a;
+  --bg-focus: rgba(255, 255, 255, 0.03);
+  --bg-chip: rgba(255, 255, 255, 0.05);
+  --border: #1f2125;
+  --border-bright: #2e3035;
+  --border-focus: #62666d;
 
-  --text-primary: #c8c8cc;
-  --text-bright: #ededf0;
+  --text-primary: #d0d6e0;
+  --text-bright: #f7f8f8;
   /* Contrast on --bg-base / --bg-panel (WCAG AA small text needs 4.5:1):
-     secondary 7.80 / 7.12, muted 5.78 / 5.27. Do not lower without re-measuring. */
-  --text-secondary: #a2a2aa;
-  --text-muted: #8a8a92;
+     secondary ~8.6 / 8.3, muted ~6.1 / 5.9. Do not lower without re-measuring. */
+  --text-secondary: #a8aeb8;
+  --text-muted: #8a8f98;
+  /* The one chromatic signal: what is on screen now, and the main action. Never decoration. */
+  --signal: #f2994a;
+  --signal-dim: rgba(242, 153, 74, 0.16);
 
   --accent: #c8c8cc;
   --accent-dim: #7a7a80;
@@ -49,6 +54,8 @@
   --font-size-lg: 14px;
 
   --radius: 0px;
+  --radius-card: 0px;
+  --radius-chip: 0px;
 
   /* Layout chrome heights, shared by every view's height calc */
   --header-h: 44px;
@@ -2760,6 +2767,7 @@ body.view-contexts #contexts-view { display: flex; }
   color: var(--text-secondary);
   border: 1px solid var(--border-bright);
   padding: 3px 10px;
+  border-radius: var(--radius);
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   letter-spacing: 0.5px;
@@ -2770,9 +2778,12 @@ body.view-contexts #contexts-view { display: flex; }
 }
 
 .ctx-btn:hover:not(:disabled) { color: var(--text-bright); background: var(--bg-hover); }
-.ctx-btn.primary { color: var(--text-bright); border-color: var(--text-secondary); background: var(--bg-active); }
+.ctx-btn.primary { color: var(--text-bright); border-color: var(--border-focus); background: var(--bg-active); }
 .ctx-btn.primary:hover:not(:disabled) { background: var(--bg-hover); }
 .ctx-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Sort is the page's main action: the only filled orange control. */
+#contexts-sort:not(:disabled) { background: var(--signal); border-color: var(--signal); color: var(--bg-base); font-weight: 600; }
+#contexts-sort:hover:not(:disabled) { background: #f5ae70; color: var(--bg-base); }
 
 .ctx-btn.link {
   border: 0;
@@ -2860,22 +2871,26 @@ body.view-contexts #contexts-view { display: flex; }
 .ctx-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-  gap: 8px;
-  /* Each card is as tall as its own content; a short parked card no longer stretches to the tallest in its row. */
-  align-items: start;
+  gap: 12px;
+  /* Cards in a row share one height. Long window lists are capped (visibleWindows), so no card stretches a row far. */
+  align-items: stretch;
 }
 
 .ctx-card {
   border: 1px solid var(--border);
+  border-radius: var(--radius-card);
   background: var(--bg-panel);
-  padding: 10px 12px;
+  padding: 12px 14px;
+  transition: border-color 0.12s;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   font-size: var(--font-size-base);
 }
-.ctx-card.active { border-color: var(--border-bright); box-shadow: inset 2px 0 0 var(--text-bright); }
+.ctx-card:hover { border-color: var(--border-bright); }
+/* On screen now: an orange hairline, not a heavier box. */
+.ctx-card.active { border-color: rgba(242, 153, 74, 0.35); }
 /* Parked: mute the dot and name only. Card-wide opacity took the note text to 3.83:1. */
 .ctx-card.parked .ctx-dot { opacity: 0.5; }
 .ctx-card.parked .ctx-name-text { color: var(--text-secondary); }
@@ -2891,15 +2906,22 @@ body.view-contexts #contexts-view { display: flex; }
 .ctx-card-agents { display: block; line-height: 18px; color: var(--text-muted); }
 .ctx-status-waiting { color: var(--warning); }
 .ctx-status-working { color: var(--text-bright); }
-.ctx-onscreen { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.ctx-onscreen { flex: none; width: 6px; height: 6px; background: var(--signal); }
 .ctx-name-text { font: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: text; }
 .ctx-name-text:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 .ctx-name-form { min-width: 0; } .ctx-name-form .ctx-input { width: 100%; }
 .ctx-name-text { display: block; color: var(--text-bright); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctx-dot { width: 10px; height: 10px; flex: none; background: var(--text-muted); display: inline-block; }
 .ctx-acts { display: flex; gap: 6px; justify-content: flex-end; }
+/* One loud action per card: Switch keeps its box; Park and Tidy stay quiet until hovered. */
+.ctx-card-head .ctx-btn:not(.primary) { border-color: transparent; color: var(--text-muted); padding-inline: 6px; }
+.ctx-card-head .ctx-btn:not(.primary):hover:not(:disabled) { border-color: var(--border-bright); color: var(--text-bright); }
 
 .ctx-card-wins, .ctx-unsorted-list { list-style: none; margin: 0; padding: 6px 0 0; border-top: 1px solid var(--border); display: grid; gap: 2px; min-width: 0; }
+/* The window list fills the card; its last note ("2 windows are on Desktop 3 · Move here") sits on the card's bottom edge,
+   so notes line up across a row. */
+.ctx-card-wins { flex: 1; display: flex; flex-direction: column; margin-top: 8px; padding-top: 8px; }
+.ctx-card-wins > .ctx-w-note:last-child:not(:first-child) { margin-top: auto; padding-top: 6px; }
 
 /* A window row: icon, then the title over the full width; actions float over its end on hover. */
 .ctx-w { position: relative; display: flex; gap: 8px; align-items: center; min-width: 0; height: 26px; color: var(--text-secondary); }
@@ -2916,19 +2938,28 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
 .ctx-w-tabs, .ctx-w-place { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctx-w-tabs { color: var(--text-muted); }
 /* "Desktop 2 · not moved yet" keeps a visible trace ("De…"); the full text is in the row's tooltip. */
-.ctx-w-place { min-width: 4ch; color: var(--text-muted); font-size: var(--font-size-xs); }
+/* "D5": the window is on another desktop. The long form is the tag's tooltip. */
+.ctx-w-place {
+  flex: none; padding: 0 5px; border-radius: var(--radius-chip); background: var(--bg-chip);
+  color: var(--text-muted); font-size: var(--font-size-xs); line-height: 16px;
+}
 .ctx-w-note .ctx-w-text { color: var(--text-muted); font-size: var(--font-size-sm); }
 /* Notes wrap instead of clipping ("8 windows are on other desktops" next to Move here). */
 /* No icon box (it read as an unchecked checkbox); the text lines up with window titles (icon 16px + gap 8px). */
 .ctx-w-note { height: auto; min-height: 26px; padding-left: 24px; }
 .ctx-w-note .ctx-w-text { white-space: normal; height: auto; line-height: 1.4; }
 .ctx-w-note .ctx-btn.link { flex: none; white-space: nowrap; }
+/* The note's action follows its text instead of floating at the far edge. */
+.ctx-w-note .ctx-w-text { flex: 0 1 auto; }
+.ctx-w-more { height: 22px; padding-left: 24px; }
+.ctx-w-more .ctx-btn.link { color: var(--text-muted); font-size: var(--font-size-xs); }
 .ctx-app-icon, .ctx-app-img { flex: none; width: 16px; height: 16px; }
 .ctx-app-icon {
   display: grid;
   place-items: center;
   background: var(--bg-hover);
   border: 1px solid var(--border-bright);
+  border-radius: var(--radius-chip);
   color: var(--text-primary);
   font-size: var(--font-size-xs);
   font-weight: 600;
@@ -2950,7 +2981,7 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
 .ctx-w-move { flex: none; }
 .ctx-w-move.pick { width: 76px; }
 
-.ctx-unsorted-box { border: 1px solid var(--border); background: var(--bg-panel); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.ctx-unsorted-box { border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--bg-panel); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
 .ctx-unsorted-head { display: flex; align-items: center; gap: 10px; min-height: 28px; font-size: var(--font-size-sm); }
 .ctx-unsorted-head .ctx-section-title { margin: 0; }
 .ctx-system-toggle { justify-self: start; }
@@ -2976,6 +3007,7 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   background: var(--bg-base);
   color: var(--text-bright);
   border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   line-height: 1.4;
@@ -2996,6 +3028,7 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   max-width: calc(100vw - 32px);
   background: var(--bg-panel-alt);
   border: 1px solid var(--border-bright);
+  border-radius: var(--radius-card);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .pick-pop.up { top: auto; bottom: calc(100% + 2px); }
@@ -3009,7 +3042,7 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
 .pick-new { border-top: 1px solid var(--border); color: var(--text-secondary); }
 
 .ctx-input { width: 170px; max-width: 100%; }
-.ctx-empty { height: auto; min-height: 160px; border: 1px solid var(--border); background: var(--bg-panel); }
+.ctx-empty { height: auto; min-height: 160px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--bg-panel); }
 
 
 @media (max-width: 640px) {
@@ -3037,7 +3070,6 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   .ctx-card-meta .ctx-key-select, .ctx-card-layout .ctx-select { height: auto; }
   .ctx-w { height: 44px; }
   .ctx-w-note { min-height: 44px; }
-  .ctx-desktop-pick-hit { display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
   .ctx-toggle { min-height: 44px; }
 }
 
@@ -3260,23 +3292,84 @@ body.view-contexts .header-stats { display: none; }
 .ctx-card-layout .ctx-select { flex: 0 1 auto; height: 18px; padding: 0 4px; font-size: var(--font-size-xs); line-height: 16px; }
 
 /* Desktops section and the desktop select on each card's meta line. */
-.ctx-card-meta .ctx-key-select { flex: 0 1 auto; height: 18px; padding: 0 4px; font-size: var(--font-size-xs); line-height: 16px; }
-/* Owned, free and shared rows share one grid, so the columns line up. */
-.ctx-desktop-row {
-  display: grid; grid-template-columns: auto 6.5em minmax(7em, 12em) minmax(0, 1fr) 4.5em auto;
-  align-items: center; gap: 4px 10px;
+/* Sized to the chosen desktop, not the longest option ("repo-explainer — swaps"); reads as text until hovered. */
+.ctx-card-meta .ctx-key-select {
+  flex: 0 1 auto; field-sizing: content; max-width: 100%; height: 18px; padding: 0 14px 0 0;
+  font-size: var(--font-size-xs); line-height: 16px; color: var(--text-secondary); cursor: pointer;
+  /* No native chrome, so "Desktop 1" starts on the same edge as the agent line under it. */
+  appearance: none; border: 0; outline-offset: 2px;
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238a8a92'/%3E%3C/svg%3E") no-repeat right 2px center;
 }
-.ctx-desktop-row .ctx-key-select { font-size: var(--font-size-xs); padding: 1px 4px; width: 100%; min-width: 0; }
-.ctx-desktop-pick { margin: 0; }
-.ctx-desktop-owner { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ctx-desktop-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ctx-desktop-showing { color: var(--success); font-size: var(--font-size-xs); }
-.ctx-desktop-acts { display: flex; gap: 6px; justify-content: flex-end; }
-.ctx-desktop-batch { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 8px; font-size: var(--font-size-sm); }
+.ctx-card-meta .ctx-key-select:hover:not(:disabled) { color: var(--text-bright); text-decoration: underline dotted; text-underline-offset: 3px; }
+/* Desktops: one tile per desktop, like Mission Control's strip. Click goes there; the project chip drags onto
+   another tile to swap; a window drops on an owned tile (dragdrop.js); Select mode shows boxes for a batch close. */
+.ctx-desk-grid {
+  list-style: none; margin: 8px 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;
+}
+.ctx-desk-grid .ctx-desk-tile {
+  position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 86px;
+  padding: 10px 12px; background: var(--bg-panel); border: 1px solid var(--border);
+  cursor: pointer; transition: border-color 0.12s, background-color 0.12s, opacity 0.12s;
+}
+.ctx-desk-grid .ctx-desk-tile:hover { border-color: var(--border-bright); background: var(--bg-panel-alt); }
+.ctx-desk-grid .ctx-desk-tile.showing { border-color: rgba(242, 153, 74, 0.45); }
+.ctx-desk-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctx-desk-go {
+  font: inherit; font-size: var(--font-size-sm); color: var(--text-bright); font-weight: 600;
+  background: none; border: 0; padding: 0; cursor: pointer; text-align: left; white-space: nowrap;
+}
+.ctx-desk-go:focus-visible { outline: 1px solid var(--text-bright); outline-offset: 2px; }
+.ctx-desk-go:disabled { cursor: not-allowed; opacity: 0.6; }
+.ctx-desk-showing { margin-left: auto; color: var(--signal); font-size: var(--font-size-xs); white-space: nowrap; }
+.ctx-desk-showing:not(:empty)::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; vertical-align: 1px; background: var(--signal); }
+.ctx-desk-owner { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--font-size-base); }
+.ctx-desk-owner.ctx-muted { font-size: var(--font-size-sm); }
+.ctx-desk-chip { align-self: flex-start; max-width: 100%; padding: 2px 8px 2px 6px; margin-left: -6px; color: var(--text-primary); cursor: grab; border: 1px solid transparent; }
+.ctx-desk-chip:hover { border-color: var(--border-bright); background: var(--bg-chip); }
+.ctx-desk-chip:active { cursor: grabbing; }
+.ctx-desk-owner-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-desk-meta { font-size: var(--font-size-xs); margin-top: auto; }
+.ctx-desk-hint { font-size: var(--font-size-xs); }
+/* "+ Add desktop": an empty slot at the end of the strip. */
+.ctx-desk-add-slot { display: flex; }
+.ctx-desk-add {
+  flex: 1; min-height: 86px; font: inherit; font-size: var(--font-size-xs); letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--text-muted); background: none; border: 1px dashed var(--border-bright); cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.ctx-desk-add:hover:not(:disabled) { color: var(--text-bright); border-color: var(--border-focus); }
+.ctx-desk-add:disabled { opacity: 0.4; cursor: not-allowed; }
+.ctx-desk-add:focus-visible { outline: 1px solid var(--text-bright); outline-offset: 1px; }
+
+/* Select mode: boxes appear, a tile click ticks; blocked tiles fade and say why on hover. */
+.ctx-desk-tile .ctx-desktop-pick { display: none; }
+.ctx-desktops.selecting .ctx-desk-tile .ctx-desktop-pick { display: inline-grid; }
+.ctx-desktops.selecting .ctx-desk-showing { display: none; }
+.ctx-desktops.selecting .ctx-desk-grid .ctx-desk-tile.blocked { opacity: 0.45; cursor: not-allowed; }
+.ctx-desktops.selecting .ctx-desk-chip { pointer-events: none; }
+.ctx-desktops.selecting .ctx-desk-add-slot { display: none; }
+.ctx-desktop-batch { display: none; }
+.ctx-desktops.selecting .ctx-desktop-batch { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: var(--font-size-xs); }
+.ctx-desktops.selecting .ctx-desk-grid .ctx-desk-tile:has(.ctx-desktop-pick:checked) { border-color: var(--signal); background: var(--signal-dim); }
+
+/* Swapping projects: valid tiles get a dashed orange edge, the one under the pointer fills, the rest fade. */
+.ctx-desk-grid .ctx-desk-tile.swap-ok { border-style: dashed; border-color: rgba(242, 153, 74, 0.6); }
+.ctx-desk-grid .ctx-desk-tile.swap-over { border-style: solid; border-color: var(--signal); background: var(--signal-dim); }
+.ctx-desk-grid .ctx-desk-tile.swap-off { opacity: 0.4; }
+.ctx-desk-grid .ctx-desk-tile.swap-ok::after, .ctx-desk-grid .ctx-desk-tile.swap-over::after {
+  content: attr(data-drop-note); position: absolute; left: 12px; right: 12px; bottom: 8px; pointer-events: none;
+  color: var(--text-bright); font-size: var(--font-size-xs); background: var(--bg-panel-alt);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Window drops (dragdrop.js) on tiles: same language as the card targets. */
+.ctx-desk-grid .ctx-desk-tile.drop-ok { border-style: dashed; border-color: var(--success-dim); }
+.ctx-desk-grid .ctx-desk-tile.drop-over { border-style: solid; border-color: var(--success); background: var(--glow-success); }
+.ctx-desk-grid .ctx-desk-tile.drop-off { opacity: 0.4; }
+@media (prefers-reduced-motion: reduce) { .ctx-desk-grid .ctx-desk-tile, .ctx-desk-add { transition: none; } }
 @media (max-width: 640px) {
-  .ctx-desktop-row { grid-template-columns: auto 6.5em minmax(0, 1fr) auto; }
-  .ctx-desktop-meta { grid-column: 2 / 4; grid-row: 2; }
-  .ctx-desktop-showing { grid-column: 4; grid-row: 2; text-align: right; }
+  .ctx-desk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ctx-desk-go, .ctx-desk-add { min-height: 44px; }
 }
 .ctx-desktops .ctx-toggle { gap: 8px; }
 
@@ -3304,10 +3397,6 @@ body.ctx-dragging .ctx-unsorted-empty { display: flex; }
 }
 .ctx-drop-hint { display: none; font-size: var(--font-size-sm); }
 body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
-.ctx-desktop-row { border: 1px dashed transparent; transition: background 0.12s, border-color 0.12s, opacity 0.12s; }
-.ctx-desktop-row.drop-ok { border-color: var(--success-dim); }
-.ctx-desktop-row.drop-over { border-style: solid; border-color: var(--success); background: var(--glow-success); }
-.ctx-desktop-row.drop-off { opacity: 0.4; }
 .ctx-drag-ghost {
   position: fixed; top: -1000px; left: 0; display: flex; gap: 8px; align-items: center; max-width: 320px;
   padding: 4px 10px; background: var(--bg-panel-alt); border: 1px solid var(--border-bright); color: var(--text-bright);
@@ -3319,7 +3408,7 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
   position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); z-index: 200; max-width: calc(100vw - 32px);
   background: var(--bg-panel-alt); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
-@media (prefers-reduced-motion: reduce) { .ctx-desktop-row, .ctx-card[data-drop], .ctx-unsorted-box[data-drop] { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ctx-card[data-drop], .ctx-unsorted-box[data-drop] { transition: none; } }
 
 /* New context dialog (new-context.js). */
 .nc-dialog {
@@ -3350,7 +3439,6 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
   .nc-win::before { content: ''; position: absolute; inset: 0; }
 }
 /* On wide screens the meta column would stretch and push Showing and the actions far from their desktop. */
-.ctx-desktops .ctx-layout-list, .ctx-desktop-batch { max-width: 760px; }
 
 /* The Agents column is ~220px between 641 and ~1000px wide: the filters wrap instead of cutting off CLEAR OLD. */
 @media (max-width: 1100px) {
@@ -3362,3 +3450,46 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
    dragover to a card when the pointer is over its <select>, so the card would refuse the drop there. */
 body.ctx-dragging .ctx-card select, body.ctx-dragging .ctx-card input,
 body.ctx-dragging .ctx-unsorted-box select, body.ctx-dragging .ctx-desktops select { pointer-events: none; }
+
+/* ── Form controls: one square, hairline family. Native chrome (light carets, OS checkboxes) is replaced so
+   every select, picker, box and field reads the same on the dark panels. ── */
+.ctx-select, .pick-btn {
+  appearance: none; -webkit-appearance: none;
+  background: var(--bg-panel-alt) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238a8f98'/%3E%3C/svg%3E") no-repeat right 7px center;
+  border: 1px solid var(--border-bright);
+  padding-right: 22px;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+.pick-btn::after { content: none; }
+.ctx-select:hover:not(:disabled), .pick-btn:hover:not(:disabled) { border-color: var(--border-focus); background-color: var(--bg-hover); }
+.ctx-select:focus-visible, .pick-btn:focus-visible, .pick-input:focus-visible, .ctx-input:focus-visible {
+  outline: 1px solid var(--text-bright); outline-offset: 1px;
+}
+.ctx-select option { background: var(--bg-panel-alt); color: var(--text-primary); }
+.ctx-input, .pick-input { background: var(--bg-base); border-color: var(--border-bright); transition: border-color 0.12s; }
+.ctx-input:hover, .pick-input:hover { border-color: var(--border-focus); }
+.ctx-input::placeholder, .pick-input::placeholder { color: var(--text-muted); }
+/* The card's desktop select stays text-like (set above); keep it free of the field chrome. */
+.ctx-card-meta .ctx-key-select { background-color: transparent; border: 0; padding-right: 14px; background-position: right 2px center; }
+.ctx-card-meta .ctx-key-select:hover:not(:disabled) { background-color: transparent; }
+
+/* Checkboxes: a square that fills orange with a dark tick when chosen. */
+.ctx-desktop-pick, .nc-check {
+  appearance: none; -webkit-appearance: none; flex: none;
+  width: 14px; height: 14px; margin: 0;
+  border: 1px solid var(--border-focus); background: var(--bg-base);
+  cursor: pointer; display: inline-grid; place-content: center;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.ctx-desktop-pick:hover:not(:disabled), .nc-check:hover:not(:disabled) { border-color: var(--text-secondary); }
+.ctx-desktop-pick:checked, .nc-check:checked {
+  background: var(--signal) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='8'%3E%3Cpath d='M1 4l3 3 5-6' fill='none' stroke='%2308090a' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat center;
+  border-color: var(--signal);
+}
+.ctx-desktop-pick:focus-visible, .nc-check:focus-visible { outline: 1px solid var(--text-bright); outline-offset: 2px; }
+.nc-check:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Auto-tidy switch: square track, orange when on. */
+.ctx-switch:checked { background: var(--signal-dim); border-color: var(--signal); }
+.ctx-switch:checked::after { background: var(--signal); }
+@media (prefers-reduced-motion: reduce) { .ctx-select, .pick-btn, .ctx-input, .pick-input, .ctx-desktop-pick, .nc-check { transition: none; } }
