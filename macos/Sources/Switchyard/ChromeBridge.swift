@@ -99,11 +99,16 @@ enum ChromeBridge {
     private static let commandTimeout: TimeInterval = 12
 
     /// Every ScriptingBridge / Apple Event call goes through this one serial queue. On the shared concurrent queue a
-    /// window listing overlapped another Chrome call; AESendMessage spins a run loop per thread and the two replies
-    /// crossed, crashing the app with SIGSEGV in AE (6 crash reports on 2026-11-23, each with 2+ threads in
-    /// ScriptingBridge). A hung Chrome now delays the next call by at most its timeout instead of crashing.
+    /// window listing overlapped another Chrome call and the app crashed with SIGSEGV inside AE (AEProcessMessage
+    /// under AESendMessage): 5 crash reports on 2026-11-23, every one with 2+ threads in ScriptingBridge at once.
     private static let queue = DispatchQueue(label: "ph.pastelero.switchyard.chrome-bridge", qos: .utility)
 
+    /// One queue for every pid, not one per pid: BrowserCache already keeps one listing per process, so the crashing
+    /// overlaps were across processes (the owner's Chrome and an automation Chrome) or a listing plus a command.
+    /// The cost: a hung Chrome holds the queue for up to its timeout per Apple Event, and a listing sends several
+    /// (one per window), so other calls can wait longer than one timeout. The queue stays short: BrowserCache keeps one
+    /// listing in flight per process and backs off from one that fails (15 s doubling to 5 min), DashboardTabs lists
+    /// only when the dashboard is opened, and commands come from the owner's own clicks.
     /// ScriptingBridge calls block, so they run off the caller's thread, one at a time.
     private static func run<T>(pid: pid_t, timeout: TimeInterval, _ body: @escaping (Session) throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { cont in

@@ -8,9 +8,7 @@ const logic = require('../../src/dashboard/contexts-logic.js') as {
   keyOptions: (contexts: Ctx[], current: Ctx, desktopCount: number) => { value: string; label: string }[];
   keyDoneText: (name: string, key: number | null, desktopCount: number | null) => string;
   desktopOwnerText: (row: Row) => string;
-  desktopMeta: (row: Row) => string;
-  closeDesktopConfirm: (n: number) => string;
-  desktopOwnerOptions: (row: Row, contexts: Ctx[], desktopCount: number) => { value: string; label: string }[];
+  desktopMeta: (row: Row, multiScreen: boolean) => string;
   doneText: (action: string, name?: string) => string;
   closePlan: (rows: Batch[], picked: number[]) => Plan;
   closeBatchLabel: (plan: Plan) => string;
@@ -60,25 +58,13 @@ describe('desktops list rows', () => {
     expect(logic.desktopOwnerText(row({}))).toBe('Free');
   });
 
-  it('owner_select_offers_free_and_every_context_saying_where_it_is_now', () => {
-    const shared = { id: 's', name: 'notes', key: null };
-    expect(logic.desktopOwnerOptions(row({ number: 2 }), [me, aral, shared], 6)).toEqual([
-      { value: '', label: 'Free' },
-      { value: 'm', label: 'switchyard (now Desktop 1)' },
-      { value: 'a', label: 'aral' },
-      { value: 's', label: 'notes' },
-    ]);
+  it('a_tile_counts_windows_and_names_the_screen_only_with_two_screens', () => {
+    expect(logic.desktopMeta(row({ windows: 1 }), false)).toBe('1 window');
+    expect(logic.desktopMeta(row({ windows: 3, screenLabel: 'Monitor' }), true)).toBe('Monitor · 3 windows');
   });
 
-  it('meta_line_is_the_screen_and_the_window_count', () => {
-    expect(logic.desktopMeta(row({ windows: 1 }))).toBe('Laptop · 1 window');
-    expect(logic.desktopMeta(row({ windows: 3, screenLabel: 'Monitor' }))).toBe('Monitor · 3 windows');
-  });
-
-  it('close_asks_first_and_actions_say_what_happened', () => {
-    expect(logic.closeDesktopConfirm(4)).toBe('Close Desktop 4? Its windows move to another desktop on that screen.');
+  it('actions_say_what_happened', () => {
     expect(logic.doneText('desktopShow', 'Desktop 3')).toBe('Going to Desktop 3');
-    expect(logic.doneText('desktopClose', 'Desktop 3')).toBe('Closing Desktop 3');
     expect(logic.doneText('desktopAdd', 'Laptop')).toBe('Adding a desktop on Laptop');
   });
 });
