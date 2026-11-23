@@ -62,6 +62,15 @@ struct CommandRunner {
         case "captureLayout":
             guard let name = cmd.name else { throw CommandError.missing("name") }
             try await saveLayout(name)
+        case "showDesktop":
+            guard let number = cmd.desktop else { throw CommandError.missing("desktop") }
+            _ = try await desktops.goTo(number)
+        case "addDesktop":
+            guard let screen = cmd.screen else { throw CommandError.missing("screen") }
+            try await desktops.addDesktop(screen: screen)
+        case "closeDesktop":
+            guard let number = cmd.number, let space = cmd.spaceCheck else { throw CommandError.missing("number or spaceCheck") }
+            try await desktops.closeDesktop(number, space: space)
         case "nameWindow": try await nameWindow(cmd)
         case "openWindow": try await openWindow(cmd)
         case "closeWindow": try await closeWindow(cmd)

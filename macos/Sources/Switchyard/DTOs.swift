@@ -66,16 +66,31 @@ struct WindowSnapshot: Codable, Equatable {
     }
 }
 
+/// One usable desktop for the dashboard's Desktops list. `space` lets the server name it exactly in a close.
+struct DesktopEntryDTO: Codable, Equatable {
+    let number: Int
+    let space: UInt64
+    let screen: Int
+    let builtin: Bool
+    let showing: Bool
+}
+
 struct DesktopsInfo: Codable, Equatable {
     let count: Int
     let active: Int?
+    let list: [DesktopEntryDTO]?
 
-    private enum CodingKeys: String, CodingKey { case count, active }
+    init(count: Int, active: Int?, list: [DesktopEntryDTO]? = nil) {
+        self.count = count; self.active = active; self.list = list
+    }
+
+    private enum CodingKeys: String, CodingKey { case count, active, list }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(count, forKey: .count)
         try c.encode(active, forKey: .active)
+        try c.encodeIfPresent(list, forKey: .list)
     }
 }
 
@@ -312,6 +327,10 @@ struct AppCommand: Decodable, Equatable {
     let urls: [String]
     let url: String?
     let tabId: String?
+    /// `closeDesktop`: the desktop and the space id the server saw for it. `addDesktop`: the 1-based screen.
+    let number: Int?
+    let spaceCheck: UInt64?
+    let screen: Int?
     /// When the server queued it. Only used to log how long a command waited.
     let createdAt: Date?
 
@@ -319,6 +338,7 @@ struct AppCommand: Decodable, Equatable {
         case seq, type, createdAt, payload, contextId, windowKey, windowKeys, hideKeys, strayKeys, focus, desktop, moves, tidy, desktops, force
         case splits
         case name, browser, urls, url, tabId
+        case number, spaceCheck, screen
     }
 
     init(from decoder: Decoder) throws {
@@ -344,6 +364,9 @@ struct AppCommand: Decodable, Equatable {
         urls = (try? c.decode([String].self, forKey: .urls)) ?? []
         url = try? c.decode(String.self, forKey: .url)
         tabId = Self.flex(c, .tabId)
+        number = try? c.decode(Int.self, forKey: .number)
+        spaceCheck = try? c.decode(UInt64.self, forKey: .spaceCheck)
+        screen = try? c.decode(Int.self, forKey: .screen)
     }
 
     private static func parseDate(_ text: String) -> Date? {
