@@ -103,6 +103,10 @@ actor Tidier {
             unread += done.unread
         }
         if unread > 0 && unread == targeted { pending[desktop] = (keys, slots) }
+        var after: [String: Rect] = [:]
+        for w in candidates { if let f = AX.frame(w.id.element) { after[w.key] = f } }
+        memory.recordResult(desktop: desktop, after: after)
+        store.save(memory)
         let ms = Int(Date().timeIntervalSince(start) * 1000)
         Log.timing.notice("tidy desktop=\(desktop, privacy: .public) windows=\(candidates.count, privacy: .public) preset=\(preset != nil, privacy: .public) applied=\(outcome.laidOut, privacy: .public) refused=\(outcome.refused, privacy: .public) unread=\(unread, privacy: .public) ms=\(ms, privacy: .public)")
         return outcome

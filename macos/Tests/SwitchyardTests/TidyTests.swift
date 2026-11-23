@@ -41,6 +41,43 @@ final class TidyTests: XCTestCase {
         XCTAssertFalse(memory.canUndo(desktop: 1))
     }
 
+    func test_a_second_tidy_of_untouched_windows_keeps_the_first_undo() {
+        var memory = TidyMemory()
+        let original = ["a": Rect(x: 0, y: 0, width: 5, height: 5), "b": Rect(x: 50, y: 0, width: 5, height: 5)]
+        let tidied = ["a": Rect(x: 8, y: 45, width: 700, height: 900), "b": Rect(x: 716, y: 45, width: 700, height: 900)]
+        memory.record(desktop: 1, before: original, keys: ["a", "b"])
+        memory.recordResult(desktop: 1, after: tidied)
+        let nudged = ["a": Rect(x: 9, y: 46, width: 701, height: 899), "b": tidied["b"]!]
+        memory.record(desktop: 1, before: nudged, keys: ["a", "b"])
+        XCTAssertEqual(memory.takeUndo(desktop: 1), original)
+    }
+
+    func test_a_tidy_after_the_owner_moved_a_window_takes_a_new_undo() {
+        var memory = TidyMemory()
+        let tidied = ["a": Rect(x: 8, y: 45, width: 700, height: 900)]
+        memory.record(desktop: 1, before: ["a": Rect(x: 0, y: 0, width: 5, height: 5)], keys: ["a"])
+        memory.recordResult(desktop: 1, after: tidied)
+        let moved = ["a": Rect(x: 100, y: 45, width: 700, height: 900)]
+        memory.record(desktop: 1, before: moved, keys: ["a"])
+        XCTAssertEqual(memory.takeUndo(desktop: 1), moved)
+    }
+
+    func test_a_tidy_with_a_new_window_takes_a_new_undo() {
+        var memory = TidyMemory()
+        let tidied = ["a": Rect(x: 8, y: 45, width: 700, height: 900)]
+        memory.record(desktop: 1, before: ["a": Rect(x: 0, y: 0, width: 5, height: 5)], keys: ["a"])
+        memory.recordResult(desktop: 1, after: tidied)
+        let now = ["a": tidied["a"]!, "b": Rect(x: 1, y: 1, width: 5, height: 5)]
+        memory.record(desktop: 1, before: now, keys: ["a", "b"])
+        XCTAssertEqual(memory.takeUndo(desktop: 1), now)
+    }
+
+    func test_a_tidy_file_from_before_results_were_kept_still_loads() throws {
+        let old = #"{"before":{"2":{"a":{"x":1,"y":2,"width":3,"height":4}}},"sets":{"2":["a"]},"presets":{"2":""}}"#
+        let memory = try JSONDecoder().decode(TidyMemory.self, from: Data(old.utf8))
+        XCTAssertTrue(memory.canUndo(desktop: 2))
+    }
+
     // MARK: which windows a desktop's tidy lays out
 
     private func ctx(_ id: String, desktop: Int?, shared: Bool = false, windows: [String]) -> ContextDTO {

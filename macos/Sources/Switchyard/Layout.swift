@@ -138,11 +138,31 @@ struct TidyMemory: Codable, Equatable {
     private var sets: [String: [String]] = [:]
     /// The preset fingerprint of the last tidy; absent in files from before presets.
     private var presets: [String: String]? = nil
+    /// The frames the last tidy left; absent in older files.
+    private var after: [String: [String: Rect]]? = nil
 
+    /// A tidy of the same windows, still where the last tidy left them, keeps the older Undo.
     mutating func record(desktop: Int, before frames: [String: Rect], keys: Set<String>, preset: String = "") {
-        before[String(desktop)] = frames
+        let d = String(desktop)
+        if !Self.untouched(frames, since: after?[d]) || sets[d] != keys.sorted() { before[d] = frames }
+        after?[d] = nil
+        sets[d] = keys.sorted()
         sets[String(desktop)] = keys.sorted()
         presets = (presets ?? [:]).merging([String(desktop): preset]) { _, new in new }
+    }
+
+    /// The frames read back after a tidy's layout.
+    mutating func recordResult(desktop: Int, after frames: [String: Rect]) {
+        after = (after ?? [:]).merging([String(desktop): frames]) { _, new in new }
+    }
+
+    /// Same windows, each within 2 px of where the last tidy put it.
+    private static func untouched(_ now: [String: Rect], since last: [String: Rect]?) -> Bool {
+        guard let last, !last.isEmpty, Set(now.keys) == Set(last.keys) else { return false }
+        return now.allSatisfy { key, f in
+            guard let l = last[key] else { return false }
+            return abs(f.x - l.x) <= 2 && abs(f.y - l.y) <= 2 && abs(f.width - l.width) <= 2 && abs(f.height - l.height) <= 2
+        }
     }
 
     func lastPreset(desktop: Int) -> String { presets?[String(desktop)] ?? "" }
@@ -157,6 +177,7 @@ struct TidyMemory: Codable, Equatable {
         before[String(desktop)] = nil
         sets[String(desktop)] = nil
         presets?[String(desktop)] = nil
+        after?[String(desktop)] = nil
         return frames
     }
 }
