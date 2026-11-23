@@ -12,7 +12,7 @@ import { createContextStore, type ContextRow, type ContextStore } from './store.
 import { deriveAgentStatus, describeAction } from './agents.ts';
 import { tabSplits, type TabSplit } from './tabsplit.ts';
 import {
-  desktopFor, desktopMode, misplaced, offscreenReason, tidyPlan, unsortedSweep, type TidyDesktop, type WindowMove,
+  desktopFor, desktopMode, desktopWindows, misplaced, offscreenReason, tidyPlan, unsortedSweep, type TidyDesktop, type WindowMove,
 } from './desktops.ts';
 import { buildView, canBeNamed, computeSuggestions, SNAPSHOT_FRESH_MS, type ViewInput } from './view.ts';
 import {
@@ -412,10 +412,10 @@ export class ContextsService {
     return desktop;
   }
 
-  /** Explicit Tidy: lays out what is on the desktop now, even if it was tidied with the same windows before. */
+  /** Explicit Tidy: lays out every window on the desktop now, even if it was tidied with the same windows before. */
   tidy(target: { contextId?: string; desktop?: number }): { desktop: number; windows: number } {
     const desktop = this.tidyTarget(target);
-    const desktops = tidyPlan([desktop], this.snapshot?.windows ?? [], this.desktopTargets(), [], this.hiddenKeys);
+    const desktops = desktopWindows(desktop, this.snapshot?.windows ?? [], this.hiddenKeys);
     if (desktops.length > 0) this.commands.enqueue({ type: 'tidy', desktops: this.presetSlots(desktops), force: true });
     return { desktop, windows: desktops[0]?.windowKeys.length ?? 0 };
   }

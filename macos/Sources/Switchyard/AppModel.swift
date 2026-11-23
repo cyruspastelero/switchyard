@@ -116,13 +116,13 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// ⌥T and the panel button: lays out the current desktop from what the app holds (works with the server down).
+    /// ⌥T and the panel button: lays out every window on the current desktop (works with the server down).
     func tidyHere() {
         if sortProgress != nil { actionProblem = "Sorting windows. Press Esc to stop it first."; NSSound.beep(); return }
         act("Tidy") {
             guard let desktop = Spaces.activeDesktopNumber() else { throw CommandError.unsupported("this space is not a desktop") }
-            let keys = TidyTargets.keys(contexts: self.contexts, desktop: desktop, activeContextId: self.activeContextId)
-            guard !keys.isEmpty else { throw CommandError.unsupported("no context owns Desktop \(desktop)") }
+            _ = await self.windows.refresh()
+            let keys = await self.windows.manualTidyKeys()
             let outcome = await self.tidier.tidy(desktop: desktop, keys: keys, force: true)
             self.noteTidy(desktop: desktop, outcome)
             self.snapshots.nudge()

@@ -510,7 +510,7 @@
       }, !control || !!st.busy['park:' + c.id], tip || 'Close this context\u2019s browser windows and save their tabs'),
       c.desktop != null ? button(st.busy['tidy:' + c.id] ? logic.busyLabel('tidy') : 'Tidy', '', 'tidy:' + c.id, function () {
         act('tidy:' + c.id, function () { return api.tidy(c.id).then(tidyResult); });
-      }, !control || !!st.busy['tidy:' + c.id], tip || 'Lay out this context\u2019s windows on Desktop ' + c.desktop) : null,
+      }, !control || !!st.busy['tidy:' + c.id], tip || 'Lay out every window on Desktop ' + c.desktop) : null,
       button(st.busy['switch:' + c.id] ? logic.busyLabel('switch') : 'Switch', 'primary', 'switch:' + c.id, function () {
         act('switch:' + c.id, function () { return api.switchTo(c.id); }, c.name);
       }, !control || !!st.busy['switch:' + c.id], tip || 'Show this context\u2019s windows and hide the others'));

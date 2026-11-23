@@ -182,3 +182,16 @@ enum TidyTargets {
         return keys
     }
 }
+
+/// ⌥T and the panel's Tidy: every window the app holds that is not hidden off-screen, whatever its context.
+/// The tidier keeps only those really on the desktop, so nothing is ever carried to another one.
+enum ManualTidy {
+    struct Candidate: Equatable {
+        let key: String
+        let hidden: Bool
+    }
+
+    static func keys(_ windows: [Candidate]) -> [String] {
+        windows.filter { !$0.hidden }.map(\.key)
+    }
+}

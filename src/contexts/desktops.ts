@@ -98,3 +98,12 @@ export function tidyPlan(
     }))
     .filter((d) => d.windowKeys.length > 0);
 }
+
+/**
+ * Manual Tidy: every window on `desktop` now, whatever context it belongs to, minus those the last show hid.
+ * Nothing is carried; a minimized or fullscreen window has no desktop and is left out.
+ */
+export function desktopWindows(desktop: number, windows: readonly PlacedWindow[], hidden: ReadonlySet<string>): readonly TidyDesktop[] {
+  const windowKeys = windows.filter((w) => w.desktop === desktop && !hidden.has(w.key)).map((w) => w.key);
+  return windowKeys.length > 0 ? [{ desktop, windowKeys }] : [];
+}
