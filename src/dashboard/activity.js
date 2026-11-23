@@ -19,8 +19,8 @@ function agentDisplayName(agent) {
   }
   // Subagent with readable agent_id
   var aid = agent.agent_id || '';
-  if (aid && aid !== 'main' && aid.length <= 16) return aid;
-  if (aid && aid !== 'main') return 'Sub-' + aid.slice(0, 8);
+  if (aid && !isMainAgentId(aid) && aid.length <= 16) return aid;
+  if (aid && !isMainAgentId(aid)) return 'Sub-' + aid.slice(0, 8);
   // Main agent without cwd — just show "Agent"
   return 'Agent';
 }
@@ -83,6 +83,11 @@ if ($agentFilters) {
   });
 }
 
+// The server stores a main agent's agent_id as "<session>:main"; older rows have a bare "main".
+function isMainAgentId(aid) {
+  return aid === 'main' || /:main$/.test(aid);
+}
+
 function buildAgentTree() {
   var sessions = {};
   var orphans = [];
@@ -91,7 +96,7 @@ function buildAgentTree() {
     var aid = agent.agent_id || 'main';
     if (!sid) { orphans.push(agent); return; }
     if (!sessions[sid]) sessions[sid] = { main: null, subs: [] };
-    if (aid === 'main') sessions[sid].main = agent;
+    if (isMainAgentId(aid)) sessions[sid].main = agent;
     else sessions[sid].subs.push(agent);
   });
   return { sessions: sessions, orphans: orphans };
