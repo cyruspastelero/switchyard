@@ -1,6 +1,7 @@
 // Request DTO validation. Every body is parsed into a typed value; unknown fields are rejected.
 
 import type { BrowserInfo, BrowserTab, DesktopsInfo, Snapshot, SnapshotWindow } from './types.ts';
+import { parseLayoutRef } from './layouts.ts';
 
 export type Parsed<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
 
@@ -188,7 +189,9 @@ export function parseSnapshot(body: unknown): Parsed<Snapshot> {
 // --- Small DTOs ---------------------------------------------------------------
 
 export interface CreateContextDto { readonly name: string }
-export interface PatchContextDto { readonly name?: string; readonly color?: string; readonly key?: number | null }
+export interface PatchContextDto {
+  readonly name?: string; readonly color?: string; readonly key?: number | null; readonly layoutId?: string | null;
+}
 export interface AssignDto { readonly windowKey: string; readonly contextId: string }
 export interface UnassignDto { readonly windowKey: string }
 export interface WindowNameDto { readonly windowKey: string; readonly name: string }
@@ -209,9 +212,9 @@ export function parseCreateContext(body: unknown): Parsed<CreateContextDto> {
 }
 
 export function parsePatchContext(body: unknown): Parsed<PatchContextDto> {
-  const o = strict(body, ['name', 'color', 'key']);
+  const o = strict(body, ['name', 'color', 'key', 'layoutId']);
   if (!o.ok) return o;
-  const out: { name?: string; color?: string; key?: number | null } = {};
+  const out: { name?: string; color?: string; key?: number | null; layoutId?: string | null } = {};
   if ('name' in o.value) {
     const n = str(o.value, 'name', LIMITS.name);
     if (!n.ok) return n;
@@ -228,6 +231,11 @@ export function parsePatchContext(body: unknown): Parsed<PatchContextDto> {
       return fail('key must be an integer 1-9 or null');
     }
     out.key = k as number | null;
+  }
+  if ('layoutId' in o.value) {
+    const l = parseLayoutRef(o.value.layoutId, 'layoutId');
+    if (!l.ok) return l;
+    out.layoutId = l.value;
   }
   return Object.keys(out).length === 0 ? fail('no fields to update') : ok(out);
 }
@@ -277,7 +285,7 @@ export function parseEmpty(body: unknown): Parsed<Record<string, never>> {
 }
 
 export interface TidyDto { readonly contextId?: string; readonly desktop?: number }
-export interface SettingsDto { readonly autoTidy: boolean }
+export interface SettingsDto { readonly autoTidy?: boolean; readonly defaultLayoutId?: string | null }
 
 /** POST /tidy: `{}`, `{ contextId }` or `{ desktop }`, never both. */
 export function parseTidy(body: unknown): Parsed<TidyDto> {
@@ -303,8 +311,17 @@ export function parseUndoTidy(body: unknown): Parsed<{ readonly desktop?: number
 }
 
 export function parseSettings(body: unknown): Parsed<SettingsDto> {
-  const o = strict(body, ['autoTidy']);
+  const o = strict(body, ['autoTidy', 'defaultLayoutId']);
   if (!o.ok) return o;
-  if (typeof o.value.autoTidy !== 'boolean') return fail('autoTidy must be a boolean');
-  return ok({ autoTidy: o.value.autoTidy });
+  const out: { autoTidy?: boolean; defaultLayoutId?: string | null } = {};
+  if ('autoTidy' in o.value) {
+    if (typeof o.value.autoTidy !== 'boolean') return fail('autoTidy must be a boolean');
+    out.autoTidy = o.value.autoTidy;
+  }
+  if ('defaultLayoutId' in o.value) {
+    const l = parseLayoutRef(o.value.defaultLayoutId, 'defaultLayoutId');
+    if (!l.ok) return l;
+    out.defaultLayoutId = l.value;
+  }
+  return Object.keys(out).length === 0 ? fail('no settings to update') : ok(out);
 }

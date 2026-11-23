@@ -3,6 +3,7 @@
 // that has no desktop of its own (keys 6–9 with six desktops). See docs/superpowers/specs/2026-11-22-contexts-design.md.
 
 import type { Snapshot } from './types.ts';
+import type { LayoutSlot } from './layouts.ts';
 
 export interface WindowMove {
   readonly windowKey: string;
@@ -72,6 +73,8 @@ export function unsortedSweep(
 export interface TidyDesktop {
   readonly desktop: number;
   readonly windowKeys: readonly string[];
+  /** The owner context's layout preset; absent means auto layout. */
+  readonly slots?: readonly LayoutSlot[];
 }
 
 /**

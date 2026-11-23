@@ -1,6 +1,7 @@
 // In-memory command queue for the macOS app (long-poll).
 
 import type { TabSplit } from './tabsplit.ts';
+import type { TidyDesktop } from './desktops.ts';
 
 export type CommandBody =
   // hideKeys: the windows of every other context. Sent with the command so the app never has to ask again
@@ -26,7 +27,10 @@ export type CommandBody =
   | { readonly type: 'closeTab'; readonly windowKey: string; readonly tabId: string | number }
   | { readonly type: 'showAll' }
   // Lay out each desktop's windows. force=false (after Sort/Move) skips a desktop whose window set is the same as at its last Tidy.
-  | { readonly type: 'tidy'; readonly desktops: readonly { readonly desktop: number; readonly windowKeys: readonly string[] }[]; readonly force: boolean }
+  // A desktop with `slots` is laid out from that preset instead of the automatic layout.
+  | { readonly type: 'tidy'; readonly desktops: readonly TidyDesktop[]; readonly force: boolean }
+  // Save the windows on the desktop on screen as a layout preset (the app POSTs it to /layouts).
+  | { readonly type: 'captureLayout'; readonly name: string }
   // Put back the frames from before the last Tidy of that desktop.
   | { readonly type: 'undoTidy'; readonly desktop: number };
 

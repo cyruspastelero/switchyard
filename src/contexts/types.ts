@@ -1,5 +1,7 @@
 // Shared types for the Contexts feature (server side).
 
+import type { LayoutPreset } from './layouts.ts';
+
 export type ContextStatus = 'working' | 'waiting' | 'idle' | 'parked';
 export type AgentStatus = 'working' | 'waiting' | 'idle';
 export type AssignSource = 'auto' | 'owner';
@@ -89,6 +91,10 @@ export interface ContextView {
   readonly desktopShared: boolean;
   /** Its windows whose desktop is known and differs from the context's. 0 in off-screen mode. */
   readonly strays: number;
+  /** The preset the owner picked for this context; null follows the default. Set by `withLayouts`. */
+  readonly layoutId?: string | null;
+  /** The preset Tidy uses here (own, else the default); null means auto layout. */
+  readonly layout?: LayoutPreset | null;
 }
 
 export interface SuggestionView {
@@ -125,6 +131,9 @@ export interface ContextsView {
   readonly unsortedToMove: number;
   /** Lay out the desktops a Sort or Move changed. */
   readonly autoTidy: boolean;
+  /** Saved layout presets, oldest first. Set by `withLayouts`. */
+  readonly layouts?: readonly LayoutPreset[];
+  readonly defaultLayoutId?: string | null;
 }
 
 export class ContextsError extends Error {
