@@ -101,7 +101,8 @@
         if (box.checked) picked[row.number] = true; else delete picked[row.number];
         onPick();
       });
-      return box;
+      // The label is the hit area (44px on a phone); the box itself stays small.
+      return add(h('label', 'ctx-desktop-pick-hit'), box);
     }
 
     // One shape for every row: pick, name, owner, meta, showing, Go/Close. A blocked Close says why on hover.

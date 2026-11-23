@@ -2989,6 +2989,18 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   .ctx-btn.link { min-height: 32px; }
 }
 
+/* Phone: every Contexts control is a 44px-tall hit area. Rows and labels grow; small marks (checkbox, switch)
+   keep their size inside a label that takes the tap. Desktop widths are untouched. */
+@media (max-width: 640px) {
+  .ctx-btn, .ctx-btn.link, .pick-btn, .ctx-input, .ctx-select { min-height: 44px; }
+  .ctx-card-meta, .ctx-card-layout { height: auto; }
+  .ctx-card-meta .ctx-key-select, .ctx-card-layout .ctx-select { height: auto; }
+  .ctx-w { height: 44px; }
+  .ctx-w-note { min-height: 44px; }
+  .ctx-desktop-pick-hit { display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+  .ctx-toggle { min-height: 44px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .view-tab, .ctx-btn { transition: none; }
 }
@@ -3251,6 +3263,11 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
 .nc-empty { padding: 8px 0; font-size: var(--font-size-sm); }
 .nc-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .nc-count { margin-right: auto; font-size: var(--font-size-sm); }
-@media (max-width: 640px) { .nc-form { padding: 12px; } .nc-list { max-height: 45dvh; } }
+@media (max-width: 640px) {
+  .nc-form { padding: 12px; } .nc-list { max-height: 45dvh; }
+  /* The window's label covers its whole 44px row, checkbox included, so a tap anywhere on the row toggles it. */
+  .nc-item { position: relative; min-height: 44px; }
+  .nc-win::before { content: ''; position: absolute; inset: 0; }
+}
 /* On wide screens the meta column would stretch and push Showing and the actions far from their desktop. */
 .ctx-desktops .ctx-layout-list, .ctx-desktop-batch { max-width: 760px; }
