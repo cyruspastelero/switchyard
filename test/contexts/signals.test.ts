@@ -104,6 +104,17 @@ describe('findGitRoot', () => {
     expect(findGitRoot(join(base, 'wt', 'src'))).toBe(join(base, 'wt'));
     expect(findGitRoot(join(base, 'none'))).toBe(join(base, 'none'));
   });
+  it('a_claude_agent_worktree_belongs_to_the_repository_that_holds_it', async () => {
+    const { findGitRoot } = await import('../../src/contexts/signals.ts');
+    const { writeFileSync } = await import('node:fs');
+    const base = realpathSync(mkdtempSync(join(tmpdir(), 'sy-wt-')));
+    mkdirSync(join(base, 'repo', '.git'), { recursive: true });
+    const wt = join(base, 'repo', '.claude', 'worktrees', 'agent-a1b2');
+    mkdirSync(join(wt, 'src'), { recursive: true });
+    writeFileSync(join(wt, '.git'), 'gitdir: ../../../.git/worktrees/agent-a1b2');
+    expect(findGitRoot(join(wt, 'src'))).toBe(join(base, 'repo'));
+    expect(findGitRoot(wt)).toBe(join(base, 'repo'));
+  });
   it('a_folder_reached_through_a_symlink_resolves_to_the_real_repository', async () => {
     const { findGitRoot } = await import('../../src/contexts/signals.ts');
     const { symlinkSync } = await import('node:fs');

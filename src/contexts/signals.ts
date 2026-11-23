@@ -4,7 +4,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
 
 const execFileAsync = promisify(execFile);
@@ -120,8 +120,20 @@ function realRoot(dir: string): string {
   }
 }
 
+/** Claude Code puts subagent worktrees in `<repo>/.claude/worktrees/<name>`: they are the repo's work, not a project. */
+const AGENT_WORKTREES = `${sep}.claude${sep}worktrees${sep}`;
+
+function ownerOfAgentWorktree(dir: string): string | null {
+  const at = dir.indexOf(AGENT_WORKTREES);
+  if (at <= 0) return null;
+  const repo = dir.slice(0, at);
+  return existsSync(join(repo, '.git')) ? realRoot(repo) : null;
+}
+
 export function findGitRoot(cwd: string): string {
   let dir = resolve(cwd);
+  const owner = ownerOfAgentWorktree(dir);
+  if (owner) return owner;
   for (;;) {
     if (existsSync(join(dir, '.git'))) return realRoot(dir);
     const parent = dirname(dir);
