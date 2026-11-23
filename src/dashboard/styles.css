@@ -3162,7 +3162,8 @@ body.view-contexts .header-stats { display: none; }
   padding: 3px 6px; max-width: 100%; min-width: 0; color-scheme: dark;
 }
 .ctx-select:hover:not(:disabled) { border-color: var(--border-focus); }
-.ctx-select:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+/* Same ring as every other control (1px --text-bright); --border-focus was 2.42:1 on the panel. */
+.ctx-select:focus-visible { outline: 1px solid var(--text-bright); outline-offset: 1px; }
 .ctx-layouts { font-family: var(--font-mono); }
 /* Section names read like the other section titles (Unsorted, Needs you). */
 .ctx-layouts .ctx-toggle-name { font-family: var(--font-sans); font-size: var(--font-size-xs); letter-spacing: 2px; color: var(--text-secondary); }
