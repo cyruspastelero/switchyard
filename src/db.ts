@@ -260,6 +260,15 @@ export function getEvents(limit = 100, offset = 0): readonly Event[] {
   return stmtGetEvents.all({ limit, offset }) as Event[];
 }
 
+const stmtGetAgentEvents = db.prepare(`
+  SELECT * FROM events WHERE agent_id = @agent_id ORDER BY id DESC LIMIT @limit OFFSET @offset
+`);
+
+/** One agent's events, newest first; limit and offset page over that agent's events only. */
+export function getAgentEvents(agentId: string, limit = 100, offset = 0): readonly Event[] {
+  return stmtGetAgentEvents.all({ agent_id: agentId, limit, offset }) as Event[];
+}
+
 // -- Agents -----------------------------------------------------------------
 
 const stmtUpsertAgent = db.prepare(`

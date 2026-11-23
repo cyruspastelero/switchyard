@@ -127,6 +127,28 @@ describe('GET /api/agents/:id/events', () => {
     }
   });
 
+  it('agent_history_is_not_hidden_by_newer_events_of_other_agents', async () => {
+    const send = (session: string, file: string) => hf(`${BASE}/api/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: session, agent_id: 'main', event_type: 'pre_tool_use', tool_name: 'Read', tool_input: { file_path: file } }),
+    });
+    await send('quiet-sess', '/tmp/quiet.ts');
+    for (let i = 0; i < 5; i++) await send('busy-sess', `/tmp/busy-${i}.ts`);
+    const res = await f(`${BASE}/api/agents/quiet-sess%3Amain/events?limit=3`);
+    const data = await res.json();
+    expect(data.length).toBe(1);
+    expect(data[0].agent_id).toBe('quiet-sess:main');
+  });
+
+  it('agent_history_pages_over_its_own_events', async () => {
+    const first = await (await f(`${BASE}/api/agents/busy-sess%3Amain/events?limit=2`)).json();
+    const second = await (await f(`${BASE}/api/agents/busy-sess%3Amain/events?limit=2&offset=2`)).json();
+    expect(first.length).toBe(2);
+    expect(second.length).toBe(2);
+    expect(second[0].id < first[1].id).toBe(true);
+  });
+
   it('respects limit parameter', async () => {
     const res = await f(`${BASE}/api/agents/agent-test-sess%3Amain/events?limit=1`);
     expect(res.status).toBe(200);

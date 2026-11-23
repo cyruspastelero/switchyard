@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getAgents, getAgent, updateAgent, deleteAgent, deleteDisconnectedAgents, getEvents } from '../db.ts';
+import { getAgents, getAgent, updateAgent, deleteAgent, deleteDisconnectedAgents, getAgentEvents } from '../db.ts';
 import { parseBody, sendJson, extractId, parseQuery, unknownFields, FIELD_LIMITS } from './utils.ts';
 
 /**
@@ -38,11 +38,7 @@ export async function handleAgents(
     const limit = Math.min(Math.max(parseInt(query.limit ?? '100', 10) || 100, 1), 1000);
     const offset = Math.max(parseInt(query.offset ?? '0', 10) || 0, 0);
 
-    // Use the general getEvents with limit/offset
-    // Filter by agent_id in application layer since db.getEvents doesn't support it directly
-    const allEvents = getEvents(limit, offset);
-    const filtered = allEvents.filter((e) => e.agent_id === agentId);
-    sendJson(res, 200, filtered);
+    sendJson(res, 200, getAgentEvents(agentId, limit, offset));
     return;
   }
 
