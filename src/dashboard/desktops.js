@@ -1,7 +1,7 @@
 // ── Desktops (Contexts tab) ───────────────────────────────────────────────────
 // The "Desktops" section (one row per desktop: pick, owner, windows, Go, Close; Add desktop per screen; a batch
 // close for the picked rows) and the
-// desktop select on each card's meta line. A context's key is its ⌥N and its Desktop N; picking a key another
+// desktop select on each card's meta line. Rows a context owns take a dragged window (dragdrop.js). A context's key is its ⌥N and its Desktop N; picking a key another
 // context holds swaps the two. contexts.js passes its DOM helpers and act(); all text goes in through h().
 
 (function (root) {
@@ -113,6 +113,7 @@
         h('span', 'ctx-muted ctx-desktop-meta', logic.desktopMeta(row)),
         h('span', 'ctx-desktop-showing', row.showing ? 'Showing' : ''),
         h('span', 'ctx-desktop-acts'));
+      if (deps.drag) deps.drag.target(li, row);
       add(li.lastChild,
         button(busy[go] ? 'Going…' : 'Go', '', go, function () {
           act(go, function () { return api.show(row.number); }, name);
@@ -190,6 +191,7 @@
       var box = h('div', 'ctx-foot ctx-layouts ctx-desktops');
       var head = h('div', 'ctx-toggle');
       head.appendChild(h('span', 'ctx-toggle-name', 'Desktops'));
+      if (deps.drag) head.appendChild(h('span', 'ctx-muted ctx-drop-hint', 'Drop a window on a context’s desktop to move it there'));
       list.screens.forEach(function (s) {
         var key = 'desktopAdd:' + s.screen;
         var label = list.screens.length > 1 ? 'Add to ' + s.label : 'Add desktop';

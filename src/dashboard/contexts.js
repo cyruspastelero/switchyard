@@ -353,14 +353,17 @@
     }
   }
 
-  var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy };
+  // editing(on) holds re-renders while a window is dragged, the way an open picker does.
+  var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy, data: function () { return st.data; },
+    editing: function (on) { st.picking = on ? 'drag' : null; if (!on && st.dirty) endEdit(); } };
+  var dragUi = uiDeps.drag = window.MCDragDrop ? window.MCDragDrop(uiDeps) : null;
   var layoutsUi = window.MCLayouts ? window.MCLayouts(uiDeps) : null;
   var desktopsUi = window.MCDesktops ? window.MCDesktops(uiDeps) : null;
   var suggestionsUi = window.MCSuggestions ? window.MCSuggestions(uiDeps) : null;
 
   function noticeLine() {
-    var line = h('div', 'ctx-ok', st.notice, { role: 'status' });
     var f = st.followUp;
+    var line = h('div', 'ctx-ok' + (f && f.toast ? ' ctx-toast' : ''), st.notice, { role: 'status' });
     if (f) line.appendChild(button(f.label, 'link', 'followup', function () { act(f.key, f.run, f.name); }));
     return line;
   }
@@ -468,7 +471,7 @@
     } else if (c.windows.length) {
       var moveTo = logic.moveItems(d.contexts, c.id);
       var home = c.desktop != null ? c.desktop : d.activeDesktop;
-      c.windows.forEach(function (w) { wins.appendChild(windowLine(w, moveTo, home)); });
+      c.windows.forEach(function (w) { wins.appendChild(windowLine(w, moveTo, home, c)); });
       var stray = logic.strayHint(c);
       if (stray) wins.appendChild(add(noteRow(stray), button('Move here', 'link', 'gather:' + c.id, function () {
         act('gather:' + c.id, function () { return api.gather(c.id); }, c.name);
@@ -550,10 +553,11 @@
     return li;
   }
 
-  function windowLine(w, moveTo, activeDesktop) {
+  function windowLine(w, moveTo, activeDesktop, c) {
     if (st.renaming === w.key) return add(h('li', 'ctx-w'), renameForm(w));
     if (st.newTopicFor === w.key) return add(h('li', 'ctx-w'), newTopicForm(w));
     var li = h('li', 'ctx-w');
+    if (dragUi) dragUi.source(li, w, { id: c.id, name: c.name }, logic.windowLabel(w));
     var acts = h('span', 'ctx-w-acts');
     if (logic.canRename(w)) {
       acts.appendChild(button('Rename', 'link ctx-w-rename', 'rename:' + w.key, function () {
@@ -669,6 +673,7 @@
     var li = h('li', 'ctx-w');
     var text = logic.windowLabel(w);
     if (st.newTopicFor === w.key) return add(li, newTopicForm(w));
+    if (dragUi) dragUi.source(li, w, null, text);
     add(li, appIcon(w), windowTitle(w, d.activeDesktop, true));
     var acts = add(h('span', 'ctx-w-acts ctx-w-acts-always'), window.MCPicker.create({
       ariaLabel: 'Assign ' + text + ' to a context',

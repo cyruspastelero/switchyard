@@ -3175,3 +3175,25 @@ body.view-contexts .header-stats { display: none; }
   .ctx-desktop-showing { grid-column: 4; grid-row: 2; text-align: right; }
 }
 .ctx-desktops .ctx-toggle { gap: 8px; }
+
+/* Drag a window row onto a Desktops row (dragdrop.js). Rows a context owns light up; the rest dim. */
+.ctx-draggable { cursor: grab; }
+.ctx-draggable:active { cursor: grabbing; }
+.ctx-drop-hint { display: none; font-size: var(--font-size-sm); }
+body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
+.ctx-desktop-row { border: 1px dashed transparent; transition: background 0.12s, border-color 0.12s, opacity 0.12s; }
+.ctx-desktop-row.drop-ok { border-color: var(--success-dim); }
+.ctx-desktop-row.drop-over { border-style: solid; border-color: var(--success); background: var(--glow-success); }
+.ctx-desktop-row.drop-off { opacity: 0.4; }
+.ctx-drag-ghost {
+  position: fixed; top: -1000px; left: 0; display: flex; gap: 8px; align-items: center; max-width: 320px;
+  padding: 4px 10px; background: var(--bg-panel-alt); border: 1px solid var(--border-bright); color: var(--text-bright);
+  font-family: var(--font-mono); font-size: var(--font-size-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ctx-drag-app { color: var(--text-secondary); }
+/* The undo after a drop sits at the bottom of the window: the drop happened far from the notice line. */
+.ctx-ok.ctx-toast {
+  position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); z-index: 200; max-width: calc(100vw - 32px);
+  background: var(--bg-panel-alt); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+@media (prefers-reduced-motion: reduce) { .ctx-desktop-row { transition: none; } }
