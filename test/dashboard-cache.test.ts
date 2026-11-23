@@ -4,7 +4,7 @@ import { setupTestDb, teardownTestDb } from './helpers.ts';
 const tmpDir = setupTestDb();
 const { createServer } = await import('../src/server.ts');
 
-const PORT = 14293;
+const PORT = 14299;
 const BASE = `http://localhost:${PORT}`;
 let server: ReturnType<typeof createServer>;
 

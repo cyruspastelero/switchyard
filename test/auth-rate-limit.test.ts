@@ -4,7 +4,7 @@ import { setupTestDb, teardownTestDb } from './helpers.ts';
 const tmpDir = setupTestDb();
 const { createServer } = await import('../src/server.ts');
 
-const PORT = 14292;
+const PORT = 14295;
 const BASE = `http://localhost:${PORT}`;
 let server: ReturnType<typeof createServer>;
 
@@ -35,7 +35,7 @@ describe('access code rate limit', () => {
 
 describe('access codes with multibyte characters', () => {
   // Its own server: the lockout above has already locked this address out of the first one.
-  const port = 14293;
+  const port = 14294;
   let fresh: ReturnType<typeof createServer>;
   const loginFresh = (code: string) => fetch(`http://localhost:${port}/api/auth`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
