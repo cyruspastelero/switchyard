@@ -39,7 +39,7 @@
         <span class="shield-label">SECURE</span>
         <span class="shield-count" id="security-count">0</span>
       </button>
-      <button type="button" class="kbd-hint" title="Help and shortcuts (?)" aria-haspopup="dialog" aria-controls="kbd-help">? HELP</button>
+      <button type="button" class="kbd-hint" title="Help and shortcuts (?)" aria-label="Help and shortcuts" aria-haspopup="dialog" aria-controls="kbd-help">?<span class="kbd-hint-label" aria-hidden="true"> HELP</span></button>
       <span id="connection-status" class="conn-status disconnected">
         <span class="conn-dot"></span>
         <span class="conn-text">DISCONNECTED</span>
@@ -262,7 +262,10 @@
   <!-- Keyboard help (toggle with ?) -->
   <div id="kbd-help" class="kbd-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="kbd-help-title">
     <div class="kbd-content" tabindex="-1">
-      <div class="kbd-title" id="kbd-help-title">Switchyard help</div>
+      <div class="kbd-head">
+        <div class="kbd-title" id="kbd-help-title">Switchyard help</div>
+        <button type="button" class="kbd-close" aria-label="Close help">&times;</button>
+      </div>
 
       <div class="help-section-title">Getting Started</div>
       <div class="help-text">

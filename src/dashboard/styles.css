@@ -1255,14 +1255,22 @@ html, body {
   color: var(--text-bright);
 }
 
-.security-close-btn {
+.security-close-btn,
+.kbd-close {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 18px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-lg);
   cursor: pointer;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0 4px;
   line-height: 1;
+}
+
+.kbd-close:hover {
+  color: var(--text-primary);
 }
 
 .security-close-btn:hover {
@@ -1616,15 +1624,29 @@ html, body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
+/* Stays on top while the help scrolls, so the close button is always there. */
+.kbd-head {
+  position: sticky;
+  top: -20px;
+  z-index: 1;
+  margin-top: -20px;
+  padding-top: 20px;
+  background: var(--bg-panel);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
 .kbd-title {
   font-family: var(--font-sans);
   font-size: var(--font-size-sm);
   font-weight: 500;
   letter-spacing: 2px;
   color: var(--text-bright);
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
 }
 
 .kbd-grid {
@@ -2060,7 +2082,6 @@ html, body {
   .stat:nth-child(n+5) { display: none; }
   .stat-sep:nth-child(n+4) { display: none; }
 
-  .kbd-hint { display: none; }
 
   /* Security shield: compact */
   .security-shield {
@@ -3145,7 +3166,9 @@ body.view-contexts .header-stats { display: none; }
 #contexts-view .panel-header { flex-wrap: wrap; }
 #contexts-view .panel-title { flex: none; }
 @media (max-width: 1180px) {
-  .kbd-hint { display: none; }
+  /* Narrow headers keep a compact "?" so help can still be opened (B8). */
+  .kbd-hint-label { display: none; }
+  .kbd-hint { font-size: var(--font-size-lg); padding: 0 6px; }
 }
 @media (min-width: 641px) and (max-width: 1100px) {
   .header-stats { display: none; }
