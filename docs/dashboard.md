@@ -11,7 +11,7 @@ Open <http://localhost:4280> and enter the access code shown in the terminal.
 | Usage & Costs | Token costs from Claude Code's JSONL logs, context window health, daily, model and session breakdowns, and a 24h/7d/30d/All selector. |
 | Timeline | Every tool call as it happens. Click a row for the full input and output. |
 | Instruct | Send an instruction to the selected agent and see whether it was delivered. |
-| Contexts | One row per project: agents, windows, cost today, park/restore and switch. Unsorted windows and tab-move suggestions are listed below. |
+| Contexts | One card per project: its desktop, windows, agents and cost today, with Park, Tidy and Switch. Unsorted windows are listed below with a picker to assign them. |
 
 Agent status dots: active (pulsing), idle after 60 seconds, disconnected after 5 minutes.
 
@@ -59,3 +59,17 @@ Press `s` for the security panel. It lists the request checks the server applies
 | `s` | Toggle the security panel |
 | `?` | Show help |
 | `Esc` | Cancel or unfocus |
+
+## Configuration
+
+Each variable can also be set with its old `MC_` name. `SWITCHYARD_` wins if both are set.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `SWITCHYARD_DATA_DIR` | `~/.switchyard` | Where the database, hook token and server log live. |
+| `SWITCHYARD_EVENT_RETENTION_DAYS` | `7` | Days to keep events. Daily totals are kept longer. |
+| `SWITCHYARD_COST_PER_TOOL_CALL` | `0.003` | Cost estimate per tool call when session logs aren't available. |
+| `SWITCHYARD_HOST`, `SWITCHYARD_PORT` | `localhost`, `4280` | Where the hook script sends events. Old names: `CLAUDE_MC_HOST`, `CLAUDE_MC_PORT`. |
+| `SWITCHYARD_URL` | `http://127.0.0.1:4280` | Server address the Mac app uses. Must be a loopback address. Old name: `MC_URL`. |
+
+Command line: `--port <n>` changes the port and `--open` opens the browser. `--lan` also opens the server to your local network over plain HTTP; use it only on a network you trust.
