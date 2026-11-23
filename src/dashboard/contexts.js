@@ -549,7 +549,7 @@
 
   function noteRow(text) {
     var li = h('li', 'ctx-w ctx-w-note');
-    add(li, h('span', 'ctx-app-icon ctx-app-empty', null, { 'aria-hidden': 'true' }), h('span', 'ctx-w-text', text));
+    li.appendChild(h('span', 'ctx-w-text', text));
     return li;
   }
 
