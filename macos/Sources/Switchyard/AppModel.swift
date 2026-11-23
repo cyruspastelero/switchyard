@@ -223,8 +223,7 @@ final class AppModel: ObservableObject {
     func copyAccessCode() {
         act("Copy access code") {
             let code = try await self.api.fetchAccessCode()
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(code, forType: .string)
+            NSPasteboard.general.setSecret(code)
         }
     }
 
@@ -391,5 +390,15 @@ final class AppModel: ObservableObject {
         if case APIError.unreachable = error { return "Server not reachable" }
         if case APIError.config(let c, _) = error { return c.localizedDescription }
         return error.localizedDescription
+    }
+}
+
+extension NSPasteboard {
+    /// Marks the string concealed and transient (nspasteboard.org) so clipboard managers neither show nor keep it.
+    func setSecret(_ value: String) {
+        let markers: [NSPasteboard.PasteboardType] = [.init("org.nspasteboard.ConcealedType"), .init("org.nspasteboard.TransientType")]
+        declareTypes([.string] + markers, owner: nil)
+        setString(value, forType: .string)
+        for marker in markers { setData(Data(), forType: marker) }
     }
 }

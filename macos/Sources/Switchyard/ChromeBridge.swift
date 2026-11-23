@@ -8,8 +8,7 @@ enum ChromeBridge {
     static func list(pid: pid_t, timeout: TimeInterval) async throws -> [BrowserWindow] {
         try await run(pid: pid, timeout: timeout) { s in
             let windows = try s.windows()
-            let raw: Any? = windows.value(forKey: "id")
-            try s.check()
+            let raw = try s.get(windows, "id")
             let ids = raw as? [Any] ?? []
             return try ids.map { raw in
                 let id = "\(raw)"
@@ -22,8 +21,7 @@ enum ChromeBridge {
     static func setName(pid: pid_t, windowId: String, name: String) async throws {
         try await run(pid: pid, timeout: commandTimeout) { s in
             let w = try s.window(in: try s.windows(), id: windowId)
-            w.setValue(name, forKey: "givenName")
-            try s.check()
+            try s.set(w, name, "givenName")
         }
     }
 
@@ -33,13 +31,15 @@ enum ChromeBridge {
         try await run(pid: pid, timeout: commandTimeout) { s in
             let windowId = try ChromeEvents.make(pid: pid, scriptingClass: ChromeEvents.windowClass, container: nil,
                                                  properties: [:], timeout: commandTimeout)
-            let w = try s.window(in: try s.windows(), id: windowId)
+            // From here on the window exists: every error says so, so nobody retries into a second window blindly.
+            let w = try afterWindowOpened("finding it") { try s.window(in: try s.windows(), id: windowId) }
             if let first = urls.first {
-                guard let tab = w.value(forKey: "activeTab") as? SBObject else {
-                    try s.check(); throw BrowserError.unsupported("the new window has no tab to load the first URL")
+                try afterWindowOpened("loading the first URL") {
+                    guard let tab = try s.get(w, "activeTab") as? SBObject else {
+                        throw BrowserError.unsupported("the new window has no tab")
+                    }
+                    try s.set(tab, first, "URL")
                 }
-                tab.setValue(first, forKey: "URL")
-                try s.check()
             }
             if urls.count > 1 {
                 guard let container = ChromeEvents.windowSpecifier(id: windowId) else { throw BrowserError.unsupported("cannot address the new window") }
@@ -50,13 +50,24 @@ enum ChromeBridge {
                         _ = try ChromeEvents.make(pid: pid, scriptingClass: ChromeEvents.tabClass, container: container,
                                                   properties: ["URL ": url], timeout: commandTimeout)
                     } catch {
-                        // The window exists with `index` tabs: say so, so nobody retries into a second window blindly.
                         throw BrowserError.unsupported("opened the window with \(index) of \(urls.count) tabs, then: \(error.localizedDescription)")
                     }
                 }
             }
-            if let name, !name.isEmpty { w.setValue(name, forKey: "givenName"); try s.check() }
+            if let name, !name.isEmpty { try afterWindowOpened("naming it") { try s.set(w, name, "givenName") } }
         }
+    }
+
+    /// Runs one step after the window was made, rewording its error to say the window exists.
+    static func afterWindowOpened<T>(_ step: String, _ body: () throws -> T) throws -> T {
+        do { return try body() } catch {
+            throw BrowserError.unsupported("opened the window, but \(step) failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// The Key-Value Coding setter for a scripting key: "givenName" -> "setGivenName:", "URL" -> "setURL:".
+    static func setterName(_ key: String) -> String {
+        "set" + key.prefix(1).uppercased() + key.dropFirst() + ":"
     }
 
     static func openTab(pid: pid_t, windowId: String, url: String) async throws {
@@ -71,7 +82,7 @@ enum ChromeBridge {
     static func closeTab(pid: pid_t, windowId: String, tabId: String) async throws {
         try await run(pid: pid, timeout: commandTimeout) { s in
             let w = try s.window(in: try s.windows(), id: windowId)
-            guard let tabs = w.value(forKey: "tabs") as? SBElementArray, let n = Int(tabId),
+            guard let tabs = try s.get(w, "tabs") as? SBElementArray, let n = Int(tabId),
                   let tab = tabs.object(withID: n) as? SBObject else { throw BrowserError.unsupported("tab not found") }
             try s.close(tab)
         }
@@ -81,12 +92,11 @@ enum ChromeBridge {
     static func focusTab(pid: pid_t, windowId: String, tabId: String) async throws {
         try await run(pid: pid, timeout: commandTimeout) { s in
             let w = try s.window(in: try s.windows(), id: windowId)
-            guard let tabs = w.value(forKey: "tabs") as? SBElementArray,
-                  let ids = tabs.value(forKey: "id") as? [Any],
+            guard let tabs = try s.get(w, "tabs") as? SBElementArray,
+                  let ids = try s.get(tabs, "id") as? [Any],
                   let index = ids.firstIndex(where: { "\($0)" == tabId }) else { throw BrowserError.unsupported("tab not found") }
-            w.setValue(index + 1, forKey: "activeTabIndex")
-            w.setValue(1, forKey: "index")
-            try s.check()
+            try s.set(w, index + 1, "activeTabIndex")
+            try s.set(w, 1, "index")
         }
     }
 
@@ -105,8 +115,8 @@ enum ChromeBridge {
 
     /// One queue for every pid, not one per pid: BrowserCache already keeps one listing per process, so the crashing
     /// overlaps were across processes (the owner's Chrome and an automation Chrome) or a listing plus a command.
-    /// The cost: a hung Chrome holds the queue for up to its timeout per Apple Event, and a listing sends several
-    /// (one per window), so other calls can wait longer than one timeout. The queue stays short: BrowserCache keeps one
+    /// The cost: a hung Chrome holds the queue for up to one timeout per call (a listing stops at its first failed
+    /// event, see Session.get), so other calls can wait about one timeout. The queue stays short: BrowserCache keeps one
     /// listing in flight per process and backs off from one that fails (15 s doubling to 5 min), DashboardTabs lists
     /// only when the dashboard is opened, and commands come from the owner's own clicks.
     /// ScriptingBridge calls block, so they run off the caller's thread, one at a time.
@@ -162,24 +172,50 @@ enum ChromeBridge {
             try check()
         }
 
+        /// Reads one property and stops at the first failed or timed-out event: checking only at the end let a stalled
+        /// Chrome cost the full timeout for each of the ~7 events per window while the serial queue waited behind it.
+        /// A key the object does not offer reads as nil: value(forKey:) would raise an exception Swift cannot catch.
+        func get(_ object: SBObject, _ key: String) throws -> Any? {
+            guard object.responds(to: NSSelectorFromString(key)) else { return nil }
+            let value = object.value(forKey: key)
+            try check()
+            return value
+        }
+
+        /// One event for the whole array. Its elements come from an object that offered the array, so they carry
+        /// Chrome's dictionary; SBElementArray itself has no per-key selector to check.
+        func get(_ array: SBElementArray, _ key: String) throws -> Any? {
+            let value = array.value(forKey: key)
+            try check()
+            return value
+        }
+
+        func set(_ object: SBObject, _ value: Any, _ key: String) throws {
+            guard object.responds(to: NSSelectorFromString(ChromeBridge.setterName(key))) else {
+                throw BrowserError.unsupported("Chrome does not offer setting \(key)")
+            }
+            object.setValue(value, forKey: key)
+            try check()
+        }
+
         func read(_ w: SBObject, id: String, pid: pid_t) throws -> BrowserWindow {
-            let name = (w.value(forKey: "givenName") as? String).flatMap { $0.isEmpty ? nil : $0 }
-            let bounds = (w.value(forKey: "bounds") as? NSValue).map { v -> Rect in
+            let name = (try get(w, "givenName") as? String).flatMap { $0.isEmpty ? nil : $0 }
+            let bounds = (try get(w, "bounds") as? NSValue).map { v -> Rect in
                 let r = v.rectValue
                 return Rect(x: Double(r.origin.x), y: Double(r.origin.y), width: Double(r.width), height: Double(r.height))
             }
-            let activeTitle = (w.value(forKey: "activeTab") as? SBObject)?.value(forKey: "title") as? String
+            let activeTab = try get(w, "activeTab") as? SBObject
+            let activeTitle = try activeTab.flatMap { try get($0, "title") as? String }
             var tabs: [BrowserTab] = []
-            if let t = w.value(forKey: "tabs") as? SBElementArray {
-                let ids = t.value(forKey: "id") as? [Any] ?? []
-                let urls = t.value(forKey: "URL") as? [Any] ?? []
-                let titles = t.value(forKey: "title") as? [Any] ?? []
+            if let t = try get(w, "tabs") as? SBElementArray {
+                let ids = try get(t, "id") as? [Any] ?? []
+                let urls = try get(t, "URL") as? [Any] ?? []
+                let titles = try get(t, "title") as? [Any] ?? []
                 for (i, tabId) in ids.enumerated() {
                     tabs.append(BrowserTab(id: "\(tabId)", url: i < urls.count ? urls[i] as? String ?? "" : "",
                                            title: i < titles.count ? titles[i] as? String ?? "" : ""))
                 }
             }
-            try check()
             return BrowserWindow(bundleId: BrowserKind.chrome.rawValue, pid: pid, id: id, name: name,
                                  activeTitle: activeTitle, bounds: bounds, tabs: tabs)
         }

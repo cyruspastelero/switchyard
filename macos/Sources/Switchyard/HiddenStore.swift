@@ -31,12 +31,32 @@ struct HiddenStore {
     func save(_ records: [HiddenRecord]) {
         do {
             if records.isEmpty { try? FileManager.default.removeItem(at: url); return }
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(records).write(to: url, options: .atomic)
             // The records hold window titles: owner-only.
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            try PrivateFile.write(try JSONEncoder().encode(records), to: url)
         } catch {
             Log.windows.error("cannot save hidden-windows.json: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+}
+
+/// Writes a file only its owner can read, atomically. `Data.write(options: .atomic)` makes its temporary file 0644
+/// and a chmod afterwards leaves a moment where others can read it, so the temporary file is created 0600 here and
+/// renamed over the target. A folder made here is 0700; an existing folder is left as it is.
+enum PrivateFile {
+    static func write(_ data: Data, to url: URL) throws {
+        let folder = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let temp = folder.appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
+        let fd = open(temp.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        do {
+            let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+            try handle.write(contentsOf: data)
+            try handle.close()
+            guard rename(temp.path, url.path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        } catch {
+            try? FileManager.default.removeItem(at: temp)
+            throw error
         }
     }
 }

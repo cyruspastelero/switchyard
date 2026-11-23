@@ -34,15 +34,29 @@ if [ -n "${SWITCHYARD_ARCHS:-}" ]; then
   done
   BIN="$OUT/Switchyard-universal"
   lipo -create "${SLICES[@]}" -output "$BIN"
-# SwiftPM needs a working `xcrun --show-sdk-platform-path` (full Xcode). On a bare Command Line
-# Tools install it fails, so fall back to compiling the same sources with swiftc.
-elif swift build -c release --package-path "$HERE" 2>/dev/null; then
-  BIN="$(swift build -c release --package-path "$HERE" --show-bin-path)/Switchyard"
 else
-  echo "swift build is unavailable here; compiling with swiftc instead" >&2
-  mkdir -p "$HERE/.build"
-  BIN="$HERE/.build/Switchyard-swiftc"
-  compile_with_swiftc "$(uname -m)" "$BIN"
+  # SwiftPM needs a working `xcrun --show-sdk-platform-path` (full Xcode). On a bare Command Line Tools install it
+  # fails with `xcrun: error: unable to lookup item 'PlatformPath'`; only then fall back to swiftc. A real compile
+  # error is shown and stops the build.
+  SWIFT_STATUS=0
+  SWIFT_LOG="$(swift build -c release --package-path "$HERE" 2>&1)" || SWIFT_STATUS=$?
+  if [ "$SWIFT_STATUS" = 0 ]; then
+    BIN="$(swift build -c release --package-path "$HERE" --show-bin-path)/Switchyard"
+  else
+    case "$SWIFT_LOG" in
+      *"unable to lookup item 'PlatformPath'"*)
+        echo "swift build is unavailable here (no full Xcode); compiling with swiftc instead" >&2
+        mkdir -p "$HERE/.build"
+        BIN="$HERE/.build/Switchyard-swiftc"
+        compile_with_swiftc "$(uname -m)" "$BIN"
+        ;;
+      *)
+        echo "$SWIFT_LOG" >&2
+        echo "swift build failed (exit $SWIFT_STATUS)" >&2
+        exit 1
+        ;;
+    esac
+  fi
 fi
 
 rm -rf "$APP"
