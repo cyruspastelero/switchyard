@@ -251,15 +251,17 @@ html, body {
   background: var(--bg-panel);
 }
 
+/* Missions and Usage size to content up to a cap; Timeline keeps at least ~8 rows (B9). */
 #missions-panel {
-  flex: 0 0 auto;
-  max-height: 45%;
+  flex: 0 1 auto;
+  max-height: 34%;
+  min-height: 0;
   border-bottom: 1px solid var(--border);
 }
 
 #timeline-panel {
   flex: 1;
-  min-height: 0;
+  min-height: 200px;
 }
 
 /* Active panel accent — subtle white bar, no glow */
@@ -2377,8 +2379,9 @@ html, body {
 /* ── Usage panel ─────────────────────────────────────── */
 @media (min-width: 641px) {
   #usage-panel {
-    flex: 0 0 auto;
-    max-height: 40%;
+    flex: 0 1 auto;
+    max-height: 30%;
+    min-height: 0;
     border-bottom: 1px solid var(--border);
   }
 }
@@ -3026,6 +3029,23 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   cursor: pointer;
 }
 .missions-toggle:hover { color: var(--text-bright); background: var(--bg-hover); }
+/* The toggle stays in view at the bottom of the list instead of scrolling out of reach (B9). */
+.missions-toggle { position: sticky; bottom: 0; z-index: 1; background: var(--bg-panel); }
+
+/* Activity, header and help controls: 44px touch targets on phones (B14). */
+@media (max-width: 640px) {
+  .agent-filters { flex-wrap: wrap; }
+  .agent-filter-btn, .agent-clear-btn, .period-tab, .agent-quick-btn, .mission-clear-btn,
+  .mission-action-btn, .missions-toggle, .timeline-filter, .kbd-hint, .kbd-close,
+  .security-close-btn, .sec-clear-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .ctx-label { width: 84px; }
+  /* The header is 36px tall: grow the security button's hit area, not its box. */
+  #security-btn { position: relative; }
+  #security-btn::after { content: ''; position: absolute; inset: -12px -6px; }
+}
 
 /* ── Keyboard focus: visible everywhere ── */
 button:focus-visible,
