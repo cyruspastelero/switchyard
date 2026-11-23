@@ -1,6 +1,6 @@
 # API
 
-All endpoints return JSON. Dashboard endpoints need the session cookie (`switchyard_session`, set by `POST /api/auth`; the old `mc_session` name is still accepted). Hook endpoints need `Authorization: Bearer <token>` where the token is in `~/.switchyard/hook-token`. A WebSocket on the same port carries live updates.
+All endpoints return JSON. Dashboard endpoints need the session cookie (`switchyard_session`, set by `POST /api/auth`; the old `mc_session` name is still accepted). Hook endpoints need `Authorization: Bearer <token>` where the token is in `~/.switchyard/hook-token`, and are answered only for requests from this machine (loopback), also with `--lan`; a valid token from another address gets 403. A WebSocket on the same port carries live updates.
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|

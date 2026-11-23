@@ -14,6 +14,7 @@ import { handleTokens } from './api/tokens.ts';
 import { parseBody, sendJson, unknownFields } from './api/utils.ts';
 import { agentTracker } from './services/agent-tracker.ts';
 import { createContextsService, handleContexts, isContextsUrl } from './contexts/index.ts';
+import { isLoopbackAddress } from './contexts/api.ts';
 import { checkRequestSource, hasJsonBodyOrNone, isBrowserRequest } from './request-guard.ts';
 
 // ---------------------------------------------------------------------------
@@ -176,6 +177,22 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
     }
   }
 
+  /** Hook routes take the token from this machine only, also with --lan. Sends the refusal and returns true. */
+  function refuseHook(req: http.IncomingMessage, res: http.ServerResponse, severity: 'warn' | 'critical', what: string): boolean {
+    const from = req.socket.remoteAddress ?? 'unknown';
+    if (!isHookAuthenticated(req)) {
+      emitSecurityEvent(2, 'HOOK AUTH', severity, `Rejected unauthenticated ${what}`, from);
+      sendJson(res, 401, { error: 'Invalid hook token' });
+      return true;
+    }
+    if (!isLoopbackAddress(req.socket.remoteAddress)) {
+      emitSecurityEvent(2, 'HOOK AUTH', 'critical', `Rejected hook token from another address (${what})`, from);
+      sendJson(res, 403, { error: 'The hook token is accepted from this machine only' });
+      return true;
+    }
+    return false;
+  }
+
   function setSessionCookie(res: http.ServerResponse, token: string): void {
     res.setHeader('Set-Cookie', `switchyard_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`);
   }
@@ -279,21 +296,13 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
 
       // ── Hook endpoints: authenticated by hook token, not cookies ──
       if (url.startsWith('/api/events') && method === 'POST') {
-        if (!isHookAuthenticated(req)) {
-          emitSecurityEvent(2, 'HOOK AUTH', 'critical', 'Rejected unauthenticated event POST', req.socket.remoteAddress ?? 'unknown');
-          sendJson(res, 401, { error: 'Invalid hook token' });
-          return;
-        }
+        if (refuseHook(req, res, 'critical', 'event POST')) return;
         await handleEvents(req, res);
         return;
       }
       // Hook fetches pending instructions via GET during PreToolUse
       if (url.startsWith('/api/instructions/') && method === 'GET') {
-        if (!isHookAuthenticated(req)) {
-          emitSecurityEvent(2, 'HOOK AUTH', 'warn', 'Rejected unauthenticated instruction poll', req.socket.remoteAddress ?? 'unknown');
-          sendJson(res, 401, { error: 'Invalid hook token' });
-          return;
-        }
+        if (refuseHook(req, res, 'warn', 'instruction poll')) return;
         await handleInstructions(req, res);
         return;
       }

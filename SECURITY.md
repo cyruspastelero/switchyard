@@ -5,7 +5,7 @@
 Last full review: 2026-11-23. Each check below is backed by tests in `test/security/`, `test/ws.test.ts` or the Swift tests.
 
 - **Dependencies.** No runtime dependencies. The server uses only Node built-ins (`node:sqlite`, `node:http`, a built-in WebSocket server). `npm audit` reports 0 vulnerabilities; the two dev dependencies are the TypeScript compiler and Node's type definitions.
-- **Authentication and sessions.** Access code from a CSPRNG, kept in memory, compared in constant time, with a lockout after 5 wrong tries. Session cookie is `HttpOnly`, `SameSite=Strict` and expires on the server after 24 hours. The hook token file is mode `0600` and the token is accepted from loopback only, never from a browser.
+- **Authentication and sessions.** Access code from a CSPRNG, kept in memory, compared in constant time, with a lockout after 5 wrong tries. Session cookie is `HttpOnly`, `SameSite=Strict` and expires on the server after 24 hours. The hook token file is mode `0600` and the token is accepted from loopback only (also with `--lan`), never from a browser.
 - **Cross-site requests and DNS rebinding.** The server listens on `127.0.0.1`, answers only for its own host names, accepts only same-origin browser requests (HTTP and WebSocket), sends no CORS headers, and requires `application/json` for request bodies.
 - **Input validation.** Every request body is parsed into a typed value with size limits and unknown fields rejected. All SQL uses bound parameters. Static files are served by fixed name only.
 - **XSS.** The dashboard writes window titles, tab titles and URLs with `textContent` only. The Content Security Policy allows scripts from the server itself and nothing inline.
