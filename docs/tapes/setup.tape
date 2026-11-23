@@ -1,5 +1,5 @@
-# Mission Control — Full Setup
-# Shows install hooks → start server with QR code
+# Switchyard — Full Setup
+# Shows install hooks → start server
 
 Output docs/tapes/setup.gif
 
@@ -13,7 +13,7 @@ Set TypingSpeed 40ms
 Set PlaybackSpeed 0.5
 
 # Step 1: Install hooks
-Type "npx tsx src/index.ts install"
+Type "node src/index.ts install"
 Enter
 Sleep 4s
 
@@ -22,7 +22,7 @@ Type "npm start"
 Enter
 Sleep 6s
 
-# Let the banner + QR code display
+# Let the banner display
 Sleep 4s
 
 Ctrl+C

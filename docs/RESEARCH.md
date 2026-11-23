@@ -72,4 +72,4 @@ Most successful projects converge on:
 - **Storage:** SQLite with WAL mode
 - **Frontend:** React/Vue for web, Rich/Ratatui for terminal
 
-**Our differentiation:** Zero-framework vanilla JS dashboard embedded in npm package. No build step. No Python. Just `npx claude-mission-control`.
+**Our differentiation:** Zero-framework vanilla JS dashboard embedded in npm package. No build step. No Python. Just `npx switchyard`.

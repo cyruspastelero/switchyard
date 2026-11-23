@@ -1,4 +1,4 @@
-# Mission Control — Hook Installation
+# Switchyard — Hook Installation
 # Records installing hooks into Claude Code settings
 
 Output docs/tapes/install.gif
@@ -12,7 +12,7 @@ Set Padding 20
 Set TypingSpeed 40ms
 Set PlaybackSpeed 0.5
 
-Type "npx tsx src/index.ts install"
+Type "node src/index.ts install"
 Enter
 Sleep 4s
 

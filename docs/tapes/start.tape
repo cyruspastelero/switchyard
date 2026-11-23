@@ -1,5 +1,5 @@
-# Mission Control — Server Start
-# Records the server startup banner with QR code and access code
+# Switchyard — Server Start
+# Records the server startup banner and access code
 
 Output docs/tapes/start.gif
 
@@ -16,7 +16,7 @@ Type "npm start"
 Enter
 Sleep 6s
 
-# Show the banner with QR code
+# Show the banner
 Sleep 4s
 
 Ctrl+C

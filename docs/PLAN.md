@@ -1,4 +1,4 @@
-# Claude Mission Control — Implementation Plan
+# Switchyard — Implementation Plan
 
 > Real-time command center dashboard for Claude Code agents.
 > Like SHIELD's command center — assign agents to missions, watch them work live, coordinate, and step in when needed.
@@ -13,7 +13,7 @@
 └─────────────┬──────────────────────────────┬────────────┘
               │                              │
 ┌─────────────▼──────────────────────────────▼────────────┐
-│            Mission Control Server (Node.js)              │
+│            Switchyard Server (Node.js)              │
 │  ┌──────────┐  ┌──────────┐  ┌────────────────────┐     │
 │  │ HTTP API │  │WebSocket │  │ Embedded Dashboard │     │
 │  └────┬─────┘  └────┬─────┘  └────────────────────┘     │
@@ -117,7 +117,7 @@ CREATE TABLE instructions (
 ## File Structure
 
 ```
-claude-mission-control/
+switchyard/
 ├── package.json
 ├── tsconfig.json
 ├── README.md
@@ -166,8 +166,8 @@ claude-mission-control/
 
 | Step | File | What |
 |------|------|------|
-| 1 | `package.json`, `tsconfig.json` | npm package with `bin: claude-mission-control`, deps: `better-sqlite3`, `ws` |
-| 2 | `src/db.ts` | SQLite init at `~/.claude-mission-control/data.db`, all CRUD helpers |
+| 1 | `package.json`, `tsconfig.json` | npm package with `bin: switchyard`, deps: `better-sqlite3`, `ws` |
+| 2 | `src/db.ts` | SQLite init at `~/.switchyard/data.db`, all CRUD helpers |
 | 3 | `src/services/event-bus.ts` | Typed EventEmitter: `agent:update`, `event:new`, `mission:update` |
 | 4 | `src/server.ts`, `src/index.ts` | HTTP server (no Express), WebSocket on same port, serves dashboard |
 
@@ -209,7 +209,7 @@ claude-mission-control/
 
 **Layout:**
 ```
-┌─ MISSION CONTROL ──────────────────────────── 3 agents ● 5 missions ─┐
+┌─ SWITCHYARD ──────────────────────────── 3 agents ● 5 missions ─┐
 ├──────────────┬───────────────────────────────────────────────────────-─┤
 │ > AGENTS     │ > MISSIONS                                             │
 │              │                                                        │
@@ -281,7 +281,7 @@ claude-mission-control/
 **Style:** Terminal-aesthetic web UI. Monospace only, black background, green/amber/cyan text, box-drawing borders. No rounded corners, no shadows, no gradients. Speed is everything — sub-100ms renders, direct DOM manipulation, no framework.
 
 ```
-┌─ MISSION CONTROL ──────────────────────────── 3 agents ● 5 missions ─┐
+┌─ SWITCHYARD ──────────────────────────── 3 agents ● 5 missions ─┐
 ├──────────────┬───────────────────────────────────────────────────────-─┤
 │ > AGENTS     │ > MISSIONS                                             │
 │              │                                                        │
@@ -364,15 +364,15 @@ Glow:           rgba(88,166,255,0.3)  (focus ring)
 | Database | `better-sqlite3` | Synchronous, embedded, no server |
 | Dashboard | Vanilla HTML/CSS/JS | No build step, embedded in package |
 | Testing | `vitest` | Fast, TypeScript-native |
-| Package | npm with `bin` field | `npx claude-mission-control` |
+| Package | npm with `bin` field | `npx switchyard` |
 
 ## npm Package
 
 ```json
 {
-  "name": "claude-mission-control",
+  "name": "switchyard",
   "version": "1.0.0",
-  "bin": { "claude-mission-control": "./dist/index.js" },
+  "bin": { "switchyard": "./dist/index.js" },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
     "ws": "^8.0.0"
@@ -395,7 +395,7 @@ Installed into `~/.claude/settings.json`:
         "async": true,
         "timeout": 5
       }],
-      "description": "Mission Control: report activity + receive instructions"
+      "description": "Switchyard: report activity + receive instructions"
     }],
     "PostToolUse": [{
       "matcher": "*",
@@ -405,7 +405,7 @@ Installed into `~/.claude/settings.json`:
         "async": true,
         "timeout": 5
       }],
-      "description": "Mission Control: report tool results"
+      "description": "Switchyard: report tool results"
     }],
     "SubagentStart": [{
       "matcher": "*",
@@ -415,7 +415,7 @@ Installed into `~/.claude/settings.json`:
         "async": true,
         "timeout": 5
       }],
-      "description": "Mission Control: report subagent spawn"
+      "description": "Switchyard: report subagent spawn"
     }],
     "SubagentStop": [{
       "matcher": "*",
@@ -425,7 +425,7 @@ Installed into `~/.claude/settings.json`:
         "async": true,
         "timeout": 5
       }],
-      "description": "Mission Control: report subagent end"
+      "description": "Switchyard: report subagent end"
     }],
     "Stop": [{
       "matcher": "*",
@@ -435,7 +435,7 @@ Installed into `~/.claude/settings.json`:
         "async": true,
         "timeout": 5
       }],
-      "description": "Mission Control: report session end"
+      "description": "Switchyard: report session end"
     }]
   }
 }
@@ -443,8 +443,8 @@ Installed into `~/.claude/settings.json`:
 
 ## Success Criteria
 
-- [ ] `npx claude-mission-control` starts server on port 4280
-- [ ] `claude-mission-control install` adds hooks to settings.json
+- [ ] `npx switchyard` starts server on port 4280
+- [ ] `switchyard install` adds hooks to settings.json
 - [ ] Agent appears on dashboard within 1 second of first tool call
 - [ ] Every tool call shows in activity timeline in real-time
 - [ ] Kanban board with drag-drop mission management
