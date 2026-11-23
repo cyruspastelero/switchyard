@@ -2209,9 +2209,10 @@ html, body {
     min-height: 36px;
   }
 
-  /* Timeline columns: tighter */
+  /* Timeline columns: tighter, but time and agent never touch (B13) */
+  .timeline-row { gap: 8px; }
   .timeline-time {
-    width: 44px;
+    width: auto;
     font-size: var(--font-size-xs);
   }
 
