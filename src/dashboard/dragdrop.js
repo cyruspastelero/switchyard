@@ -119,7 +119,7 @@
       // draggable itself makes the title a grab point there too. Its dragstart bubbles to the row's handler.
       // The row's children are added after this call, so mark it once the row is built.
       Promise.resolve().then(function () {
-        var title = li.querySelector('button.ctx-w-text');
+        var title = li.querySelector ? li.querySelector('button.ctx-w-text') : null;
         if (title) title.setAttribute('draggable', 'true');
       });
       li.addEventListener('dragstart', function (e) {
