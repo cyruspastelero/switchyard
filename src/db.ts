@@ -107,39 +107,89 @@ function minimizeStoredEvents(db: Db): void {
   if (rows.length > 0) console.log(`  [db] Reduced ${rows.length} stored events to redacted summaries`);
 }
 
-/** Rolls events older than the retention limit into usage_daily, then deletes them. Returns the number deleted. */
-function purgeExpired(db: Db): number {
-  const cutoff = new Date(Date.now() - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+/**
+ * Adds the events older than the retention limit to their day in usage_daily, then deletes them, in one
+ * transaction. usage_daily holds only purged events, so a day purged over several passes sums its slices.
+ * The distinct counts (sessions, tools, agents) count a value on the pass that purges its last event of
+ * that day, so a session spanning passes is counted once. Returns the number of events deleted.
+ */
+function purgeExpired(db: Db, now = Date.now()): number {
+  const cutoff = new Date(now - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const costPerCall = parseFloat(readEnv("COST_PER_TOOL_CALL") || '0.003');
-  db.prepare(`
+  // Only the cutoff's own day can still have events left; their values are counted on a later pass.
+  const stillLive = (column: string): string =>
+    `(strftime('%Y-%m-%d', timestamp) = @cutoffDate AND ${column} IN (SELECT ${column} FROM remaining WHERE ${column} IS NOT NULL))`;
+  const isToolCall = "tool_name IS NOT NULL AND tool_name != ''";
+  const rollUp = db.prepare(`
+    WITH remaining AS (
+      SELECT session_id, tool_name, agent_id FROM events
+      WHERE timestamp >= @cutoff AND strftime('%Y-%m-%d', timestamp) = @cutoffDate
+    )
     INSERT INTO usage_daily (date, tool_calls, total_events, sessions, unique_tools, unique_agents, estimated_cost)
     SELECT
       strftime('%Y-%m-%d', timestamp) AS date,
-      SUM(CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN 1 ELSE 0 END),
+      SUM(CASE WHEN ${isToolCall} THEN 1 ELSE 0 END),
       COUNT(*),
-      COUNT(DISTINCT session_id),
-      COUNT(DISTINCT CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN tool_name END),
-      COUNT(DISTINCT agent_id),
-      SUM(CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN 1 ELSE 0 END) * @cost
+      COUNT(DISTINCT CASE WHEN NOT ${stillLive("session_id")} THEN session_id END),
+      COUNT(DISTINCT CASE WHEN ${isToolCall} AND NOT ${stillLive("tool_name")} THEN tool_name END),
+      COUNT(DISTINCT CASE WHEN NOT ${stillLive("agent_id")} THEN agent_id END),
+      SUM(CASE WHEN ${isToolCall} THEN 1 ELSE 0 END) * @cost
     FROM events
     WHERE timestamp < @cutoff
     GROUP BY date
     ON CONFLICT(date) DO UPDATE SET
-      tool_calls     = MAX(usage_daily.tool_calls, excluded.tool_calls),
-      total_events   = MAX(usage_daily.total_events, excluded.total_events),
-      sessions       = MAX(usage_daily.sessions, excluded.sessions),
-      unique_tools   = MAX(usage_daily.unique_tools, excluded.unique_tools),
-      unique_agents  = MAX(usage_daily.unique_agents, excluded.unique_agents),
-      estimated_cost = MAX(usage_daily.estimated_cost, excluded.estimated_cost)
-  `).run({ cutoff, cost: costPerCall });
-
-  const purged = db.prepare('DELETE FROM events WHERE timestamp < ?').run(cutoff);
+      tool_calls     = usage_daily.tool_calls + excluded.tool_calls,
+      total_events   = usage_daily.total_events + excluded.total_events,
+      sessions       = usage_daily.sessions + excluded.sessions,
+      unique_tools   = usage_daily.unique_tools + excluded.unique_tools,
+      unique_agents  = usage_daily.unique_agents + excluded.unique_agents,
+      estimated_cost = COALESCE(usage_daily.estimated_cost, 0) + COALESCE(excluded.estimated_cost, 0)
+  `);
+  const purged = db.transaction(() => {
+    rollUp.run({ cutoff, cutoffDate: cutoff.slice(0, 10), cost: costPerCall });
+    return db.prepare('DELETE FROM events WHERE timestamp < ?').run(cutoff);
+  });
   if (purged.changes > 0) {
     console.log(`  [db] Purged ${purged.changes} events older than ${EVENT_RETENTION_DAYS} days (stats preserved in usage_daily)`);
   }
   // Instructions that reached their agent are history too.
   db.prepare("DELETE FROM instructions WHERE status = 'delivered' AND delivered_at < ?").run(cutoff);
   return purged.changes;
+}
+
+const SUMMARY_VERSION = 2;
+
+/**
+ * One-time fix for usage_daily rows written before it held purged events only: the old code also copied
+ * today's live events into it and merged purge passes with MAX. Subtracting the events still live for
+ * that day leaves (approximately) the purged part, so live and summary add up without double counting.
+ */
+function summaryOnlyHoldsPurgedEvents(db: Db): void {
+  const { user_version: version } = db.prepare("PRAGMA user_version").get() as { user_version: number };
+  if (version >= SUMMARY_VERSION) return;
+  const costPerCall = parseFloat(readEnv("COST_PER_TOOL_CALL") || '0.003');
+  db.transaction(() => {
+    db.prepare(`
+      WITH live AS (
+        SELECT strftime('%Y-%m-%d', timestamp) AS date,
+          SUM(CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN 1 ELSE 0 END) AS tool_calls,
+          COUNT(*) AS total_events,
+          COUNT(DISTINCT session_id) AS sessions,
+          COUNT(DISTINCT CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN tool_name END) AS unique_tools,
+          COUNT(DISTINCT agent_id) AS unique_agents
+        FROM events GROUP BY date
+      )
+      UPDATE usage_daily SET
+        tool_calls     = MAX(0, usage_daily.tool_calls - live.tool_calls),
+        total_events   = MAX(0, usage_daily.total_events - live.total_events),
+        sessions       = MAX(0, usage_daily.sessions - live.sessions),
+        unique_tools   = MAX(0, usage_daily.unique_tools - live.unique_tools),
+        unique_agents  = MAX(0, usage_daily.unique_agents - live.unique_agents),
+        estimated_cost = MAX(0, COALESCE(usage_daily.estimated_cost, 0) - live.tool_calls * @cost)
+      FROM live WHERE live.date = usage_daily.date
+    `).run({ cost: costPerCall });
+    db.exec(`PRAGMA user_version = ${SUMMARY_VERSION}`);
+  });
 }
 
 function openDatabase(): Db {
@@ -219,6 +269,7 @@ function openDatabase(): Db {
   `);
 
   minimizeStoredEvents(db);
+  summaryOnlyHoldsPurgedEvents(db);
   purgeExpired(db);
 
   return db;
@@ -232,8 +283,8 @@ export function getDb(): Db {
 }
 
 /** Applies the retention limit now. The server calls this hourly, so a long-running server keeps to it. */
-export function purgeExpiredData(): number {
-  return purgeExpired(db);
+export function purgeExpiredData(now = Date.now()): number {
+  return purgeExpired(db, now);
 }
 
 // ---------------------------------------------------------------------------
@@ -572,15 +623,6 @@ const stmtHourlyActivity = db.prepare(`
   ORDER BY hour ASC
 `);
 
-const stmtTotalEventsFiltered = db.prepare(`
-  SELECT COUNT(*) AS total FROM events WHERE timestamp >= @since
-`);
-
-const stmtTotalToolCallsFiltered = db.prepare(`
-  SELECT COUNT(*) AS total FROM events
-  WHERE tool_name IS NOT NULL AND tool_name != '' AND timestamp >= @since
-`);
-
 const stmtTotalSessionsFiltered = db.prepare(`
   SELECT COUNT(DISTINCT session_id) AS total FROM events
   WHERE session_id IS NOT NULL AND timestamp >= @since
@@ -631,23 +673,11 @@ const stmtDailyCostsFromSummary = db.prepare(`
   ORDER BY date ASC
 `);
 
-// Totals from persisted usage_daily
-const stmtSummaryTotals = db.prepare(`
-  SELECT
-    COALESCE(SUM(tool_calls), 0) AS tool_calls,
-    COALESCE(SUM(total_events), 0) AS total_events,
-    COALESCE(SUM(sessions), 0) AS sessions,
-    COALESCE(SUM(estimated_cost), 0) AS estimated_cost
-  FROM usage_daily
-  WHERE date >= @sinceDate
-`);
-
 // Configurable cost per tool call (default: $0.003 — rough estimate for a typical
 // Claude API round-trip with tool use, ~1K input + 500 output tokens at Sonnet rates)
 const COST_PER_TOOL_CALL = parseFloat(readEnv("COST_PER_TOOL_CALL") || '0.003');
 
 const ALL_TIME_SINCE = '1970-01-01T00:00:00.000Z';
-const ALL_TIME_DATE = '1970-01-01';
 
 function periodLabel(hoursBack: number): string {
   if (hoursBack === 0) return 'all';
@@ -657,154 +687,81 @@ function periodLabel(hoursBack: number): string {
   return hoursBack + 'h';
 }
 
-/**
- * Flush today's live events into usage_daily so the summary stays current.
- * Called periodically and before reads.
- */
-function flushCurrentDayToSummary(): void {
-  const today = new Date().toISOString().slice(0, 10);
-  db.prepare(`
-    INSERT INTO usage_daily (date, tool_calls, total_events, sessions, unique_tools, unique_agents, estimated_cost)
-    SELECT
-      @today,
-      SUM(CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN 1 ELSE 0 END),
-      COUNT(*),
-      COUNT(DISTINCT session_id),
-      COUNT(DISTINCT CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN tool_name END),
-      COUNT(DISTINCT agent_id),
-      SUM(CASE WHEN tool_name IS NOT NULL AND tool_name != '' THEN 1 ELSE 0 END) * @cost
-    FROM events
-    WHERE strftime('%Y-%m-%d', timestamp) = @today
-    ON CONFLICT(date) DO UPDATE SET
-      tool_calls     = excluded.tool_calls,
-      total_events   = excluded.total_events,
-      sessions       = excluded.sessions,
-      unique_tools   = excluded.unique_tools,
-      unique_agents  = excluded.unique_agents,
-      estimated_cost = excluded.estimated_cost
-  `).run({ today, cost: COST_PER_TOOL_CALL });
+interface DayTotals {
+  readonly date: string;
+  readonly tool_calls: number;
+  readonly total_events: number;
+  readonly sessions: number;
+  readonly estimated_cost: number;
 }
 
-export function getUsageStats(hoursBack = 24): UsageStats {
-  // Flush current day so usage_daily is up to date
-  flushCurrentDayToSummary();
+const round4 = (n: number): number => parseFloat(n.toFixed(4));
 
-  const since = hoursBack === 0
-    ? ALL_TIME_SINCE
-    : new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
-  const sinceDate = hoursBack === 0
-    ? ALL_TIME_DATE
-    : since.slice(0, 10);
-
-  // Live event queries (tool breakdown, agent breakdown, hourly, sessions)
-  const toolUsage = stmtToolUsageFiltered.all({ since }) as ToolUsageStat[];
-  const agentUsage = stmtAgentUsageFiltered.all({ since }) as AgentUsageStat[];
-  const hourlyActivity = stmtHourlyActivity.all({ since }) as HourlyUsageStat[];
-
-  const rawSessions = stmtSessionCostsFiltered.all({ since }) as Array<{
-    session_id: string;
-    agent_count: number;
-    tool_calls: number;
-    first_event: string;
-    last_event: string;
-  }>;
-
-  const sessionCosts: SessionCostStat[] = rawSessions.map((s) => {
-    const start = new Date(s.first_event).getTime();
-    const end = new Date(s.last_event).getTime();
-    const durationSeconds = Math.max(0, Math.round((end - start) / 1000));
-    return {
-      session_id: s.session_id,
-      agent_count: s.agent_count,
-      tool_calls: s.tool_calls,
-      first_event: s.first_event,
-      last_event: s.last_event,
-      duration_seconds: durationSeconds,
-      estimated_cost: parseFloat((s.tool_calls * COST_PER_TOOL_CALL).toFixed(4)),
-    };
-  });
-
-  // Merge daily costs: live events + persisted summaries.
-  // usage_daily has the authoritative totals (including today via flush).
-  const rawSummaryDaily = stmtDailyCostsFromSummary.all({ sinceDate }) as Array<{
-    date: string;
-    tool_calls: number;
-    total_events: number;
-    sessions: number;
-    estimated_cost: number | null;
-  }>;
-
-  // For days still in events table, compute from live data
-  const rawLiveDaily = stmtDailyCostsFromEvents.all({ since }) as Array<{
-    date: string;
-    tool_calls: number;
-    total_events: number;
-    sessions: number;
-  }>;
-
-  // Merge: prefer live data for recent days (more accurate), summary for old days
-  const liveDaySet = new Set(rawLiveDaily.map((d) => d.date));
-  const mergedDailyMap = new Map<string, DailyCostStat>();
-
-  // Add summary days first (old data beyond retention)
-  for (const d of rawSummaryDaily) {
-    if (!liveDaySet.has(d.date)) {
-      mergedDailyMap.set(d.date, {
-        date: d.date,
-        tool_calls: d.tool_calls,
-        sessions: d.sessions,
-        estimated_cost: parseFloat((d.estimated_cost ?? 0).toFixed(4)), // null on a day with no priced calls
-      });
-    }
-  }
-
-  // Add/override with live event data
-  for (const d of rawLiveDaily) {
-    mergedDailyMap.set(d.date, {
+/**
+ * Per-day totals for the window: live events at or after `since`, plus the purged days in usage_daily.
+ * Purged events are all older than the retention cutoff, so a window inside retention adds none; a longer
+ * one adds whole purged days from the day `since` falls on.
+ */
+function dailyTotals(since: string, now: number): { days: DayTotals[]; purgedSessions: number } {
+  const cutoff = new Date(now - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const purged = since < cutoff
+    ? stmtDailyCostsFromSummary.all({ sinceDate: since.slice(0, 10) }) as DayTotals[]
+    : [];
+  const live = stmtDailyCostsFromEvents.all({ since }) as Omit<DayTotals, "estimated_cost">[];
+  const byDate = new Map<string, DayTotals>();
+  for (const d of purged) byDate.set(d.date, { ...d, estimated_cost: d.estimated_cost ?? 0 }); // null: no priced calls
+  for (const d of live) {
+    const before = byDate.get(d.date);
+    byDate.set(d.date, {
       date: d.date,
-      tool_calls: d.tool_calls,
-      sessions: d.sessions,
-      estimated_cost: parseFloat((d.tool_calls * COST_PER_TOOL_CALL).toFixed(4)),
+      tool_calls: (before?.tool_calls ?? 0) + d.tool_calls,
+      total_events: (before?.total_events ?? 0) + d.total_events,
+      sessions: (before?.sessions ?? 0) + d.sessions,
+      estimated_cost: (before?.estimated_cost ?? 0) + d.tool_calls * COST_PER_TOOL_CALL,
     });
   }
-
-  const dailyCosts = Array.from(mergedDailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-
-  // Totals: sum from merged daily data (covers both live + historical)
-  const summaryTotals = stmtSummaryTotals.get({ sinceDate }) as {
-    tool_calls: number;
-    total_events: number;
-    sessions: number;
-    estimated_cost: number;
+  return {
+    days: Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date)),
+    purgedSessions: purged.reduce((total, d) => total + d.sessions, 0),
   };
+}
 
-  // For live-data-only totals (tool/agent/session breakdown only covers retained events)
-  const liveEvents = (stmtTotalEventsFiltered.get({ since }) as { total: number }).total;
-  const liveToolCalls = (stmtTotalToolCallsFiltered.get({ since }) as { total: number }).total;
+function sessionCostsSince(since: string): SessionCostStat[] {
+  const rows = stmtSessionCostsFiltered.all({ since }) as Array<Omit<SessionCostStat, "duration_seconds" | "estimated_cost">>;
+  return rows.map((s) => ({
+    ...s,
+    duration_seconds: Math.max(0, Math.round((new Date(s.last_event).getTime() - new Date(s.first_event).getTime()) / 1000)),
+    estimated_cost: round4(s.tool_calls * COST_PER_TOOL_CALL),
+  }));
+}
 
-  // Use the larger of summary vs live (summary includes historical)
-  const totalEvents = Math.max(summaryTotals.total_events, liveEvents);
-  const totalToolCalls = Math.max(summaryTotals.tool_calls, liveToolCalls);
-  const totalSessions = summaryTotals.sessions;
-  const uniqueTools = (stmtUniqueToolsFiltered.get({ since }) as { total: number }).total;
-  const uniqueAgents = (stmtUniqueAgentsFiltered.get({ since }) as { total: number }).total;
+/** Usage over the last `hoursBack` hours (0 = all time). Totals are the sums of the daily series. */
+export function getUsageStats(hoursBack = 24, now = Date.now()): UsageStats {
+  const since = hoursBack === 0
+    ? ALL_TIME_SINCE
+    : new Date(now - hoursBack * 60 * 60 * 1000).toISOString();
 
-  const totalEstimatedCost = parseFloat((totalToolCalls * COST_PER_TOOL_CALL).toFixed(4));
+  const { days, purgedSessions } = dailyTotals(since, now);
+  const sum = (pick: (d: DayTotals) => number): number => days.reduce((total, d) => total + pick(d), 0);
+  const liveSessions = (stmtTotalSessionsFiltered.get({ since }) as { total: number }).total;
 
   return {
     period: periodLabel(hoursBack),
     hoursBack,
-    toolUsage,
-    agentUsage,
-    hourlyActivity,
-    sessionCosts,
-    dailyCosts,
-    totalEvents,
-    totalToolCalls,
-    totalSessions,
-    uniqueTools,
-    uniqueAgents,
-    totalEstimatedCost,
+    toolUsage: stmtToolUsageFiltered.all({ since }) as ToolUsageStat[],
+    agentUsage: stmtAgentUsageFiltered.all({ since }) as AgentUsageStat[],
+    hourlyActivity: stmtHourlyActivity.all({ since }) as HourlyUsageStat[],
+    sessionCosts: sessionCostsSince(since),
+    dailyCosts: days.map((d) => ({
+      date: d.date, tool_calls: d.tool_calls, sessions: d.sessions, estimated_cost: round4(d.estimated_cost),
+    })),
+    totalEvents: sum((d) => d.total_events),
+    totalToolCalls: sum((d) => d.tool_calls),
+    // Live sessions are counted once across the window; purged days only kept a count per day.
+    totalSessions: purgedSessions + liveSessions,
+    uniqueTools: (stmtUniqueToolsFiltered.get({ since }) as { total: number }).total,
+    uniqueAgents: (stmtUniqueAgentsFiltered.get({ since }) as { total: number }).total,
+    totalEstimatedCost: round4(sum((d) => d.estimated_cost)),
     costPerToolCall: COST_PER_TOOL_CALL,
   };
 }
