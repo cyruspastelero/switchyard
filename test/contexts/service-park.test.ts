@@ -65,3 +65,17 @@ describe('park and restore are idempotent', () => {
     expect(openWindows(svc, before)).toHaveLength(0);
   });
 });
+
+describe('window commands need the Mac app', () => {
+  it('show_all_and_rename_are_refused_while_the_mac_app_is_not_reporting_windows', async () => {
+    let clock = Date.parse('2026-01-01T01:00:00Z');
+    const svc = new ContextsService({ db, listAgents: getAgents, signals, now: () => clock, autoContextWindowMs: Infinity });
+    await svc.applySnapshot({ windows: [chrome('w1', 'https://a.com/one')] });
+    clock += 60_000; // the app went quiet
+    const before = svc.commands.lastSeq;
+    expect(() => svc.showAll()).toThrow(/Mac app isn't reporting windows/);
+    expect(() => svc.renameWindow('w1', 'Docs')).toThrow(/Mac app isn't reporting windows/);
+    expect(svc.commands.lastSeq).toBe(before);
+    expect(svc.store.getNames().get('w1')).toBeUndefined();
+  });
+});

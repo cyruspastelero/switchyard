@@ -605,6 +605,7 @@ export class ContextsService {
   }
 
   showAll(): Command {
+    this.requireApp();
     this.activeContextId = null;
     this.hiddenKeys = new Set();
     const command = this.commands.enqueue({ type: 'showAll' });
@@ -757,6 +758,7 @@ export class ContextsService {
   }
 
   renameWindow(windowKey: string, name: string): void {
+    this.requireApp();
     const win = this.snapshot?.windows.find((w) => w.key === windowKey);
     if (!win) throw new ContextsError(404, 'Window not found. Is the Switchyard Mac app running?');
     if (!canBeNamed(win.bundleId)) throw new ContextsError(400, `Only Chrome windows can be renamed; this is ${win.app}`);
