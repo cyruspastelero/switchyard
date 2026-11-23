@@ -20,6 +20,7 @@ beforeEach(() => {
     uid: 501,
     platform: 'darwin',
     launchctl: (args) => { calls.push([...args]); },
+    wait: () => {},
   };
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
@@ -58,6 +59,22 @@ describe('server LaunchAgent', () => {
     opts = { ...opts, launchctl: (args) => { calls.push([...args]); if (args[0] === 'bootout') throw new Error('No such process'); } };
     installService(opts);
     expect(calls.at(-1)).toEqual(['bootstrap', 'gui/501', opts.plistPath]);
+  });
+
+  it('reinstall_retries_the_load_while_the_old_agent_is_still_shutting_down', () => {
+    let bootstraps = 0;
+    const waits: number[] = [];
+    opts = {
+      ...opts,
+      wait: (ms) => { waits.push(ms); },
+      launchctl: (args) => {
+        calls.push([...args]);
+        if (args[0] === 'bootstrap' && ++bootstraps < 3) throw new Error('Bootstrap failed: 5: Input/output error');
+      },
+    };
+    installService(opts);
+    expect(bootstraps).toBe(3);
+    expect(waits.length).toBe(2);
   });
 
   it('install_reports_a_failed_load', () => {

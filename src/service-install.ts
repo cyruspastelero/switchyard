@@ -18,7 +18,13 @@ export interface ServiceOptions {
   readonly platform: NodeJS.Platform;
   /** Runs `launchctl <args>`; throws when launchctl fails. */
   readonly launchctl: (args: readonly string[]) => void;
+  /** Blocks for `ms` milliseconds between load attempts. */
+  readonly wait: (ms: number) => void;
 }
+
+/** `bootout` returns before the old agent is gone, and `bootstrap` fails with error 5 until it is. */
+const LOAD_ATTEMPTS = 10;
+const LOAD_RETRY_MS = 300;
 
 /**
  * PATH for the service: node's own directory and the system directories that hold git and lsof. The shell's PATH
@@ -43,6 +49,7 @@ export function defaultServiceOptions(port: number): ServiceOptions {
     launchctl: (args) => {
       execFileSync('/bin/launchctl', [...args], { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf-8' });
     },
+    wait: (ms) => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); },
   };
 }
 
@@ -94,6 +101,20 @@ function firstLine(err: unknown): string {
   return (e.stderr || e.message || String(err)).trim().split('\n')[0];
 }
 
+function load(opts: ServiceOptions): void {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      opts.launchctl(['bootstrap', `gui/${opts.uid}`, opts.plistPath]);
+      return;
+    } catch (err) {
+      if (attempt >= LOAD_ATTEMPTS) {
+        throw new Error(`Could not load the Switchyard server LaunchAgent (${opts.plistPath}): ${firstLine(err)}`);
+      }
+      opts.wait(LOAD_RETRY_MS);
+    }
+  }
+}
+
 export function installService(opts: ServiceOptions): void {
   requireMac(opts);
   console.log('\n  Installing the Switchyard server LaunchAgent...\n');
@@ -104,11 +125,7 @@ export function installService(opts: ServiceOptions): void {
   fs.chmodSync(opts.logPath, 0o600);
   fs.writeFileSync(opts.plistPath, buildServicePlist(opts), { mode: 0o644 });
   unload(opts);
-  try {
-    opts.launchctl(['bootstrap', `gui/${opts.uid}`, opts.plistPath]);
-  } catch (err) {
-    throw new Error(`Could not load the Switchyard server LaunchAgent (${opts.plistPath}): ${firstLine(err)}`);
-  }
+  load(opts);
   console.log(`  LaunchAgent: ${opts.plistPath}`);
   console.log(`  Log (shows the access code after each start): ${opts.logPath}`);
   console.log('  The server now starts at login and restarts if it stops.\n');
