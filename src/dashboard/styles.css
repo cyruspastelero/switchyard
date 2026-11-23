@@ -3357,3 +3357,8 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
   #agents-panel .panel-header { flex-wrap: wrap; }
   #agents-panel .agent-filters { flex-wrap: wrap; min-width: 0; }
 }
+
+/* While a window is dragged, controls inside drop targets let the drag through: Safari (WebKit) sends no
+   dragover to a card when the pointer is over its <select>, so the card would refuse the drop there. */
+body.ctx-dragging .ctx-card select, body.ctx-dragging .ctx-card input,
+body.ctx-dragging .ctx-unsorted-box select, body.ctx-dragging .ctx-desktops select { pointer-events: none; }

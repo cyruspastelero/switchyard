@@ -115,6 +115,13 @@
       li.setAttribute('draggable', 'true');
       li.classList.add('ctx-draggable');
       li.appendChild(h('span', 'ctx-w-grip', '⠿', { 'aria-hidden': 'true' }));
+      // Safari (WebKit) starts no drag from a <button> inside a draggable row; marking the title button
+      // draggable itself makes the title a grab point there too. Its dragstart bubbles to the row's handler.
+      // The row's children are added after this call, so mark it once the row is built.
+      Promise.resolve().then(function () {
+        var title = li.querySelector('button.ctx-w-text');
+        if (title) title.setAttribute('draggable', 'true');
+      });
       li.addEventListener('dragstart', function (e) {
         drag = { windowKey: w.key, from: from };
         over = null;
@@ -158,13 +165,17 @@
     // never joins the Tab order.
     function target(el, spec) {
       el.setAttribute('data-drop', JSON.stringify(spec));
-      el.addEventListener('dragover', function (e) {
+      // Accept on dragenter as well as dragover: Safari (WebKit) drops only on a target that accepted the
+      // drag when it was entered, and a quick release can come before the next dragover.
+      function accept(e) {
         var t = check(el);
         if (!t || !t.ok) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         hover(el);
-      });
+      }
+      el.addEventListener('dragenter', accept);
+      el.addEventListener('dragover', accept);
       el.addEventListener('dragleave', function (e) {
         if (e.relatedTarget && !el.contains(e.relatedTarget) && over === el) hover(null);
       });
