@@ -100,14 +100,18 @@ function buildTimelineRowEl(evt) {
 
   var row = createEl('div', { className: 'timeline-row' }, [timeEl, agentEl, toolEl, detailEl]);
 
-  // Expandable: click to show full input/output
+  // Expandable: click, Enter or Space shows the full input/output
   if (evt.tool_input || evt.tool_output) {
     row.style.cursor = 'pointer';
-    row.addEventListener('click', function () {
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-expanded', 'false');
+    var toggle = function () {
       var existing = row.querySelector('.timeline-expanded');
       if (existing) {
         existing.remove();
         row.classList.remove('expanded');
+        row.setAttribute('aria-expanded', 'false');
         return;
       }
       var expanded = getExpandedDetail(evt);
@@ -115,7 +119,16 @@ function buildTimelineRowEl(evt) {
         var expandEl = createEl('pre', { className: 'timeline-expanded', textContent: expanded });
         row.appendChild(expandEl);
         row.classList.add('expanded');
+        row.setAttribute('aria-expanded', 'true');
+        row.scrollIntoView({ block: 'nearest' });
       }
+    };
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.stopPropagation();
+      toggle();
     });
   }
 

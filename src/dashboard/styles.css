@@ -1921,7 +1921,8 @@ html, body {
   transition: opacity 100ms;
 }
 
-.agent-row:hover .agent-quick-actions {
+.agent-row:hover .agent-quick-actions,
+.agent-quick-actions:focus-within {
   opacity: 1;
 }
 

@@ -34,7 +34,7 @@
       <span class="stat">Uptime <span id="uptime">00:00:00</span></span>
     </div>
     <div class="header-right">
-      <button id="security-btn" class="security-shield" title="Security Status (s)">
+      <button id="security-btn" class="security-shield" title="Security status">
         <span class="shield-icon">&#9741;</span>
         <span class="shield-label">SECURE</span>
         <span class="shield-count" id="security-count">0</span>
@@ -290,9 +290,9 @@
       <div class="help-section-title">Panels</div>
       <div class="help-text">
         <p><strong>Agents</strong> &mdash; Click an agent to filter timeline and send instructions. Shows live tool activity, diff stats (+/-), files touched, and session duration.</p>
-        <p><strong>Missions</strong> &mdash; Press <kbd>n</kbd> to create tasks. Assign to agents, set priority, add dependencies. Supports subtask progress tracking.</p>
+        <p><strong>Missions</strong> &mdash; One per project an agent starts work in. Open a mission to mark it done, reopen it, or delete it.</p>
         <p><strong>Usage</strong> &mdash; Real API costs from Claude Code logs. Switch periods (24H/7D/30D/All). Shows token breakdown, cost by model, context window health for active sessions, and cache hit rate.</p>
-        <p><strong>Timeline</strong> &mdash; Click any event row to expand full tool input/output. Filter by agent by clicking an agent name.</p>
+        <p><strong>Timeline</strong> &mdash; Click any event row to expand full tool input/output. Select an agent to show only its events.</p>
       </div>
 
       <div class="help-section-title">Alerts</div>
@@ -307,13 +307,13 @@
 
       <div class="help-section-title">Dashboard shortcuts (Activity view)</div>
       <div class="kbd-grid">
-        <kbd>Tab</kbd><span class="kbd-desc">Cycle panels</span>
+        <kbd>Tab</kbd><span class="kbd-desc">Move between controls and rows</span>
+        <kbd>[ / ]</kbd><span class="kbd-desc">Previous / next panel</span>
         <kbd>j / k</kbd><span class="kbd-desc">Navigate rows</span>
-        <kbd>Enter</kbd><span class="kbd-desc">Select agent / expand mission</span>
-        <kbd>n</kbd><span class="kbd-desc">New mission</span>
+        <kbd>Enter</kbd><span class="kbd-desc">Select agent / expand mission or event</span>
+        <kbd>&rarr; / &larr;</kbd><span class="kbd-desc">Show / hide an agent's subagents</span>
         <kbd>i</kbd><span class="kbd-desc">Send instruction to agent</span>
         <kbd>/</kbd><span class="kbd-desc">Clear timeline filter</span>
-        <kbd>s</kbd><span class="kbd-desc">Toggle security panel</span>
         <kbd>Esc</kbd><span class="kbd-desc">Cancel / close</span>
         <kbd>?</kbd><span class="kbd-desc">Toggle this help</span>
       </div>
@@ -328,10 +328,8 @@
       <div class="help-section-title">Mission Actions</div>
       <div class="help-text">
         <p>&bull; <strong>Click a mission</strong> to expand it and see action buttons.</p>
-        <p>&bull; <strong>Queued</strong>: Assign to an agent, start, or delete.</p>
-        <p>&bull; <strong>Active</strong>: Mark as complete or failed.</p>
-        <p>&bull; <strong>Blocked</strong>: Force unblock to move back to queued.</p>
-        <p>&bull; <strong>Completed/Failed</strong>: Requeue to run again.</p>
+        <p>&bull; <strong>Open</strong>: Done marks it complete; Delete removes it.</p>
+        <p>&bull; <strong>Done</strong>: Reopen puts it back on the list.</p>
       </div>
 
       <div class="help-section-title">Tips</div>
