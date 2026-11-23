@@ -177,10 +177,35 @@ describe('layout presets in the service', () => {
     const svc = newService();
     await contextOn(svc, 2, ['a']);
     svc.layouts.create({ name: 'Desk', slots: [slot()] });
-    expect(svc.captureLayout({})).toEqual({ name: 'Layout 2' });
-    expect(last(svc, 'captureLayout')).toMatchObject({ name: 'Layout 2' });
+    expect(svc.captureLayout({})).toEqual({ name: 'Layout 1' });
+    expect(last(svc, 'captureLayout')).toMatchObject({ name: 'Layout 1' });
     svc.captureLayout({ name: 'Mine' });
     expect(last(svc, 'captureLayout')).toMatchObject({ name: 'Mine' });
+  });
+
+  it('a_refused_key_change_does_not_save_the_layout_either', async () => {
+    const svc = newService();
+    const id = await contextOn(svc, 2, ['a']);
+    await contextOn(svc, 3, ['b']);
+    const p = svc.layouts.create({ name: 'Desk', slots: [slot()] });
+    expect(() => svc.patchContext(id, { key: 3, layoutId: p.id })).toThrow('already used');
+    expect((await svc.view()).contexts.find((c) => c.id === id)?.layoutId).toBeNull();
+  });
+
+  it('the_default_name_skips_names_already_taken', () => {
+    const svc = newService();
+    const first = svc.layouts.create({ name: 'Layout 1', slots: [slot()] });
+    svc.layouts.create({ name: 'Layout 2', slots: [slot()] });
+    svc.layouts.remove(first.id);
+    expect(svc.layouts.nextName()).toBe('Layout 1');
+    svc.layouts.create({ name: 'Layout 1', slots: [slot()] });
+    expect(svc.layouts.nextName()).toBe('Layout 3');
+  });
+
+  it('at_most_one_hundred_presets_are_kept', () => {
+    const svc = newService();
+    for (let i = 0; i < 100; i++) svc.layouts.create({ name: `L${i}`, slots: [slot()] });
+    expect(() => svc.layouts.create({ name: 'one more', slots: [slot()] })).toThrow('100');
   });
 
   it('capture_needs_the_mac_app', () => {

@@ -26,7 +26,7 @@ export interface CreateLayoutDto { readonly name: string; readonly slots: readon
 /** A context's `layoutId` that means "automatic layout, whatever the default". Not valid as the default. */
 export const AUTO_LAYOUT = 'auto';
 
-export const LAYOUT_LIMITS = { name: 100, slots: 50, bundleId: 200, app: 100, uuid: 64 } as const;
+export const LAYOUT_LIMITS = { name: 100, slots: 50, bundleId: 200, app: 100, uuid: 64, presets: 100 } as const;
 
 // --- DTOs ---------------------------------------------------------------------
 
@@ -185,6 +185,9 @@ export class LayoutPresets {
   }
 
   create(dto: CreateLayoutDto): LayoutPreset {
+    if (this.list().length >= LAYOUT_LIMITS.presets) {
+      throw new ContextsError(409, `There are already ${LAYOUT_LIMITS.presets} layouts. Delete one first.`);
+    }
     const preset: LayoutPreset = { id: crypto.randomUUID(), name: dto.name, slots: dto.slots, createdAt: new Date(this.now()).toISOString() };
     this.db.prepare('INSERT INTO layout_presets (id, name, slots, created_at) VALUES (?, ?, ?, ?)')
       .run(preset.id, preset.name, JSON.stringify(preset.slots), preset.createdAt);
@@ -210,9 +213,12 @@ export class LayoutPresets {
     this.changed();
   }
 
-  /** The default for "Layout N" names. */
+  /** The default name: the lowest "Layout N" not taken. */
   nextName(): string {
-    return `Layout ${this.list().length + 1}`;
+    const taken = new Set(this.list().map((p) => p.name));
+    let n = 1;
+    while (taken.has(`Layout ${n}`)) n += 1;
+    return `Layout ${n}`;
   }
 
   contextLayouts(): ReadonlyMap<string, string> {
@@ -220,8 +226,13 @@ export class LayoutPresets {
     return new Map(rows.map((r) => [r.id, r.layout_id]));
   }
 
-  setContextLayout(contextId: string, layoutId: string | null): void {
+  /** Throws 404 unless `layoutId` is null, 'auto' or a saved preset. */
+  checkContextRef(layoutId: string | null): void {
     if (layoutId !== null && layoutId !== AUTO_LAYOUT) this.require(layoutId);
+  }
+
+  setContextLayout(contextId: string, layoutId: string | null): void {
+    this.checkContextRef(layoutId);
     this.db.prepare('UPDATE contexts SET layout_id = ? WHERE id = ?').run(layoutId, contextId);
     this.changed();
   }

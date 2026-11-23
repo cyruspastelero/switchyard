@@ -9,21 +9,21 @@ import { isBrowserBundle, learnPattern, matchWindow, ruleIsSpecific, type Match,
 import { ViewNotifier } from './notifier.ts';
 import { createSignalSource, type SignalSource } from './signals.ts';
 import { createContextStore, type ContextRow, type ContextStore } from './store.ts';
-import { deriveAgentStatus, describeAction } from './agents.ts';
+import { agentsByContext, isMainAgent } from './agents.ts';
 import { tabSplits, type TabSplit } from './tabsplit.ts';
 import {
   desktopFor, desktopMode, desktopWindows, misplaced, offscreenReason, tidyPlan, unsortedSweep, type TidyDesktop, type WindowMove,
 } from './desktops.ts';
 import { buildView, canBeNamed, computeSuggestions, SNAPSHOT_FRESH_MS, type ViewInput } from './view.ts';
 import {
-  ContextsError, type AgentView, type CommandFailure, type ContextsView, type Snapshot, type SnapshotWindow,
+  ContextsError, type CommandFailure, type ContextsView, type Snapshot, type SnapshotWindow,
 } from './types.ts';
 import { readEnv } from '../paths.ts';
 import { IconStore } from './icons.ts';
 import { pathsFromToolInput, pickWorkFolder } from './workfolder.ts';
 import { claimOpened, EXPECT_OPEN_MS, type ExpectedOpen } from './reopen.ts';
 import { LayoutPresets } from './layouts.ts';
-import { desktopOwner, withLayouts, withSlots } from './layout-plan.ts';
+import { presetSlots, withLayouts } from './layout-plan.ts';
 
 const PALETTE = ['#4f8cff', '#e8833a', '#3fb68b', '#b46bff', '#e5566d', '#d4a72c', '#2fb5c9', '#8c8f99', '#6dbb3f'] as const;
 
@@ -198,30 +198,11 @@ export class ContextsService {
 
   // --- View --------------------------------------------------------------------
 
-  private agentsByContext(rows: readonly ContextRow[]): ReadonlyMap<string, readonly AgentView[]> {
-    const dayStart = new Date(this.now());
-    dayStart.setHours(0, 0, 0, 0);
-    const map = new Map<string, AgentView[]>();
-    for (const a of this.deps.listAgents()) {
-      if (!isMainAgent(a.agent_id) || a.status === 'disconnected') continue;
-      const ctx = rows.find((r) => r.folder !== null && r.folder === this.match.agentFolder.get(a.id));
-      if (!ctx) continue;
-      const latest = this.store.latestEvent(a.id);
-      const before = latest?.event_type === 'Notification' ? this.store.eventBeforeNotification(a.id) : null;
-      const calls = this.store.toolCallsSince(a.id, dayStart.toISOString());
-      const view: AgentView = {
-        id: a.id, name: a.name ?? a.id, status: deriveAgentStatus(latest, this.now(), before),
-        lastAction: describeAction(latest, before), costToday: Math.round(calls * this.costPerCall * 10_000) / 10_000,
-      };
-      map.set(ctx.id, [...(map.get(ctx.id) ?? []), view]);
-    }
-    return map;
-  }
-
   private viewInput(): ViewInput {
     const rows = this.store.listContexts();
     return {
-      contexts: rows, agentsByContext: this.agentsByContext(rows), snapshot: this.snapshot,
+      contexts: rows, snapshot: this.snapshot,
+      agentsByContext: agentsByContext(rows, this.deps.listAgents(), this.store, this.match.agentFolder, this.now(), this.costPerCall),
       hiddenKeys: this.hiddenKeys,
       snapshotAt: this.snapshotAt, assignments: this.store.getAssignments(), names: this.store.getNames(),
       parkedCounts: this.store.parkedCounts(), matchables: this.match.matchables,
@@ -389,7 +370,7 @@ export class ContextsService {
     const windows = this.snapshot?.windows ?? [];
     const from = moves.map((m) => windows.find((w) => w.key === m.windowKey)?.desktop).filter((d): d is number => typeof d === 'number');
     const desktops = tidyPlan([...from, ...moves.map((m) => m.desktop)], windows, this.desktopTargets(), moves, this.hiddenKeys);
-    if (desktops.length > 0) this.commands.enqueue({ type: 'tidy', desktops: this.presetSlots(desktops), force: false });
+    if (desktops.length > 0) this.commands.enqueue({ type: 'tidy', desktops: this.withPresets(desktops), force: false });
   }
 
   /** Carries one window the owner just moved, when it sits on another known desktop. The screen stays where it is. */
@@ -416,7 +397,7 @@ export class ContextsService {
   tidy(target: { contextId?: string; desktop?: number }): { desktop: number; windows: number } {
     const desktop = this.tidyTarget(target);
     const desktops = desktopWindows(desktop, this.snapshot?.windows ?? [], this.hiddenKeys);
-    if (desktops.length > 0) this.commands.enqueue({ type: 'tidy', desktops: this.presetSlots(desktops), force: true });
+    if (desktops.length > 0) this.commands.enqueue({ type: 'tidy', desktops: this.withPresets(desktops), force: true });
     return { desktop, windows: desktops[0]?.windowKeys.length ?? 0 };
   }
 
@@ -426,15 +407,7 @@ export class ContextsService {
     return { desktop };
   }
 
-  /** Each desktop's slots: the preset of the context that owns it, when it has one (see `desktopOwner`). */
-  private presetSlots(desktops: readonly TidyDesktop[]): readonly TidyDesktop[] {
-    const count = this.desktopCount();
-    const rows = this.store.listContexts();
-    return withSlots(desktops, (d) => {
-      const owner = count === null ? null : desktopOwner(rows, d, count, this.activeContextId);
-      return owner ? (this.layouts.effective(owner)?.slots ?? null) : null;
-    });
-  }
+  private withPresets = (d: readonly TidyDesktop[]) => presetSlots(d, this.store.listContexts(), this.desktopCount(), this.activeContextId, this.layouts);
 
   /** Asks the app to save the windows on the desktop on screen as a preset. */
   captureLayout(dto: { name?: string }): { name: string } {
@@ -607,12 +580,16 @@ export class ContextsService {
   patchContext(id: string, patch: { name?: string; color?: string; key?: number | null; layoutId?: string | null }): ContextRow {
     this.requireContext(id);
     const { layoutId, ...rest } = patch;
-    if (layoutId !== undefined) this.layouts.setContextLayout(id, layoutId);
     if (patch.key !== undefined && patch.key !== null) {
       const holder = this.store.listContexts().find((c) => c.key === patch.key && c.id !== id);
       if (holder) throw new ContextsError(409, `Key ${patch.key} is already used by "${holder.name}"`);
     }
-    const updated = this.store.updateContext(id, rest) as ContextRow;
+    if (layoutId !== undefined) this.layouts.checkContextRef(layoutId);
+    // Everything is checked: write both or neither.
+    const updated = this.deps.db.transaction(() => {
+      if (layoutId !== undefined) this.layouts.setContextLayout(id, layoutId);
+      return this.store.updateContext(id, rest) as ContextRow;
+    });
     this.scheduleEmit();
     return updated;
   }
@@ -819,9 +796,4 @@ export class ContextsService {
     this.closeAfterOpen.set(opened.seq, { type: 'closeTab', windowKey: source.key, tabId: tab.id });
     this.scheduleEmit();
   }
-}
-
-/** The tracker stores main agents as "main" or "<session>:main"; anything else is a subagent. */
-function isMainAgent(agentId: string): boolean {
-  return agentId === 'main' || agentId.endsWith(':main');
 }

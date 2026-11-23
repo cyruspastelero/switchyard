@@ -20,6 +20,16 @@ export function desktopOwner(rows: readonly OwnerRow[], desktop: number, count: 
   return owners.length === 1 ? owners[0].id : null;
 }
 
+/** Each desktop's slots: the effective preset of the context that owns it (see `desktopOwner`), if any. */
+export function presetSlots(
+  desktops: readonly TidyDesktop[], rows: readonly OwnerRow[], count: number | null, activeId: string | null, presets: LayoutPresets,
+): readonly TidyDesktop[] {
+  return withSlots(desktops, (d) => {
+    const owner = count === null ? null : desktopOwner(rows, d, count, activeId);
+    return owner ? (presets.effective(owner)?.slots ?? null) : null;
+  });
+}
+
 /** Adds `slots` to each desktop that has a preset. Desktops without one stay as they were (auto layout). */
 export function withSlots(
   desktops: readonly TidyDesktop[],
