@@ -600,8 +600,26 @@ describe('contexts management', () => {
     await svc.acceptSuggestion(view.suggestions[0].id);
     const cmds = svc.commands.since(before);
     expect(cmds[0]).toMatchObject({ type: 'openTab', windowKey: 'w2', url: 'https://github.com/cyrus/tala' });
-    expect(cmds[1]).toMatchObject({ type: 'closeTab', windowKey: 'w1', tabId: 2 });
+    expect(cmds.some((c) => c.type === 'closeTab')).toBe(false);
+    svc.ack(cmds[0].seq, true, null);
+    expect(svc.commands.since(cmds[0].seq).find((c) => c.type === 'closeTab')).toMatchObject({ windowKey: 'w1', tabId: 2 });
     await expect(svc.acceptSuggestion('nope')).rejects.toThrow(/not found/);
+  });
+
+  it('a_failed_target_open_keeps_the_source_tab', async () => {
+    addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
+    addAgent('a2', '/work/arki', '2026-01-01T00:01:00Z');
+    patternsByFolder['/work/tala'] = ['github.com/cyrus/tala'];
+    patternsByFolder['/work/arki'] = ['github.com/cyrus/shea-coach'];
+    const svc = newService();
+    const w1 = chrome('w1', ['https://github.com/cyrus/shea-coach', 'https://github.com/cyrus/shea-coach/pulls', 'https://github.com/cyrus/tala']);
+    await svc.applySnapshot({ windows: [w1, chrome('w2', ['https://github.com/cyrus/tala/issues'])] });
+    const before = svc.commands.lastSeq;
+    await svc.acceptSuggestion((await svc.view()).suggestions[0].id);
+    const open = svc.commands.since(before).find((c) => c.type === 'openTab')!;
+    svc.ack(open.seq, false, 'window not found');
+    expect(svc.commands.since(before).some((c) => c.type === 'closeTab')).toBe(false);
+    expect((await svc.view()).lastFailure).toMatchObject({ action: 'openTab' });
   });
 });
 

@@ -654,6 +654,8 @@ export class ContextsService {
   }
 
   private readonly pendingParked = new Map<number, number>();
+  /** Open command seq -> the closeTab to queue once that open succeeds (accepted tab suggestions). */
+  private readonly closeAfterOpen = new Map<number, CommandBody>();
 
   ack(seq: number, ok: boolean, error: string | null, failedKeys: readonly string[] = []): void {
     const command = this.commands.find(seq);
@@ -662,6 +664,9 @@ export class ContextsService {
     if (command.type === 'splitTabs' && this.splitWait?.seq === seq) this.splitWait = { ...this.splitWait, acked: true };
     const parkedId = this.pendingParked.get(seq);
     this.pendingParked.delete(seq);
+    const closeTab = this.closeAfterOpen.get(seq);
+    this.closeAfterOpen.delete(seq);
+    if (ok && closeTab) this.commands.enqueue(closeTab);
     if (!ok) {
       console.warn(`[contexts] app failed command ${seq} (${command.type}): ${error ?? 'no detail'}`);
       this.lastFailure = { action: command.type, error: error ?? 'no detail', at: new Date(this.now()).toISOString() };
@@ -762,8 +767,9 @@ export class ContextsService {
     const open: CommandBody = target
       ? { type: 'openTab', windowKey: target.key, url: tab.url }
       : { type: 'openWindow', browser: source.app, name: ctx.name, urls: [tab.url], contextId: ctx.id };
-    this.commands.enqueue(open);
-    this.commands.enqueue({ type: 'closeTab', windowKey: source.key, tabId: tab.id });
+    // The source tab closes only once the app acks the open: a failed open must not lose the tab.
+    const opened = this.commands.enqueue(open);
+    this.closeAfterOpen.set(opened.seq, { type: 'closeTab', windowKey: source.key, tabId: tab.id });
     this.scheduleEmit();
   }
 }
