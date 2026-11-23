@@ -213,11 +213,9 @@ class AgentTracker {
     }
 
     // Run an immediate sweep on startup to fix stale agents from before restart
-    this.sweep();
+    this.sweepSafely();
 
-    this.intervalHandle = setInterval(() => {
-      this.sweep();
-    }, CHECK_INTERVAL_MS);
+    this.intervalHandle = setInterval(() => this.sweepSafely(), CHECK_INTERVAL_MS);
 
     // Allow the process to exit even if the interval is running
     if (this.intervalHandle.unref) {
@@ -232,6 +230,15 @@ class AgentTracker {
     if (this.intervalHandle !== null) {
       clearInterval(this.intervalHandle);
       this.intervalHandle = null;
+    }
+  }
+
+  /** A timer callback must not throw: one SQLite error (busy, disk full) would end the server. */
+  private sweepSafely(): void {
+    try {
+      this.sweep();
+    } catch (err) {
+      console.error('  [agents] Status sweep failed, retrying next interval:', err instanceof Error ? err.message : err);
     }
   }
 

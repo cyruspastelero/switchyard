@@ -595,7 +595,13 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
         contexts.start();
         onListening?.();
       });
-      retentionTimer = setInterval(() => purgeExpiredData(), RETENTION_SWEEP_MS);
+      retentionTimer = setInterval(() => {
+        try {
+          purgeExpiredData();
+        } catch (err) {
+          console.error('  [db] Retention purge failed, retrying next hour:', err instanceof Error ? err.message : err);
+        }
+      }, RETENTION_SWEEP_MS);
       retentionTimer.unref();
     },
     stop(): void {
