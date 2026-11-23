@@ -246,6 +246,10 @@ const tooLong = (value: unknown, max: number): boolean => typeof value === 'stri
 
 /** Size and type limits for a mission update; null when the body is within them. */
 function patchLimitError(body: Record<string, unknown>): string | null {
+  for (const field of ['description', 'assigned_agent_id'] as const) {
+    const value = body[field];
+    if (value !== undefined && value !== null && typeof value !== 'string') return `${field} must be a string or null`;
+  }
   if (tooLong(body.title, FIELD_LIMITS.title)) return `title exceeds maximum length of ${FIELD_LIMITS.title} characters`;
   if (tooLong(body.description, FIELD_LIMITS.description)) return `description exceeds maximum length of ${FIELD_LIMITS.description} characters`;
   if (tooLong(body.assigned_agent_id, FIELD_LIMITS.agentId)) return 'assigned_agent_id is too long';

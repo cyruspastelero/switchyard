@@ -371,37 +371,21 @@ export function getMission(id: string): Mission | undefined {
   return (stmtGetMission.get(id) as Mission) ?? undefined;
 }
 
-const stmtUpdateMission = db.prepare(`
-  UPDATE missions
-  SET title           = COALESCE(@title, title),
-      description     = COALESCE(@description, description),
-      status          = COALESCE(@status, status),
-      priority        = COALESCE(@priority, priority),
-      assigned_agent_id = COALESCE(@assigned_agent_id, assigned_agent_id),
-      depends_on      = COALESCE(@depends_on, depends_on),
-      started_at      = COALESCE(@started_at, started_at),
-      completed_at    = COALESCE(@completed_at, completed_at),
-      result          = COALESCE(@result, result)
-  WHERE id = @id
-`);
+const MISSION_COLUMNS = [
+  "title", "description", "status", "priority", "assigned_agent_id", "depends_on", "started_at", "completed_at", "result",
+] as const;
 
+/** Updates only the fields given; an explicit null clears that column. */
 export function updateMission(
   id: string,
   fields: Partial<Omit<Mission, "id" | "created_at">>,
 ): Mission | undefined {
-  stmtUpdateMission.run({
-    id,
-    title: null,
-    description: null,
-    status: null,
-    priority: null,
-    assigned_agent_id: null,
-    depends_on: null,
-    started_at: null,
-    completed_at: null,
-    result: null,
-    ...fields,
-  });
+  const given = MISSION_COLUMNS.filter((c) => (fields as Record<string, unknown>)[c] !== undefined);
+  if (given.length > 0) {
+    const values = Object.fromEntries(given.map((c) => [c, (fields as Record<string, unknown>)[c]]));
+    db.prepare(`UPDATE missions SET ${given.map((c) => `${c} = @${c}`).join(", ")} WHERE id = @id`)
+      .run({ ...values, id });
+  }
   return getMission(id);
 }
 

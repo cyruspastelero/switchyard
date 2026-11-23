@@ -170,6 +170,36 @@ describe('PATCH /api/missions/:id', () => {
   });
 });
 
+describe('PATCH /api/missions/:id clears nullable fields', () => {
+  it('explicit_null_description_clears_it', async () => {
+    const { id } = await (await post('/api/missions', { title: 'Clearable', description: 'old text' })).json();
+    const res = await patch(`/api/missions/${id}`, { description: null });
+    expect(res.status).toBe(200);
+    expect((await res.json()).description).toBeNull();
+  });
+
+  it('explicit_null_assigned_agent_unassigns_it', async () => {
+    const { id } = await (await post('/api/missions', { title: 'Unassignable' })).json();
+    await patch(`/api/missions/${id}`, { assigned_agent_id: 'sess:main' });
+    const res = await patch(`/api/missions/${id}`, { assigned_agent_id: null });
+    expect((await res.json()).assigned_agent_id).toBeNull();
+  });
+
+  it('a_non_string_description_is_rejected_rather_than_clearing_it', async () => {
+    const { id } = await (await post('/api/missions', { title: 'Typed', description: 'keep' })).json();
+    const res = await patch(`/api/missions/${id}`, { description: 42 });
+    expect(res.status).toBe(400);
+  });
+
+  it('omitted_fields_keep_their_values', async () => {
+    const { id } = await (await post('/api/missions', { title: 'Kept', description: 'stay' })).json();
+    const res = await patch(`/api/missions/${id}`, { priority: 3 });
+    const data = await res.json();
+    expect(data.description).toBe('stay');
+    expect(data.title).toBe('Kept');
+  });
+});
+
 describe('PATCH /api/missions/:id completion', () => {
   it('completing_a_prerequisite_unblocks_its_dependents', async () => {
     const { id: first } = await (await post('/api/missions', { title: 'Prerequisite' })).json();
