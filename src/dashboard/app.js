@@ -135,9 +135,10 @@ document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
       e.target.blur();
     }
-    if (e.key === 'Enter') {
+    // Only the command input is ours; Enter in a form field (Contexts view) must still submit its form.
+    if (e.key === 'Enter' && e.target === $commandInput) {
       e.preventDefault();
-      if (e.target === $commandInput) sendInstruction();
+      sendInstruction();
     }
     return;
   }
