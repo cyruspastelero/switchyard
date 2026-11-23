@@ -98,10 +98,16 @@ enum ChromeBridge {
 
     private static let commandTimeout: TimeInterval = 12
 
-    /// ScriptingBridge calls block, so they run off the caller's thread.
+    /// Every ScriptingBridge / Apple Event call goes through this one serial queue. On the shared concurrent queue a
+    /// window listing overlapped another Chrome call; AESendMessage spins a run loop per thread and the two replies
+    /// crossed, crashing the app with SIGSEGV in AE (6 crash reports on 2026-11-23, each with 2+ threads in
+    /// ScriptingBridge). A hung Chrome now delays the next call by at most its timeout instead of crashing.
+    private static let queue = DispatchQueue(label: "ph.pastelero.switchyard.chrome-bridge", qos: .utility)
+
+    /// ScriptingBridge calls block, so they run off the caller's thread, one at a time.
     private static func run<T>(pid: pid_t, timeout: TimeInterval, _ body: @escaping (Session) throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { cont in
-            DispatchQueue.global(qos: .utility).async {
+            queue.async {
                 cont.resume(with: Result {
                     guard let app = SBApplication(processIdentifier: pid) else { throw BrowserError.unsupported("Chrome pid \(pid) is not running") }
                     return try body(Session(app: app, timeout: timeout))
