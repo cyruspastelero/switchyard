@@ -221,3 +221,15 @@ describe('unsorted header', () => {
     expect(ul.unsortedCountText(0)).toBe('');
   });
 });
+
+describe('waiting badge', () => {
+  const bl = logic as unknown as { countBadge: (n: number) => { text: string; hidden: boolean } };
+
+  it('shows_the_number_of_contexts_waiting', () => {
+    expect(bl.countBadge(2)).toEqual({ text: '2', hidden: false });
+  });
+
+  it('hides_when_nothing_is_waiting', () => {
+    expect(bl.countBadge(0)).toEqual({ text: '0', hidden: true });
+  });
+});

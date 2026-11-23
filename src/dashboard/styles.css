@@ -2676,6 +2676,7 @@ html, body {
   background: var(--bg-panel);
 }
 
+.view-tab-count[hidden] { display: none; }
 .view-tab-count {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);

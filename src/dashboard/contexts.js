@@ -275,9 +275,8 @@
   }
 
   function updateBadges() {
-    var n = st.data ? st.data.waitingCount : 0;
-    if ($badge) $badge.textContent = String(n);
-    if ($mobCount) $mobCount.textContent = String(n);
+    var b = logic.countBadge(st.data ? st.data.waitingCount : 0);
+    [$badge, $mobCount].forEach(function (el) { if (el) { el.textContent = b.text; el.hidden = b.hidden; } });
   }
 
   function endEdit() {
