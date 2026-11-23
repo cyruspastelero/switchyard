@@ -172,6 +172,7 @@ export function createContextStore(db: Db) {
     parkedCount: db.prepare('SELECT context_id, COUNT(*) AS n FROM parked_windows GROUP BY context_id'),
     addParked: db.prepare('INSERT INTO parked_windows (context_id, browser, name, urls, saved_at) VALUES (?, ?, ?, ?, ?)'),
     dropParked: db.prepare('DELETE FROM parked_windows WHERE id = ?'),
+    clearParked: db.prepare('DELETE FROM parked_windows WHERE context_id = ?'),
     latestEvent: db.prepare(
       'SELECT event_type, tool_name, tool_input, timestamp FROM events WHERE agent_id = ? ORDER BY id DESC LIMIT 1',
     ),
@@ -308,9 +309,13 @@ export function createContextStore(db: Db) {
       return new Map(rows.map((r) => [r.context_id, r.n]));
     },
 
-    /** Saves all windows in one transaction. Callers close windows only after this returns. */
+    /**
+     * Replaces the context's saved windows in one transaction, so rows left by a restore the app never acked
+     * are not reopened twice. Callers close windows only after this returns.
+     */
     saveParked(contextId: string, windows: readonly ParkedInput[], at: string): void {
       db.transaction(() => {
+        q.clearParked.run(contextId);
         for (const w of windows) q.addParked.run(contextId, w.browser, w.name, JSON.stringify(w.urls), at);
       });
     },

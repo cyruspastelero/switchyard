@@ -26,6 +26,7 @@ import { claimOpened, EXPECT_OPEN_MS, type ExpectedOpen } from './reopen.ts';
 import { LayoutPresets } from './layouts.ts';
 import { presetSlots, withLayouts } from './layout-plan.ts';
 import { desktopsListView, planDesktopAction, type DesktopAction } from './desktop-admin.ts';
+import { parkedCountsOf, windowsToPark } from './parking.ts';
 
 const PALETTE = ['#4f8cff', '#e8833a', '#3fb68b', '#b46bff', '#e5566d', '#d4a72c', '#2fb5c9', '#8c8f99', '#6dbb3f'] as const;
 
@@ -207,7 +208,7 @@ export class ContextsService {
       agentsByContext: agentsByContext(rows, this.deps.listAgents(), this.store, this.match.agentFolder, this.now(), this.costPerCall),
       hiddenKeys: this.hiddenKeys,
       snapshotAt: this.snapshotAt, assignments: this.store.getAssignments(), names: this.store.getNames(),
-      parkedCounts: this.store.parkedCounts(), matchables: this.match.matchables,
+      parkedCounts: parkedCountsOf(rows, this.store.parkedCounts()), matchables: this.match.matchables,
       activeContextId: this.activeContextId, lastFailure: this.lastFailure, nowMs: this.now(),
       desktops: this.desktopCount() === null ? null : (this.snapshot?.desktops ?? null),
       desktopNote: offscreenReason(this.snapshot), toSort: this.moves().length,
@@ -615,20 +616,8 @@ export class ContextsService {
   park(id: string): { parkedWindows: number } {
     this.requireContext(id);
     this.requireApp();
-    const assignments = this.store.getAssignments();
-    const names = this.store.getNames();
-    const windows = (this.snapshot?.windows ?? []).filter(
-      (w) => w.browser !== null && assignments.get(w.key)?.contextId === id,
-    );
-    this.store.saveParked(
-      id,
-      windows.map((w) => ({
-        browser: w.app,
-        name: names.get(w.key)?.name ?? w.browser?.name ?? null,
-        urls: (w.browser?.tabs ?? []).map((t) => t.url),
-      })),
-      new Date(this.now()).toISOString(),
-    );
+    const { windows, saved } = windowsToPark(this.snapshot?.windows ?? [], id, this.store.getAssignments(), this.store.getNames());
+    this.store.saveParked(id, saved, new Date(this.now()).toISOString());
     this.store.updateContext(id, { parked: true });
     if (this.activeContextId === id) this.activeContextId = null;
     this.store.rememberWindows([], windows.map((w) => w.key));
@@ -640,11 +629,14 @@ export class ContextsService {
     return { parkedWindows: windows.length };
   }
 
-  /** Reopens saved windows. Saved rows are deleted only when the app acks the open. */
+  /**
+   * Reopens saved windows. Saved rows are deleted only when the app acks the open; rows left by an open that
+   * never acked belong to an unparked context, are not reopened, and are replaced by the next park.
+   */
   restore(id: string): { restoredWindows: number } {
-    this.requireContext(id);
+    const ctx = this.requireContext(id);
     this.requireApp();
-    const saved = this.store.listParked(id);
+    const saved = ctx.parked ? this.store.listParked(id) : [];
     this.store.updateContext(id, { parked: false });
     // With real desktops, go to the context's desktop first so the windows open there. No carry.
     const desktopFirst = this.desktopCount() !== null;
