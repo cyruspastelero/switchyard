@@ -22,19 +22,27 @@ struct TabSplitter {
             if let number = FocusPlan.desktopToVisit(window: w.desktop, active: Spaces.activeDesktopNumber()) {
                 _ = try? await desktops.goTo(number)
             }
-            for tab in TerminalTabs.splitOrder(split.tabs) where await !pullOut(tab, pid: w.pid) {
-                failed.append(tab.title)
+            // The source window's tab bar as last seen; it loses each tab pulled out of it.
+            var source = w.tabTitles
+            for tab in TerminalTabs.splitOrder(split.tabs) {
+                if await pullOut(tab, pid: w.pid, source: source) {
+                    source = TerminalTabs.remaining(source, after: tab)
+                } else {
+                    failed.append(tab.title)
+                }
             }
         }
         return failed
     }
 
-    private func pullOut(_ tab: TabRefDTO, pid: pid_t) async -> Bool {
+    private func pullOut(_ tab: TabRefDTO, pid: pid_t, source: [String]) async -> Bool {
         let before = Self.tabBarsHolding(tab.title, pid: pid)
-        guard let (window, buttons, titles) = before.first, let index = TerminalTabs.buttonIndex(for: tab, in: titles) else {
-            Log.windows.notice("split: no tab bar holds the tab any more")
+        guard let bar = TerminalTabs.barIndex(holding: tab.title, in: before.map(\.2), source: source) else {
+            Log.windows.notice("split: no tab bar, or no single source tab bar, holds the tab (\(before.count, privacy: .public) hold its title)")
             return false
         }
+        let (window, buttons, titles) = before[bar]
+        guard let index = TerminalTabs.buttonIndex(for: tab, in: titles) else { return false }
         await MainActor.run { _ = NSRunningApplication(processIdentifier: pid)?.activate() }
         AX.perform(window, kAXRaiseAction as String)
         AX.setBool(window, kAXMainAttribute as String, true)

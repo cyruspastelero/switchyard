@@ -27,6 +27,24 @@ enum TerminalTabs {
         return titles.firstIndex(of: ref.title)
     }
 
+    /// Which tab bar to pull `title` from. A title in one bar only is found there. When several windows hold it
+    /// (Claude Code names every tab after its topic), only the bar whose tabs are exactly the source window's counts;
+    /// with no such bar the tab is not guessed, so a twin in another window is never moved.
+    static func barIndex(holding title: String, in bars: [[String]], source: [String]) -> Int? {
+        let holding = bars.indices.filter { bars[$0].contains(title) }
+        if holding.count <= 1 { return holding.first }
+        let own = holding.filter { bars[$0] == source }
+        return own.count == 1 ? own[0] : nil
+    }
+
+    /// The source bar's tabs once `ref` has been pulled out of it.
+    static func remaining(_ titles: [String], after ref: TabRefDTO) -> [String] {
+        guard let index = buttonIndex(for: ref, in: titles) else { return titles }
+        var rest = titles
+        rest.remove(at: index)
+        return rest
+    }
+
     /// Rightmost first, so the tabs still to go keep their indexes.
     static func splitOrder(_ tabs: [TabRefDTO]) -> [TabRefDTO] { tabs.sorted { $0.index > $1.index } }
 

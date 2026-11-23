@@ -21,6 +21,26 @@ final class TerminalTabTests: XCTestCase {
         XCTAssertFalse(TerminalTabs.reads(bundleId: "com.google.Chrome"))
     }
 
+    func test_a_repeated_tab_title_is_taken_from_the_source_windows_tab_bar() {
+        let bars = [["✳ Claude Code", "~/aral"], ["~/tala", "✳ Claude Code"]]
+        XCTAssertEqual(TerminalTabs.barIndex(holding: "✳ Claude Code", in: bars, source: ["~/tala", "✳ Claude Code"]), 1)
+    }
+
+    func test_a_repeated_tab_title_with_no_known_source_bar_is_not_guessed() {
+        let bars = [["✳ Claude Code", "~/aral"], ["~/tala", "✳ Claude Code"]]
+        XCTAssertNil(TerminalTabs.barIndex(holding: "✳ Claude Code", in: bars, source: ["~/x", "✳ Claude Code"]))
+    }
+
+    func test_a_tab_title_held_by_one_tab_bar_is_found_there() {
+        XCTAssertEqual(TerminalTabs.barIndex(holding: "~/aral", in: [["a", "b"], ["~/aral", "c"]], source: []), 1)
+        XCTAssertNil(TerminalTabs.barIndex(holding: "gone", in: [["a", "b"]], source: ["a", "b"]))
+    }
+
+    func test_the_source_bar_loses_each_tab_that_was_pulled_out() {
+        XCTAssertEqual(TerminalTabs.remaining(["a", "b", "c"], after: TabRefDTO(index: 2, title: "c")), ["a", "b"])
+        XCTAssertEqual(TerminalTabs.remaining(["a", "b", "b"], after: TabRefDTO(index: 9, title: "b")), ["a", "b"])
+    }
+
     func test_a_tab_is_found_at_its_index_when_the_title_still_matches() {
         XCTAssertEqual(TerminalTabs.buttonIndex(for: TabRefDTO(index: 1, title: "b"), in: ["a", "b", "b"]), 1)
     }
