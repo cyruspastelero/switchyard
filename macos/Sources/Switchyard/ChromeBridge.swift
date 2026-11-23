@@ -1,0 +1,158 @@
+import Foundation
+import ScriptingBridge
+
+/// Talks to one Chrome process through ScriptingBridge, addressed by pid. `tell application "Google Chrome"`
+/// (osascript, by name or bundle id) can land on an automation Chrome that never answers; a pid cannot.
+/// Values go in as typed properties and object ids, never into script text.
+enum ChromeBridge {
+    static func list(pid: pid_t, timeout: TimeInterval) async throws -> [BrowserWindow] {
+        try await run(pid: pid, timeout: timeout) { s in
+            let windows = try s.windows()
+            let raw: Any? = windows.value(forKey: "id")
+            try s.check()
+            let ids = raw as? [Any] ?? []
+            return try ids.map { raw in
+                let id = "\(raw)"
+                let w = try s.window(in: windows, id: id)
+                return try s.read(w, id: id, pid: pid)
+            }
+        }
+    }
+
+    static func setName(pid: pid_t, windowId: String, name: String) async throws {
+        try await run(pid: pid, timeout: commandTimeout) { s in
+            let w = try s.window(in: try s.windows(), id: windowId)
+            w.setValue(name, forKey: "givenName")
+            try s.check()
+        }
+    }
+
+    /// `urls` are already sanitized by the caller.
+    static func openWindow(pid: pid_t, name: String?, urls: [String]) async throws {
+        try await run(pid: pid, timeout: commandTimeout) { s in
+            let w = try s.make("window", properties: [:])
+            try s.windows().add(w)
+            try s.check()
+            if let first = urls.first {
+                (w.value(forKey: "activeTab") as? SBObject)?.setValue(first, forKey: "URL")
+                try s.check()
+            }
+            if urls.count > 1, let tabs = w.value(forKey: "tabs") as? SBElementArray {
+                for url in urls.dropFirst() { tabs.add(try s.make("tab", properties: ["URL": url])) }
+                try s.check()
+            }
+            if let name, !name.isEmpty { w.setValue(name, forKey: "givenName"); try s.check() }
+        }
+    }
+
+    static func openTab(pid: pid_t, windowId: String, url: String) async throws {
+        try await run(pid: pid, timeout: commandTimeout) { s in
+            let w = try s.window(in: try s.windows(), id: windowId)
+            guard let tabs = w.value(forKey: "tabs") as? SBElementArray else { throw BrowserError.badOutput }
+            tabs.add(try s.make("tab", properties: ["URL": url]))
+            try s.check()
+        }
+    }
+
+    static func closeTab(pid: pid_t, windowId: String, tabId: String) async throws {
+        try await run(pid: pid, timeout: commandTimeout) { s in
+            let w = try s.window(in: try s.windows(), id: windowId)
+            guard let tabs = w.value(forKey: "tabs") as? SBElementArray, let n = Int(tabId),
+                  let tab = tabs.object(withID: n) as? SBObject else { throw BrowserError.unsupported("tab not found") }
+            try s.close(tab)
+        }
+    }
+
+    static func closeWindow(pid: pid_t, windowId: String) async throws {
+        try await run(pid: pid, timeout: commandTimeout) { s in
+            try s.close(try s.window(in: try s.windows(), id: windowId))
+        }
+    }
+
+    private static let commandTimeout: TimeInterval = 12
+
+    /// ScriptingBridge calls block, so they run off the caller's thread.
+    private static func run<T>(pid: pid_t, timeout: TimeInterval, _ body: @escaping (Session) throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { cont in
+            DispatchQueue.global(qos: .utility).async {
+                cont.resume(with: Result {
+                    guard let app = SBApplication(processIdentifier: pid) else { throw BrowserError.unsupported("Chrome pid \(pid) is not running") }
+                    return try body(Session(app: app, timeout: timeout))
+                })
+            }
+        }
+    }
+
+    /// One app reference plus the first Apple Event error it reported.
+    private final class Session: NSObject, SBApplicationDelegate {
+        let app: SBApplication
+        private var error: Error?
+
+        init(app: SBApplication, timeout: TimeInterval) {
+            self.app = app
+            super.init()
+            app.timeout = Int(timeout * 60) // ticks
+            app.delegate = self
+        }
+
+        func eventDidFail(_ event: UnsafePointer<AppleEvent>, withError error: Error) -> Any? {
+            if self.error == nil { self.error = error }
+            return nil
+        }
+
+        func check() throws {
+            if let error { throw ChromeError(underlying: error) }
+        }
+
+        func windows() throws -> SBElementArray {
+            guard let w = app.value(forKey: "windows") as? SBElementArray else { try check(); throw BrowserError.badOutput }
+            return w
+        }
+
+        func window(in windows: SBElementArray, id: String) throws -> SBObject {
+            guard let n = Int(id), let w = windows.object(withID: n) as? SBObject else { throw BrowserError.unsupported("window not found") }
+            return w
+        }
+
+        func make(_ scriptingClass: String, properties: [String: Any]) throws -> SBObject {
+            guard let cls = app.class(forScriptingClass: scriptingClass) as? SBObject.Type else { throw BrowserError.badOutput }
+            return cls.init(properties: properties)
+        }
+
+        func close(_ object: SBObject) throws {
+            let close = NSSelectorFromString("close")
+            guard object.responds(to: close) else { throw BrowserError.unsupported("Chrome does not offer close") }
+            _ = object.perform(close)
+            try check()
+        }
+
+        func read(_ w: SBObject, id: String, pid: pid_t) throws -> BrowserWindow {
+            let name = (w.value(forKey: "givenName") as? String).flatMap { $0.isEmpty ? nil : $0 }
+            let bounds = (w.value(forKey: "bounds") as? NSValue).map { v -> Rect in
+                let r = v.rectValue
+                return Rect(x: Double(r.origin.x), y: Double(r.origin.y), width: Double(r.width), height: Double(r.height))
+            }
+            let activeTitle = (w.value(forKey: "activeTab") as? SBObject)?.value(forKey: "title") as? String
+            var tabs: [BrowserTab] = []
+            if let t = w.value(forKey: "tabs") as? SBElementArray {
+                let ids = t.value(forKey: "id") as? [Any] ?? []
+                let urls = t.value(forKey: "URL") as? [Any] ?? []
+                let titles = t.value(forKey: "title") as? [Any] ?? []
+                for (i, tabId) in ids.enumerated() {
+                    tabs.append(BrowserTab(id: "\(tabId)", url: i < urls.count ? urls[i] as? String ?? "" : "",
+                                           title: i < titles.count ? titles[i] as? String ?? "" : ""))
+                }
+            }
+            try check()
+            return BrowserWindow(bundleId: BrowserKind.chrome.rawValue, pid: pid, id: id, name: name,
+                                 activeTitle: activeTitle, bounds: bounds, tabs: tabs)
+        }
+    }
+}
+
+struct ChromeError: Error, LocalizedError {
+    let underlying: Error
+    var errorDescription: String? {
+        (underlying as NSError).code == -1712 ? "Chrome did not answer in time" : "Chrome refused: \(underlying.localizedDescription)"
+    }
+}

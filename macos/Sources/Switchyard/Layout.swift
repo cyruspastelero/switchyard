@@ -1,0 +1,184 @@
+import Foundation
+
+// Tidy: one layout by window count, no modes. Pure, so all of it is tested. Accessibility coordinates.
+
+/// A window to lay out. `z`: 0 is front-most in the window server's order.
+struct LayoutWindow: Equatable {
+    let key: String
+    let bundleId: String
+    let z: Int
+    let number: UInt32
+}
+
+/// A window's smallest size, learned from a tidy it would not shrink for.
+struct Size: Equatable {
+    let width: Double
+    let height: Double
+}
+
+enum Layout {
+    static let gap = 8.0
+    static let mainShare = 0.6
+    /// Each deck window sits this much lower than the one before, so every title bar shows.
+    static let deckStep = 30.0
+    /// The deck never squeezes a window below this height.
+    static let minDeckHeight = 200.0
+
+    /// The main window never gets less than this share, whatever the right column's windows need.
+    static let minMainShare = 0.4
+
+    /// Slot 0 is the main window (left). 1 fills; 2–4 stack the rest right; 5+ deck them in the right column.
+    /// `minimums`: slot -> the smallest size that window takes. The right column widens and a stacked window
+    /// grows to fit it, so nothing overlaps.
+    static func frames(count: Int, area: Rect, gap: Double = gap, minimums: [Int: Size] = [:]) -> [Rect] {
+        guard count > 0 else { return [] }
+        let inner = Rect(x: area.x + gap, y: area.y + gap, width: area.width - 2 * gap, height: area.height - 2 * gap)
+        guard count > 1 else { return [inner] }
+        let shared = inner.width - gap
+        let needed = (1..<count).compactMap { minimums[$0]?.width }.max() ?? 0
+        let maxColumn = shared - (shared * minMainShare).rounded(.down)
+        let columnWidth = min(max(shared - (shared * mainShare).rounded(), needed), maxColumn)
+        let mainWidth = shared - columnWidth
+        let main = Rect(x: inner.x, y: inner.y, width: mainWidth, height: inner.height)
+        let column = Rect(x: main.maxX + gap, y: inner.y, width: columnWidth, height: inner.height)
+        let rest = count - 1
+        let minHeights = (1..<count).map { minimums[$0]?.height ?? 0 }
+        // A stack whose windows cannot all get their minimum height would overlap anyway: deck them instead.
+        let stackFits = minHeights.reduce(0, +) + gap * Double(rest - 1) <= column.height
+        return [main] + (rest <= 3 && stackFits ? stack(rest, in: column, gap: gap, minHeights: minHeights) : deck(rest, in: column))
+    }
+
+    private static func stack(_ n: Int, in column: Rect, gap: Double, minHeights: [Double]) -> [Rect] {
+        let total = column.height - gap * Double(n - 1)
+        var fixed: [Int: Double] = [:]
+        var share = (total / Double(n)).rounded(.down)
+        // Windows that need more than an equal share get their minimum; the others split what is left.
+        while true {
+            let grow = (0..<n).filter { fixed[$0] == nil && minHeights[$0] > share }
+            if grow.isEmpty { break }
+            for i in grow { fixed[i] = minHeights[i] }
+            let free = n - fixed.count
+            guard free > 0 else { break }
+            share = ((total - fixed.values.reduce(0, +)) / Double(free)).rounded(.down)
+        }
+        var y = column.y
+        return (0..<n).map { i in
+            let height = fixed[i] ?? share
+            defer { y += height + gap }
+            return Rect(x: column.x, y: y, width: column.width, height: height)
+        }
+    }
+
+    /// Slot -> the size a window kept when it would not shrink to its slot (more than 2 px larger).
+    static func minimums(slots: [Rect], got: [Rect]) -> [Int: Size] {
+        var result: [Int: Size] = [:]
+        for (i, (slot, g)) in zip(slots, got).enumerated() where g.width > slot.width + 2 || g.height > slot.height + 2 {
+            result[i] = Size(width: max(g.width, slot.width), height: max(g.height, slot.height))
+        }
+        return result
+    }
+
+    private static func deck(_ n: Int, in column: Rect) -> [Rect] {
+        let step = min(deckStep, ((column.height - minDeckHeight) / Double(n - 1)).rounded(.down))
+        return (0..<n).map { i in
+            let y = column.y + Double(i) * step
+            return Rect(x: column.x, y: y, width: column.width, height: column.maxY - y)
+        }
+    }
+
+    /// The screen's `NSScreen.visibleFrame` (Cocoa, bottom-left origin) in Accessibility coordinates.
+    static func area(visibleFrame: Rect, primaryHeight: Double) -> Rect {
+        FrameMath.fromCocoa(visibleFrame, primaryHeight: primaryHeight)
+    }
+
+    /// Main first: the front-most browser window, else the front-most window. The rest front to back.
+    /// Ties go by window number, so the same input always gives the same order.
+    static func pickMain(_ windows: [LayoutWindow]) -> [String] {
+        let ordered = windows.sorted { ($0.z, $0.number, $0.key) < ($1.z, $1.number, $1.key) }
+        guard let main = ordered.first(where: { BrowserKind(rawValue: $0.bundleId) != nil }) ?? ordered.first else { return [] }
+        return [main.key] + ordered.filter { $0.key != main.key }.map(\.key)
+    }
+
+    /// Where a window goes when it would not take its slot's size (minimum width, terminal cell grid):
+    /// its own size, origin on the slot, pulled back so it does not hang off the area.
+    static func fit(_ got: Rect, slot: Rect, area: Rect, gap: Double = gap) -> Rect {
+        let x = max(area.x + gap, min(slot.x, area.maxX - gap - got.width))
+        let y = max(area.y + gap, min(slot.y, area.maxY - gap - got.height))
+        return Rect(x: x, y: y, width: got.width, height: got.height)
+    }
+}
+
+/// Whether a tidy of one desktop runs.
+enum TidyGate {
+    /// From Sort or Move (`force` false) a desktop whose window set equals the one of its last tidy is left alone,
+    /// so the owner's own resizes stay.
+    static func shouldRun(keys: Set<String>, last: Set<String>?, force: Bool) -> Bool {
+        guard !keys.isEmpty else { return false }
+        return force || last != keys
+    }
+}
+
+/// Per desktop: the frames from before the last tidy (one Undo level) and the window set it laid out.
+struct TidyMemory: Codable, Equatable {
+    private var before: [String: [String: Rect]] = [:]
+    private var sets: [String: [String]] = [:]
+
+    mutating func record(desktop: Int, before frames: [String: Rect], keys: Set<String>) {
+        before[String(desktop)] = frames
+        sets[String(desktop)] = keys.sorted()
+    }
+
+    func lastKeys(desktop: Int) -> Set<String>? { sets[String(desktop)].map(Set.init) }
+
+    func canUndo(desktop: Int) -> Bool { !(before[String(desktop)] ?? [:]).isEmpty }
+
+    /// The frames to put back. Cleared: there is one Undo level.
+    mutating func takeUndo(desktop: Int) -> [String: Rect] {
+        let frames = before[String(desktop)] ?? [:]
+        before[String(desktop)] = nil
+        sets[String(desktop)] = nil
+        return frames
+    }
+}
+
+struct TidyStore {
+    let url: URL
+
+    static var defaultURL: URL {
+        HiddenStore.defaultURL.deletingLastPathComponent().appendingPathComponent("tidy.json")
+    }
+
+    init(url: URL = TidyStore.defaultURL) { self.url = url }
+
+    func load() -> TidyMemory {
+        guard let data = try? Data(contentsOf: url) else { return TidyMemory() }
+        do { return try JSONDecoder().decode(TidyMemory.self, from: data) } catch {
+            Log.windows.error("tidy.json is unreadable: \(error.localizedDescription, privacy: .public)")
+            return TidyMemory()
+        }
+    }
+
+    func save(_ memory: TidyMemory) {
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONEncoder().encode(memory).write(to: url, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        } catch {
+            Log.windows.error("cannot save tidy.json: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+}
+
+/// Which windows a desktop's tidy lays out, from the contexts the app holds.
+enum TidyTargets {
+    /// The windows of the context(s) that own the desktop; on the shared desktop only the active context's.
+    /// `moves`: windows just carried, which the contexts the app holds may not show yet.
+    static func keys(contexts: [ContextDTO], desktop: Int, activeContextId: String?, moves: [WindowMoveDTO] = []) -> [String] {
+        let here = contexts.filter { $0.desktop == desktop }
+        let owners = here.contains(where: \.desktopShared) ? here.filter { $0.id == activeContextId } : here
+        let movedAway = Set(moves.filter { $0.desktop != desktop }.map(\.windowKey))
+        var keys = owners.flatMap { $0.windows.map(\.key) }.filter { !movedAway.contains($0) }
+        for m in moves where m.desktop == desktop && !keys.contains(m.windowKey) { keys.append(m.windowKey) }
+        return keys
+    }
+}
