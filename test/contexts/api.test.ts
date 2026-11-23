@@ -61,7 +61,7 @@ describe('/api/contexts over http', () => {
       const res = await fetcher(`${BASE}/api/contexts`);
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(Object.keys(body).sort()).toEqual(['activeContextId', 'autoTidy', 'contexts', 'defaultLayoutId', 'desktopMode', 'desktopNote', 'desktops', 'lastFailure', 'layouts', 'suggestions', 'toSort', 'unsorted', 'unsortedToMove', 'waitingCount', 'windowControl']);
+      expect(Object.keys(body).sort()).toEqual(['activeContextId', 'autoTidy', 'contexts', 'defaultLayoutId', 'desktopList', 'desktopMode', 'desktopNote', 'desktops', 'lastFailure', 'layouts', 'suggestions', 'toSort', 'unsorted', 'unsortedToMove', 'waitingCount', 'windowControl']);
       expect(body.contexts[0]).toMatchObject({ folder: expect.any(String), key: 1, status: 'idle' });
     }
   });
@@ -304,5 +304,64 @@ describe('arranging endpoints', () => {
   it('unassign_answers_whether_the_window_is_moving', async () => {
     const res = await f(`${BASE}/api/contexts/unassign`, { method: 'POST', ...json({ windowKey: 'w1' }) });
     expect(await res.json()).toMatchObject({ ok: true, moving: true, desktop: 6 });
+  });
+});
+
+describe('desktops list over http', () => {
+  const list = [1, 2, 3, 4, 5, 6].map((number) => ({ number, space: 500 + number, screen: 1, builtin: true, showing: number === 1 }));
+  const put = () => hf(`${BASE}/api/contexts/snapshot`, {
+    method: 'PUT', ...json({ windows: [{ ...win, desktop: 1 }], desktops: { count: 6, active: 1, list }, canCarry: true }),
+  });
+  const post = (path: string, body: unknown = {}, fetcher = f) => fetcher(`${BASE}/api/contexts/desktops${path}`, { method: 'POST', ...json(body) });
+
+  it('the_view_lists_every_desktop_with_why_close_is_off', async () => {
+    await put();
+    const view = await (await f(`${BASE}/api/contexts`)).json();
+    expect(view.desktopList.desktops.map((d: { number: number }) => d.number)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(view.desktopList.desktops[5].shared).toBe(true);
+    expect(view.desktopList.desktops[5].closeBlocked).toBeNull(); // empty shared desktop: an added desktop can be undone
+    expect(view.desktopList.desktops[1].closeBlocked).toMatch(/Give .+ another desktop first/);
+    expect(view.desktopList.screens).toEqual([{ screen: 1, label: 'Laptop', addBlocked: null }]);
+  });
+
+  it('closing_a_project_desktop_is_a_409_that_says_how_to_free_it', async () => {
+    await put();
+    const view = await (await f(`${BASE}/api/contexts`)).json();
+    const owned = view.desktopList.desktops.find((d: { owners: unknown[] }) => d.owners.length > 0);
+    const res = await post(`/${owned.number}/close`);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/Give .+ another desktop first/);
+  });
+
+  it('closing_a_free_desktop_queues_a_close_naming_its_space', async () => {
+    await put();
+    const view = await (await f(`${BASE}/api/contexts`)).json();
+    const free = view.desktopList.desktops.filter((d: { closeBlocked: string | null }) => d.closeBlocked === null).at(-1);
+    expect((await post(`/${free.number}/close`, {}, hf)).status).toBe(200);
+    const cmds = await (await hf(`${BASE}/api/contexts/commands?since=0`)).json();
+    expect(cmds.commands.at(-1)).toMatchObject({ type: 'closeDesktop', number: free.number, spaceCheck: 500 + free.number });
+  });
+
+  it('add_and_show_queue_their_commands', async () => {
+    await put();
+    expect((await post('', { screen: 1 })).status).toBe(200);
+    let cmds = await (await hf(`${BASE}/api/contexts/commands?since=0`)).json();
+    expect(cmds.commands.at(-1)).toMatchObject({ type: 'addDesktop', screen: 1 });
+    expect((await post('/4/show')).status).toBe(200);
+    cmds = await (await hf(`${BASE}/api/contexts/commands?since=0`)).json();
+    expect(cmds.commands.at(-1)).toMatchObject({ type: 'showDesktop', desktop: 4 });
+  });
+
+  it('bodies_and_numbers_are_checked_and_credentials_are_needed', async () => {
+    await put();
+    expect((await post('', {})).status).toBe(400);
+    expect((await post('', { screen: 1, x: 1 })).status).toBe(400);
+    expect((await post('', { screen: 'one' })).status).toBe(400);
+    expect((await post('/0/close')).status).toBe(400);
+    expect((await post('/abc/show')).status).toBe(404);
+    expect((await post('/3/close', { x: 1 })).status).toBe(400);
+    expect((await post('/9/show')).status).toBe(404);
+    expect((await post('', { screen: 2 })).status).toBe(404);
+    expect((await fetch(`${BASE}/api/contexts/desktops/3/close`, { method: 'POST', ...json({}) })).status).toBe(401);
   });
 });

@@ -195,7 +195,7 @@ describe('input handling', () => {
 
 describe('no outbound network from the dashboard', () => {
   const dashboard = join(import.meta.dirname, '../../src/dashboard');
-  const files = ['index.html', 'login.html', 'styles.css', 'core.js', 'activity.js', 'usage.js', 'app.js', 'picker.js', 'contexts.js', 'contexts-logic.js', 'layouts.js', 'security.js', 'login.js'];
+  const files = ['index.html', 'login.html', 'styles.css', 'core.js', 'activity.js', 'usage.js', 'app.js', 'picker.js', 'contexts.js', 'contexts-logic.js', 'layouts.js', 'desktops.js', 'security.js', 'login.js'];
 
   it('no_page_script_or_style_loads_anything_from_another_host', () => {
     for (const file of files) {

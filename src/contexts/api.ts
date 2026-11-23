@@ -4,7 +4,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseBody, parseQuery, sendJson } from '../api/utils.ts';
 import {
-  LIMITS, parseAck, parseAssign, parseCreateContext, parseEmpty, parseFocusWindow, parsePatchContext, parseSnapshot,
+  LIMITS, parseAck, parseAddDesktop, parseAssign, parseDesktopParam, parseCreateContext, parseEmpty, parseFocusWindow, parsePatchContext, parseSnapshot,
   parseSettings, parseTidy, parseUnassign, parseUndoTidy, parseWindowName, type Parsed,
 } from './dto.ts';
 import { ICON_MAX_BYTES, isBundleId, isPng } from './icons.ts';
@@ -122,6 +122,12 @@ function getIcon(c: RouteContext): void {
 
 const ok = (ctx: RouteContext, extra: object = {}): void => sendJson(ctx.res, 200, { ok: true, ...extra });
 
+function desktopParam(ctx: RouteContext): number {
+  const n = parseDesktopParam(ctx.params[0]);
+  if (!n.ok) throw new ContextsError(400, n.error);
+  return n.value;
+}
+
 async function contextView(ctx: RouteContext, id: string) {
   const view = await ctx.service.view();
   return view.contexts.find((c) => c.id === id) ?? null;
@@ -207,6 +213,19 @@ const ROUTES: readonly Route[] = [
   {
     method: 'POST', pattern: /^\/tidy\/undo$/, appOnly: false,
     run: async (c) => { const d = await body(c, parseUndoTidy); ok(c, c.service.undoTidy(d)); },
+  },
+  {
+    method: 'POST', pattern: /^\/desktops$/, appOnly: false,
+    run: async (c) => { const d = await body(c, parseAddDesktop); c.service.desktopAction({ type: 'add', screen: d.screen }); ok(c); },
+  },
+  {
+    method: 'POST', pattern: /^\/desktops\/(\d+)\/(close|show)$/, appOnly: false,
+    run: async (c) => {
+      const number = desktopParam(c);
+      await body(c, parseEmpty);
+      c.service.desktopAction({ type: c.params[1] === 'close' ? 'close' : 'show', number });
+      ok(c);
+    },
   },
   {
     method: 'POST', pattern: /^\/windows\/name$/, appOnly: false,

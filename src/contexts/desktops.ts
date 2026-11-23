@@ -70,6 +70,31 @@ export function unsortedSweep(
     .map((w) => ({ windowKey: w.key, desktop: shared }));
 }
 
+type KeyedRow = { readonly id: string; readonly key: number | null; readonly parked: boolean };
+type Assignments = ReadonlyMap<string, { readonly contextId: string }>;
+
+/** Target desktop of every window assigned to a known context. Empty in off-screen mode. */
+export function windowTargets(rows: readonly KeyedRow[], assignments: Assignments, count: number | null): Map<string, number> {
+  const targets = new Map<string, number>();
+  if (count === null) return targets;
+  const byId = new Map(rows.map((c) => [c.id, c]));
+  for (const [key, a] of assignments) {
+    const row = byId.get(a.contextId);
+    const desktop = row ? desktopFor(row.key, count) : null;
+    if (desktop !== null) targets.set(key, desktop);
+  }
+  return targets;
+}
+
+/** Sort's sweep over the live data: unsorted windows on desktops unparked contexts own go to the shared desktop. */
+export function sweepMoves(rows: readonly KeyedRow[], assignments: Assignments, windows: readonly PlacedWindow[], count: number | null): readonly WindowMove[] {
+  if (count === null) return [];
+  const known = new Set(rows.map((c) => c.id));
+  const sorted = new Set([...assignments].filter(([, a]) => known.has(a.contextId)).map(([k]) => k));
+  const owned = new Set(rows.filter((c) => !c.parked).map((c) => desktopFor(c.key, count) as number));
+  return unsortedSweep(windows, sorted, owned, count);
+}
+
 export interface TidyDesktop {
   readonly desktop: number;
   readonly windowKeys: readonly string[];

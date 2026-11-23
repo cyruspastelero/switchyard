@@ -1,6 +1,7 @@
 // Builds the GET /api/contexts response from plain data. No I/O.
 
 import { createHash } from 'node:crypto';
+import type { DesktopsListView } from './desktop-admin.ts';
 import { desktopFor } from './desktops.ts';
 import { matchUrl, type MatchableContext } from './matcher.ts';
 import type { ContextRow } from './store.ts';
@@ -26,6 +27,7 @@ export interface ViewInput {
   /** Real desktops in use; null or absent means off-screen mode. */
   readonly desktops?: DesktopsInfo | null;
   readonly desktopNote?: string | null;
+  readonly desktopList?: DesktopsListView | null;
   readonly toSort?: number;
   readonly unsortedToMove?: number;
   readonly autoTidy?: boolean;
@@ -133,6 +135,7 @@ export function buildView(input: ViewInput): ContextsView {
     desktopMode: input.desktops ? 'desktops' : 'offscreen',
     desktops: input.desktops ?? null,
     desktopNote: input.desktopNote ?? null,
+    desktopList: input.desktopList ?? null,
     toSort: input.toSort ?? 0,
     unsortedToMove: input.unsortedToMove ?? 0,
     autoTidy: input.autoTidy ?? true,

@@ -77,6 +77,9 @@
       case 'assign': return 'Window assigned';
       case 'move': return 'Moved to ' + name;
       case 'undoTidy': return 'Tidy undone';
+      case 'desktopShow': return 'Going to ' + name;
+      case 'desktopClose': return 'Closing ' + name;
+      case 'desktopAdd': return 'Adding a desktop on ' + name;
       default: return '';
     }
   }
@@ -250,7 +253,48 @@
     return plural(p.slots.length, 'window') + (screens > 1 ? ' \u00B7 ' + plural(screens, 'screen') : '');
   }
 
-  var api = { sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
+  // Desktop select on a card. A key is the context's ⌥N and its Desktop N; the last desktop is shared, so own
+  // desktops are 1 to count - 1 (at most 9). Taking a held key swaps it with that context.
+  function keyOptions(contexts, current, desktopCount) {
+    var options = [];
+    var top = Math.min(9, desktopCount - 1);
+    for (var n = 1; n <= top; n++) {
+      var holder = contexts.filter(function (c) { return c.key === n && c.id !== current.id; })[0];
+      options.push({ value: String(n), label: 'Desktop ' + n + ' \u00B7 \u2325' + n + (holder ? ' (' + holder.name + ' \u2014 swaps)' : '') });
+    }
+    if (current.key != null && current.key > top) options.push({ value: String(current.key), label: '\u2325' + current.key + ' \u00B7 shared desktop' });
+    options.push({ value: '', label: 'No desktop (shared)' });
+    return options;
+  }
+
+  function keyDoneText(name, key, desktopCount) {
+    if (key == null) return name + ' now uses the shared desktop';
+    if (desktopCount != null && key >= desktopCount) return name + ' is now \u2325' + key + ' on the shared desktop';
+    return name + ' is now Desktop ' + key + ' \u00B7 \u2325' + key;
+  }
+
+  // Desktops list rows (server-built: number, screenLabel, shared, owners, windows, showing, closeBlocked).
+  function desktopOwnerText(row) {
+    if (row.shared) return 'Shared';
+    return row.owners.length ? row.owners.map(function (o) { return o.name; }).join(', ') : 'Free';
+  }
+
+  function desktopMeta(row) { return row.screenLabel + ' \u00B7 ' + plural(row.windows, 'window'); }
+
+  // The owner select on a Desktops row (rows 1-9 that are not shared): Free, or any context. Picking one gives it
+  // this desktop; it swaps with the current owner.
+  function desktopOwnerOptions(row, contexts, desktopCount) {
+    return [{ value: '', label: 'Free' }].concat(contexts.map(function (c) {
+      var own = c.key != null && c.key < desktopCount && c.key !== row.number;
+      return { value: c.id, label: c.name + (own ? ' (now Desktop ' + c.key + ')' : '') };
+    }));
+  }
+
+  function statusWord(c) { return STATUS_WORD[c.status] || 'Idle'; }
+
+  function closeDesktopConfirm(n) { return 'Close Desktop ' + n + '? Its windows move to another desktop on that screen.'; }
+
+  var api = { keyOptions: keyOptions, keyDoneText: keyDoneText, desktopOwnerText: desktopOwnerText, desktopMeta: desktopMeta, closeDesktopConfirm: closeDesktopConfirm, desktopOwnerOptions: desktopOwnerOptions, statusWord: statusWord, sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MCContextsLogic = api;
 })(typeof window !== 'undefined' ? window : this);

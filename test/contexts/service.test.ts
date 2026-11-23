@@ -613,13 +613,14 @@ describe('switch, park, restore', () => {
 });
 
 describe('contexts management', () => {
-  it('a_key_held_by_another_context_is_rejected', async () => {
+  it('a_key_held_by_another_context_is_swapped_with_it', async () => {
     addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
     addAgent('a2', '/work/arki', '2026-01-01T00:01:00Z');
     const svc = newService();
-    const view = await svc.view();
-    expect(() => svc.patchContext(view.contexts[1].id, { key: 1 })).toThrow(/already used/);
-    expect(svc.patchContext(view.contexts[1].id, { key: null }).key).toBeNull();
+    const [first, second] = (await svc.view()).contexts;
+    expect(svc.patchContext(second.id, { key: first.key }).key).toBe(first.key);
+    expect(svc.store.getContext(first.id)?.key).toBe(second.key);
+    expect(svc.patchContext(second.id, { key: null }).key).toBeNull();
   });
 
   it('topic_contexts_have_no_folder_and_take_the_next_free_key', async () => {

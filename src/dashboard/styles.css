@@ -3154,3 +3154,12 @@ body.view-contexts .header-stats { display: none; }
   font-family: var(--font-sans); font-size: var(--font-size-sm);
 }
 .ctx-card-layout .ctx-select { flex: 1 1 auto; }
+
+/* Desktops section and the desktop select on each card's meta line. */
+.ctx-card-meta .ctx-key-select { flex: 0 1 auto; height: 18px; padding: 0 4px; font-size: var(--font-size-xs); line-height: 16px; }
+.ctx-desktop-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.ctx-desktop-row .ctx-key-select { font-size: var(--font-size-xs); padding: 1px 4px; }
+.ctx-desktop-owner { color: var(--text-primary); }
+.ctx-desktop-showing { color: var(--success); font-size: var(--font-size-xs); }
+.ctx-desktop-acts { display: flex; gap: 6px; margin-left: auto; }
+.ctx-desktops .ctx-toggle { gap: 8px; }

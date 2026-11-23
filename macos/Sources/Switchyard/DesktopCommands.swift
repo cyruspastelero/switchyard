@@ -33,6 +33,18 @@ struct DesktopCommands {
         }
     }
 
+    /// Closes a desktop through Mission Control. Stands on another desktop of that screen first if it is showing.
+    func closeDesktop(_ number: Int, space: UInt64) async throws {
+        if Spaces.isShowing(space), let aside = DesktopAdmin.stepAside(from: number, in: Spaces.desktops()) {
+            _ = try await goTo(aside)
+        }
+        try await Self.onThread { try MissionControl.close(number: number, space: space) }
+    }
+
+    func addDesktop(screen: Int) async throws {
+        try await Self.onThread { try MissionControl.add(screen: screen) }
+    }
+
     /// Carries each window to its desktop, one at a time, then returns to the starting desktop.
     /// `progress(done, total)` is called on the main actor after each carry.
     func move(_ moves: [WindowMoveDTO], progress: @escaping @MainActor (Int, Int) -> Void) async -> MoveResult {

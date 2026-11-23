@@ -77,8 +77,20 @@ enum Spaces {
     private static let connection = cgsMainConnection()
     private static let allSpacesMask: Int32 = 7
 
-    private static func displays() -> [[String: Any]] {
+    /// The raw per-display space lists (fullscreen spaces included).
+    static func displays() -> [[String: Any]] {
         cgsCopyManagedDisplaySpaces(connection) as? [[String: Any]] ?? []
+    }
+
+    /// The snapshot's desktop list, read live.
+    static func entries(_ list: [Desktop]) -> [DesktopEntryDTO] {
+        let builtin = Dictionary(DesktopAdmin.screenOrder(list).map { ($0, isBuiltin(displayId: $0)) }, uniquingKeysWith: { a, _ in a })
+        return DesktopAdmin.entries(list, showing: DesktopList.currentSpaces(displays()), builtin: { builtin[$0] ?? false })
+    }
+
+    /// True when the display is the laptop's own screen.
+    static func isBuiltin(displayId: String) -> Bool {
+        cgDisplay(displayId).map { CGDisplayIsBuiltin($0) != 0 } ?? false
     }
 
     /// Every desktop, numbered across displays. Read live for every command: the owner may add or remove one.
@@ -107,15 +119,18 @@ enum Spaces {
     }
 
     /// The display a desktop is on, as `CGDirectDisplayID`. "Main" (one shared set of Spaces) is the main display.
-    static func displayId(of desktop: Desktop) -> CGDirectDisplayID? {
-        if desktop.displayId == "Main" { return CGMainDisplayID() }
+    static func displayId(of desktop: Desktop) -> CGDirectDisplayID? { cgDisplay(desktop.displayId) }
+
+    /// A `CGSCopyManagedDisplaySpaces` display identifier as `CGDirectDisplayID`.
+    static func cgDisplay(_ identifier: String) -> CGDirectDisplayID? {
+        if identifier == "Main" { return CGMainDisplayID() }
         var count: UInt32 = 0
         var ids = [CGDirectDisplayID](repeating: 0, count: 16)
         guard CGGetActiveDisplayList(UInt32(ids.count), &ids, &count) == .success else { return nil }
         return ids.prefix(Int(count)).first { id in
             guard let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue(),
                   let text = CFUUIDCreateString(nil, uuid) as String? else { return false }
-            return text.caseInsensitiveCompare(desktop.displayId) == .orderedSame
+            return text.caseInsensitiveCompare(identifier) == .orderedSame
         }
     }
 

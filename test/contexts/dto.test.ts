@@ -54,3 +54,44 @@ describe('small dtos', () => {
     expect(parseUnassign({}).ok).toBe(false);
   });
 });
+
+describe('snapshot desktop list', () => {
+  const entry = (number: number, screen = 1, extra: Record<string, unknown> = {}) =>
+    ({ number, space: 100 + number, screen, builtin: screen === 1, showing: number === 1, ...extra });
+  const withList = (list: unknown, count = 2) => parseSnapshot({ windows: [], desktops: { count, active: 1, list } });
+
+  it('a_snapshot_without_a_desktop_list_is_still_valid', () => {
+    const r = parseSnapshot({ windows: [], desktops: { count: 2, active: 1 } });
+    expect(r.ok && r.value.desktops).toEqual({ count: 2, active: 1 });
+  });
+
+  it('a_desktop_list_is_parsed_with_screen_space_and_showing', () => {
+    const r = withList([entry(1), entry(2, 2)]);
+    expect(r.ok && r.value.desktops?.list).toEqual([
+      { number: 1, space: 101, screen: 1, builtin: true, showing: true },
+      { number: 2, space: 102, screen: 2, builtin: false, showing: false },
+    ]);
+  });
+
+  it('a_desktop_list_must_match_the_count_and_number_desktops_in_order', () => {
+    expect(withList([entry(1)]).ok).toBe(false);
+    expect(withList([entry(2), entry(1)]).ok).toBe(false);
+    expect(withList([entry(1), entry(1)]).ok).toBe(false);
+    expect(withList('x').ok).toBe(false);
+  });
+
+  it('a_desktop_entry_rejects_unknown_fields_and_wrong_types', () => {
+    expect(withList([entry(1), entry(2, 1, { extra: 1 })]).ok).toBe(false);
+    expect(withList([entry(1), entry(2, 1, { builtin: 'yes' })]).ok).toBe(false);
+    expect(withList([entry(1), entry(2, 1, { showing: 1 })]).ok).toBe(false);
+    expect(withList([entry(1), entry(2, 0)]).ok).toBe(false);
+    expect(withList([entry(1), entry(2, 17)]).ok).toBe(false);
+    expect(withList([entry(1), entry(2, 1, { space: -1 })]).ok).toBe(false);
+    expect(withList([entry(1), entry(2, 1, { space: 101 })]).ok).toBe(false);
+  });
+
+  it('screens_must_appear_in_order_without_coming_back', () => {
+    expect(withList([entry(1, 1), entry(2, 2), entry(3, 1)], 3).ok).toBe(false);
+    expect(withList([entry(1, 2), entry(2, 1)]).ok).toBe(false);
+  });
+});

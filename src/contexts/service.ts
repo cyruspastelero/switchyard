@@ -12,7 +12,7 @@ import { createContextStore, type ContextRow, type ContextStore } from './store.
 import { agentsByContext, isMainAgent } from './agents.ts';
 import { tabSplits, type TabSplit } from './tabsplit.ts';
 import {
-  desktopFor, desktopMode, desktopWindows, misplaced, offscreenReason, tidyPlan, unsortedSweep, type TidyDesktop, type WindowMove,
+  desktopFor, desktopMode, desktopWindows, misplaced, offscreenReason, sweepMoves, tidyPlan, windowTargets, type TidyDesktop, type WindowMove,
 } from './desktops.ts';
 import { buildView, canBeNamed, computeSuggestions, SNAPSHOT_FRESH_MS, type ViewInput } from './view.ts';
 import {
@@ -21,9 +21,11 @@ import {
 import { readEnv } from '../paths.ts';
 import { IconStore } from './icons.ts';
 import { pathsFromToolInput, pickWorkFolder } from './workfolder.ts';
+import { nameChromeWindow } from './naming.ts';
 import { claimOpened, EXPECT_OPEN_MS, type ExpectedOpen } from './reopen.ts';
 import { LayoutPresets } from './layouts.ts';
 import { presetSlots, withLayouts } from './layout-plan.ts';
+import { desktopsListView, planDesktopAction, type DesktopAction } from './desktop-admin.ts';
 
 const PALETTE = ['#4f8cff', '#e8833a', '#3fb68b', '#b46bff', '#e5566d', '#d4a72c', '#2fb5c9', '#8c8f99', '#6dbb3f'] as const;
 
@@ -210,6 +212,8 @@ export class ContextsService {
       desktops: this.desktopCount() === null ? null : (this.snapshot?.desktops ?? null),
       desktopNote: offscreenReason(this.snapshot), toSort: this.moves().length,
       unsortedToMove: this.sweep().length, autoTidy: this.store.autoTidy(),
+      desktopList: this.desktopCount() !== null && this.snapshot?.desktops?.list
+        ? desktopsListView(this.snapshot.desktops.list, rows, this.snapshot.windows, this.desktopCount() as number) : null,
     };
   }
 
@@ -320,12 +324,18 @@ export class ContextsService {
     this.requireApp();
     this.requireContext(contextId);
     await this.refresh();
+    const toMove = this.carryContexts(new Set([contextId]));
+    this.scheduleEmit();
+    return { toMove };
+  }
+
+  /** Sort's carry for some contexts only: their windows on the wrong desktop, then a tidy of what changed. */
+  private carryContexts(ids: ReadonlySet<string>): number {
     const assignments = this.store.getAssignments();
-    const moves = this.moves().filter((m) => assignments.get(m.windowKey)?.contextId === contextId);
+    const moves = this.moves().filter((m) => ids.has(assignments.get(m.windowKey)?.contextId ?? ''));
     if (moves.length > 0) this.commands.enqueue({ type: 'moveWindows', moves });
     this.tidyChanged(moves);
-    this.scheduleEmit();
-    return { toMove: moves.length };
+    return moves.length;
   }
 
   // --- Real desktops ----------------------------------------------------------------
@@ -340,14 +350,7 @@ export class ContextsService {
 
   /** Target desktop of every window assigned to a known context. Empty in off-screen mode. */
   private desktopTargets(): Map<string, number> {
-    const targets = new Map<string, number>();
-    if (this.desktopCount() === null) return targets;
-    const rows = new Map(this.store.listContexts().map((c) => [c.id, c]));
-    for (const [key, a] of this.store.getAssignments()) {
-      const desktop = this.contextDesktop(rows.get(a.contextId));
-      if (desktop !== null) targets.set(key, desktop);
-    }
-    return targets;
+    return windowTargets(this.store.listContexts(), this.store.getAssignments(), this.desktopCount());
   }
 
   private moves(): readonly WindowMove[] {
@@ -356,12 +359,7 @@ export class ContextsService {
 
   /** Unsorted windows on a desktop an unparked context owns; Sort carries them to the shared desktop. */
   private sweep(): readonly WindowMove[] {
-    const count = this.desktopCount();
-    if (count === null) return [];
-    const known = new Set(this.store.listContexts().map((c) => c.id));
-    const sorted = new Set([...this.store.getAssignments()].filter(([, a]) => known.has(a.contextId)).map(([k]) => k));
-    const owned = new Set(this.store.listContexts().filter((c) => !c.parked).map((c) => desktopFor(c.key, count) as number));
-    return unsortedSweep(this.snapshot?.windows ?? [], sorted, owned, count);
+    return sweepMoves(this.store.listContexts(), this.store.getAssignments(), this.snapshot?.windows ?? [], this.desktopCount());
   }
 
   /** After a Sort or Move: lay out the desktops the moves leave or reach, when the owner has autoTidy on. */
@@ -409,6 +407,13 @@ export class ContextsService {
 
   private withPresets = (d: readonly TidyDesktop[]) => presetSlots(d, this.store.listContexts(), this.desktopCount(), this.activeContextId, this.layouts);
 
+  /** Desktops list: go to, add or close a desktop. The rules (and the refusals) are in desktop-admin.ts. */
+  desktopAction(action: DesktopAction): void {
+    this.requireApp();
+    this.commands.enqueue(planDesktopAction(action, this.snapshot, this.store.listContexts(), this.desktopCount()));
+    this.scheduleEmit();
+  }
+
   /** Asks the app to save the windows on the desktop on screen as a preset. */
   captureLayout(dto: { name?: string }): { name: string } {
     this.requireApp();
@@ -454,7 +459,7 @@ export class ContextsService {
       if (keptUnsorted.has(w.key)) continue;
       const existing = assignments.get(w.key);
       if (existing?.source === 'owner') {
-        this.nameChromeWindow(w, existing.contextId);
+        nameChromeWindow(this.store, this.commands, w, existing.contextId);
         continue;
       }
       const isBrowser = w.browser !== null || isBrowserBundle(w.bundleId);
@@ -472,7 +477,7 @@ export class ContextsService {
       } else if (existing.reason !== match.reason) {
         this.store.setAssignment(w.key, match.contextId, 'auto', at, match.reason);
       }
-      this.nameChromeWindow(w, match.contextId);
+      nameChromeWindow(this.store, this.commands, w, match.contextId);
     }
     return changed;
   }
@@ -496,27 +501,7 @@ export class ContextsService {
       return;
     }
     this.store.setAssignment(w.key, match.contextId, 'auto', at, match.reason);
-    this.nameChromeWindow(w, match.contextId);
-  }
-
-  /** Names a Chrome window after its context, unless the owner (or anyone but us) named it. */
-  private nameChromeWindow(w: SnapshotWindow, contextId: string): void {
-    if (!w.browser || !canBeNamed(w.bundleId)) return;
-    const ctx = this.store.getContext(contextId);
-    if (!ctx) return;
-    const record = this.store.getNames().get(w.key);
-    if (record?.set_by === 'owner') return;
-    const current = w.browser.name;
-    if (current && current !== record?.name) {
-      this.store.setName(w.key, current, 'owner'); // someone named it: keep their name
-      return;
-    }
-    if (current === ctx.name) return;
-    // Already asked. If the browser did not take the name, asking again on every snapshot only queues
-    // slow browser scripts in front of the next switch.
-    if (record?.set_by === 'switchyard' && record.name === ctx.name) return;
-    this.store.setName(w.key, ctx.name, 'switchyard');
-    this.commands.enqueue({ type: 'nameWindow', windowKey: w.key, name: ctx.name });
+    nameChromeWindow(this.store, this.commands, w, match.contextId);
   }
 
   /** Re-applies the active context after sorting changed. Never takes focus: the owner may be typing. */
@@ -553,8 +538,12 @@ export class ContextsService {
    * Window actions need the Mac app. Without a recent snapshot a queued command would never run
    * (the app starts from "now" when it connects), so say so instead of pretending it worked.
    */
+  private appConnected(): boolean {
+    return this.snapshotAt !== null && this.now() - this.snapshotAt < SNAPSHOT_FRESH_MS;
+  }
+
   private requireApp(): void {
-    if (this.snapshotAt !== null && this.now() - this.snapshotAt < SNAPSHOT_FRESH_MS) return;
+    if (this.appConnected()) return;
     throw new ContextsError(
       409,
       "The Switchyard Mac app isn't reporting windows. Open it from the menu bar and allow it under Privacy & Security › Accessibility.",
@@ -577,19 +566,28 @@ export class ContextsService {
     return row;
   }
 
+  /**
+   * A key is the context's ⌥N and its Desktop N. Taking a key another context holds swaps the two; then both
+   * contexts' windows are carried to their new desktops (only while the Mac app is connected).
+   */
   patchContext(id: string, patch: { name?: string; color?: string; key?: number | null; layoutId?: string | null }): ContextRow {
-    this.requireContext(id);
+    const before = this.requireContext(id);
     const { layoutId, ...rest } = patch;
-    if (patch.key !== undefined && patch.key !== null) {
-      const holder = this.store.listContexts().find((c) => c.key === patch.key && c.id !== id);
-      if (holder) throw new ContextsError(409, `Key ${patch.key} is already used by "${holder.name}"`);
-    }
+    const holder = patch.key == null ? undefined : this.store.listContexts().find((c) => c.key === patch.key && c.id !== id);
     if (layoutId !== undefined) this.layouts.checkContextRef(layoutId);
-    // Everything is checked: write both or neither.
+    // Everything is checked: write all or nothing. The unique key index needs this context's key freed first.
     const updated = this.deps.db.transaction(() => {
       if (layoutId !== undefined) this.layouts.setContextLayout(id, layoutId);
+      if (holder) {
+        this.store.updateContext(id, { key: null });
+        this.store.updateContext(holder.id, { key: before.key });
+      }
       return this.store.updateContext(id, rest) as ContextRow;
     });
+    if (patch.key !== undefined && patch.key !== before.key && this.appConnected()) {
+      this.carryContexts(new Set(holder ? [id, holder.id] : [id]));
+      this.reshowActive();
+    }
     this.scheduleEmit();
     return updated;
   }
@@ -724,7 +722,7 @@ export class ContextsService {
         const pattern = learnPattern(tab.url);
         if (pattern) this.store.learnRule(pattern, contextId);
       }
-      this.nameChromeWindow(win, contextId);
+      nameChromeWindow(this.store, this.commands, win, contextId);
     }
     this.refresh().then(() => undefined, () => undefined);
     return this.afterMove(windowKey, this.contextDesktop(ctx));
