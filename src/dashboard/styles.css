@@ -521,9 +521,10 @@ html, body {
 }
 
 /* Gentle pulse for active status dot */
+/* The low point stays above 3:1 on the panel (B15). */
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  50% { opacity: 0.7; }
 }
 
 .agent-dot.active {
@@ -1964,7 +1965,8 @@ html, body {
 
 /* Always show on touch devices */
 @media (hover: none) {
-  .agent-quick-actions { opacity: 0.7; }
+  .agent-quick-actions { opacity: 1; }
+  .agent-quick-actions .agent-quick-btn { color: var(--text-secondary); }
 }
 
 .agent-quick-btn {
