@@ -2836,7 +2836,9 @@ body.view-contexts #contexts-view { display: flex; }
   font-size: var(--font-size-base);
 }
 .ctx-card.active { border-color: var(--border-bright); box-shadow: inset 2px 0 0 var(--text-bright); }
-.ctx-card.parked { opacity: 0.8; }
+/* Parked: mute the dot and name only. Card-wide opacity took the note text to 3.83:1. */
+.ctx-card.parked .ctx-dot { opacity: 0.5; }
+.ctx-card.parked .ctx-name-text { color: var(--text-secondary); }
 
 .ctx-card-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 28px; }
 /* Body lines up under the name (dot 10px + gap 8px). */
