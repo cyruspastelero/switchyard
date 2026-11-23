@@ -40,7 +40,7 @@ export class MissionEngineError extends Error {
 /**
  * Parse the depends_on field (stored as comma-separated string) into an array.
  */
-function parseDeps(depsField: string | null): readonly string[] {
+export function parseDeps(depsField: string | null): readonly string[] {
   if (!depsField || depsField.trim() === "") {
     return [];
   }
