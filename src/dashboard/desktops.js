@@ -1,5 +1,6 @@
 // ── Desktops (Contexts tab) ───────────────────────────────────────────────────
-// The "Desktops" section (one row per desktop: owner, windows, Go, Close; Add desktop per screen) and the
+// The "Desktops" section (one row per desktop: pick, owner, windows, Go, Close; Add desktop per screen; a batch
+// close for the picked rows) and the
 // desktop select on each card's meta line. A context's key is its ⌥N and its Desktop N; picking a key another
 // context holds swaps the two. contexts.js passes its DOM helpers and act(); all text goes in through h().
 
@@ -86,12 +87,31 @@
         });
     }
 
-    function desktopRow(row, d, control) {
+    // Desktops picked for a batch close; kept across renders, dropped once closed or gone.
+    var picked = {};
+    var BATCH = 'desktopBatch';
+    function pickedNumbers() { return Object.keys(picked).map(Number); }
+
+    function pickBox(row, control, onPick) {
+      var box = h('input', 'ctx-desktop-pick', null, { type: 'checkbox', 'data-fk': 'desktopPick:' + row.number, 'aria-label': 'Select Desktop ' + row.number });
+      box.checked = !!picked[row.number];
+      if (!control || !!row.closeBlocked || !!busy[BATCH]) box.disabled = true;
+      if (row.closeBlocked) box.title = row.closeBlocked;
+      box.addEventListener('change', function () {
+        if (box.checked) picked[row.number] = true; else delete picked[row.number];
+        onPick();
+      });
+      return box;
+    }
+
+    // One shape for every row: pick, name, owner, meta, showing, Go/Close. A blocked Close says why on hover.
+    function desktopRow(row, d, control, onPick) {
       var li = h('li', 'ctx-desktop-row' + (row.showing ? ' showing' : ''));
       var name = 'Desktop ' + row.number;
       var go = 'desktopShow:' + row.number, close = 'desktopClose:' + row.number;
-      add(li, h('span', 'ctx-layout-name', name), ownerCell(row, d), h('span', 'ctx-muted', logic.desktopMeta(row)),
-        row.showing ? h('span', 'ctx-desktop-showing', 'Showing') : null,
+      add(li, pickBox(row, control, onPick), h('span', 'ctx-layout-name', name), ownerCell(row, d),
+        h('span', 'ctx-muted ctx-desktop-meta', logic.desktopMeta(row)),
+        h('span', 'ctx-desktop-showing', row.showing ? 'Showing' : ''),
         h('span', 'ctx-desktop-acts'));
       add(li.lastChild,
         button(busy[go] ? 'Going…' : 'Go', '', go, function () {
@@ -100,14 +120,73 @@
         button(busy[close] ? 'Closing…' : 'Close', '', close, function () {
           if (!root.confirm(logic.closeDesktopConfirm(row.number))) return;
           act(close, function () { return api.close(row.number); }, name);
-        }, !control || !!row.closeBlocked || !!busy[close], row.closeBlocked || ''));
-      if (row.closeBlocked) li.appendChild(h('div', 'ctx-layout-hint ctx-muted', row.closeBlocked));
+        }, !control || !!row.closeBlocked || !!busy[close] || !!busy[BATCH], row.closeBlocked || ''));
       return li;
+    }
+
+    function fetchList() {
+      return request('GET', '/api/contexts').then(function (raw) { return normalize(raw && raw.desktopList); });
+    }
+
+    // Closes one desktop and waits for the Mac app to report one desktop fewer. The close route only queues the
+    // command, so each row is re-read first: a desktop the server now blocks is skipped, like a single close.
+    function closeOne(n, tally) {
+      return fetchList().then(function (list) {
+        var row = list && list.desktops.filter(function (r) { return r.number === n; })[0];
+        if (!row || row.closeBlocked) { tally.skipped++; return null; }
+        var before = list.desktops.length;
+        return api.close(n).then(function () {
+          return logic.pollUntil(function () {
+            return fetchList().then(function (l) { return !!l && l.desktops.length < before; });
+          }, 500, 20000);
+        }).then(function (gone) {
+          if (!gone) throw new Error('Desktop ' + n + ' did not close in time');
+          tally.closed++;
+          delete picked[n];
+          return null;
+        });
+      });
+    }
+
+    function runBatch(plan) {
+      var tally = { closed: 0, skipped: plan.skipped.length };
+      return plan.close.reduce(function (p, n) {
+        return p.then(function () { return closeOne(n, tally); });
+      }, Promise.resolve()).then(function () {
+        picked = {};
+        return { notice: logic.closeBatchDoneText(tally.closed, tally.skipped) };
+      }, function (err) {
+        throw new Error(logic.closeBatchDoneText(tally.closed, tally.skipped) + '. Stopped: ' + (err.message || 'that did not work.'));
+      });
+    }
+
+    function batchBar(list, control) {
+      var bar = h('div', 'ctx-desktop-batch');
+      var label = h('span', 'ctx-muted');
+      var go = button('', '', BATCH, function () {
+        var plan = logic.closePlan(list.desktops, pickedNumbers());
+        if (!plan.close.length || !root.confirm(logic.closeBatchConfirm(plan))) return;
+        act(BATCH, function () { return runBatch(plan); });
+      });
+      function update() {
+        var plan = logic.closePlan(list.desktops, pickedNumbers());
+        var count = pickedNumbers().length;
+        label.textContent = count ? count + ' selected' : 'Select desktops to close several at once';
+        go.textContent = busy[BATCH] ? 'Closing…' : logic.closeBatchLabel(plan);
+        go.disabled = !control || !plan.close.length || !!busy[BATCH];
+        go.title = plan.skipped.map(function (s) { return s.reason; }).join('\n');
+      }
+      update();
+      add(bar, label, go);
+      return { el: bar, update: update };
     }
 
     function section(d, control) {
       var list = d.desktopList;
       if (!list || !list.desktops.length) return null;
+      pickedNumbers().forEach(function (n) {
+        if (!list.desktops.some(function (r) { return r.number === n; })) delete picked[n];
+      });
       var box = h('div', 'ctx-foot ctx-layouts ctx-desktops');
       var head = h('div', 'ctx-toggle');
       head.appendChild(h('span', 'ctx-toggle-name', 'Desktops'));
@@ -119,9 +198,10 @@
         }, !control || !!s.addBlocked || !!busy[key], s.addBlocked || 'Add a desktop at the end of this screen’s row'));
       });
       box.appendChild(head);
+      var bar = batchBar(list, control);
       var ul = h('ul', 'ctx-layout-list');
-      list.desktops.forEach(function (row) { ul.appendChild(desktopRow(row, d, control)); });
-      box.appendChild(ul);
+      list.desktops.forEach(function (row) { ul.appendChild(desktopRow(row, d, control, bar.update)); });
+      add(box, ul, bar.el);
       return box;
     }
 

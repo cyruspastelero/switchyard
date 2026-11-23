@@ -663,6 +663,24 @@ describe('contexts management', () => {
     await expect(svc.acceptSuggestion('nope')).rejects.toThrow(/not found/);
   });
 
+  it('the_same_url_in_two_tabs_gives_two_suggestions_that_each_close_their_own_tab', async () => {
+    addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
+    addAgent('a2', '/work/arki', '2026-01-01T00:01:00Z');
+    patternsByFolder['/work/tala'] = ['github.com/cyrus/tala'];
+    patternsByFolder['/work/arki'] = ['github.com/cyrus/shea-coach'];
+    const svc = newService();
+    const arki = ['https://github.com/cyrus/shea-coach', 'https://github.com/cyrus/shea-coach/pulls', 'https://github.com/cyrus/shea-coach/issues'];
+    const w1 = chrome('w1', [...arki, 'https://github.com/cyrus/tala', 'https://github.com/cyrus/tala']);
+    await svc.applySnapshot({ windows: [w1, chrome('w2', ['https://github.com/cyrus/tala/issues'])] });
+    const ids = (await svc.view()).suggestions.map((s) => s.id);
+    expect(ids).toHaveLength(2);
+    const before = svc.commands.lastSeq;
+    await svc.acceptSuggestion(ids[1]);
+    const open = svc.commands.since(before).find((c) => c.type === 'openTab')!;
+    svc.ack(open.seq, true, null);
+    expect(svc.commands.since(open.seq).find((c) => c.type === 'closeTab')).toMatchObject({ windowKey: 'w1', tabId: 4 });
+  });
+
   it('a_failed_target_open_keeps_the_source_tab', async () => {
     addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
     addAgent('a2', '/work/arki', '2026-01-01T00:01:00Z');

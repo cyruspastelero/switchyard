@@ -3157,9 +3157,21 @@ body.view-contexts .header-stats { display: none; }
 
 /* Desktops section and the desktop select on each card's meta line. */
 .ctx-card-meta .ctx-key-select { flex: 0 1 auto; height: 18px; padding: 0 4px; font-size: var(--font-size-xs); line-height: 16px; }
-.ctx-desktop-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-.ctx-desktop-row .ctx-key-select { font-size: var(--font-size-xs); padding: 1px 4px; }
-.ctx-desktop-owner { color: var(--text-primary); }
+/* Owned, free and shared rows share one grid, so the columns line up. */
+.ctx-desktop-row {
+  display: grid; grid-template-columns: auto 6.5em minmax(7em, 12em) minmax(0, 1fr) 4.5em auto;
+  align-items: center; gap: 4px 10px;
+}
+.ctx-desktop-row .ctx-key-select { font-size: var(--font-size-xs); padding: 1px 4px; width: 100%; min-width: 0; }
+.ctx-desktop-pick { margin: 0; }
+.ctx-desktop-owner { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-desktop-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctx-desktop-showing { color: var(--success); font-size: var(--font-size-xs); }
-.ctx-desktop-acts { display: flex; gap: 6px; margin-left: auto; }
+.ctx-desktop-acts { display: flex; gap: 6px; justify-content: flex-end; }
+.ctx-desktop-batch { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 8px; font-size: var(--font-size-sm); }
+@media (max-width: 640px) {
+  .ctx-desktop-row { grid-template-columns: auto 6.5em minmax(0, 1fr) auto; }
+  .ctx-desktop-meta { grid-column: 2 / 4; grid-row: 2; }
+  .ctx-desktop-showing { grid-column: 4; grid-row: 2; text-align: right; }
+}
 .ctx-desktops .ctx-toggle { gap: 8px; }
