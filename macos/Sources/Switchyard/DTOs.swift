@@ -194,10 +194,10 @@ struct ContextsResponse: Decodable, Equatable {
     let toSort: Int
     /// True when the server uses real desktops.
     let desktopMode: Bool
-    /// Saved layout presets, for the "Layout N" default name.
-    let layoutCount: Int
+    /// Names of the saved layout presets, for the "Layout N" default name.
+    let layoutNames: [String]
 
-    private struct NamedLayout: Decodable { let id: String }
+    private struct NamedLayout: Decodable { let name: String }
 
     private enum CodingKeys: String, CodingKey {
         case windowControl, activeContextId, contexts, waitingCount, unsorted, toSort, desktopMode, unsortedToMove, autoTidy, layouts
@@ -215,7 +215,7 @@ struct ContextsResponse: Decodable, Equatable {
         autoTidy = (try? c.decode(Bool.self, forKey: .autoTidy)) ?? true
         toSort = (try? c.decode(Int.self, forKey: .toSort)) ?? 0
         desktopMode = (try? c.decode(String.self, forKey: .desktopMode)) == "desktops"
-        layoutCount = (try? c.decode([NamedLayout].self, forKey: .layouts))?.count ?? 0
+        layoutNames = (try? c.decode([NamedLayout].self, forKey: .layouts))?.map(\.name) ?? []
     }
 }
 

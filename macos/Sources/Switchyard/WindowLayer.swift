@@ -391,12 +391,12 @@ actor WindowLayer {
         return wins.filter { kept.contains($0.key) }
     }
 
-    /// Windows a tidy may lay out: listed now and not parked off-screen by Switchyard.
     /// Every window a manual tidy may lay out (see `ManualTidy`).
     func manualTidyKeys() -> [String] {
         ManualTidy.keys(latest.map { ManualTidy.Candidate(key: $0.key, hidden: hidden[$0.id] != nil) })
     }
 
+    /// Windows a tidy may lay out: listed now and not parked off-screen by Switchyard.
     func tidyCandidates(_ keys: [String]) -> [ManagedWindow] {
         let wanted = Set(keys)
         return latest.filter { wanted.contains($0.key) && hidden[$0.id] == nil }

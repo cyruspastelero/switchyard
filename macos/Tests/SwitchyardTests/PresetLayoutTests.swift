@@ -83,9 +83,51 @@ final class PresetLayoutTests: XCTestCase {
         let slots = [slot("c", "EXT", builtin: false, SlotFrame(x: 0, y: 0, w: 1, h: 1)),
                      slot("g", "LAP", builtin: true, SlotFrame(x: 0, y: 0, w: 1, h: 1))]
         let windows = [PresetWindow(key: "c", bundleId: "c", z: 0, number: 1), PresetWindow(key: "g", bundleId: "g", z: 1, number: 2)]
-        let frames = PresetLayout.assign(windows, slots: slots, screens: [laptop, external], onlyScreen: "LAP")
+        let frames = PresetLayout.assign(windows, slots: slots, screens: [laptop, external], scope: .only("LAP"))
         XCTAssertNil(frames["c"])
         XCTAssertEqual(frames["g"], laptop.area)
+    }
+
+    func test_with_separate_spaces_and_no_known_screen_nothing_is_placed() {
+        let slots = [slot("g", "LAP", builtin: true, SlotFrame(x: 0, y: 0, w: 1, h: 1))]
+        let windows = [PresetWindow(key: "g", bundleId: "g", z: 0, number: 1)]
+        XCTAssertEqual(PresetLayout.assign(windows, slots: slots, screens: [laptop], scope: .only(nil)), [:])
+    }
+
+    func test_each_window_belongs_to_the_screen_holding_most_of_it() {
+        let groups = TidyScreens.group([
+            (key: "left", frame: Rect(x: 100, y: 100, width: 400, height: 300)),
+            (key: "mostly-right", frame: Rect(x: 900, y: 100, width: 400, height: 300)),
+            (key: "nowhere", frame: Rect(x: 9000, y: 9000, width: 10, height: 10)),
+        ], screens: [laptop.frame, external.frame])
+        XCTAssertEqual(groups[0], ["left"])
+        XCTAssertEqual(groups[1], ["mostly-right"])
+        XCTAssertNil(groups.values.first { $0.contains("nowhere") })
+    }
+
+    func test_a_changed_preset_makes_an_auto_tidy_run_again() {
+        let a = [slot("g", "LAP", builtin: true, SlotFrame(x: 0, y: 0, w: 1, h: 1))]
+        let b = [slot("g", "LAP", builtin: true, SlotFrame(x: 0, y: 0, w: 0.5, h: 1))]
+        XCTAssertNotEqual(TidyGate.fingerprint(a), TidyGate.fingerprint(b))
+        XCTAssertEqual(TidyGate.fingerprint(nil), TidyGate.fingerprint([]))
+        XCTAssertTrue(TidyGate.shouldRun(keys: ["w"], last: ["w"], force: false, preset: TidyGate.fingerprint(b), lastPreset: TidyGate.fingerprint(a)))
+        XCTAssertFalse(TidyGate.shouldRun(keys: ["w"], last: ["w"], force: false, preset: TidyGate.fingerprint(a), lastPreset: TidyGate.fingerprint(a)))
+        var memory = TidyMemory()
+        memory.record(desktop: 2, before: [:], keys: ["w"], preset: TidyGate.fingerprint(a))
+        XCTAssertEqual(memory.lastPreset(desktop: 2), TidyGate.fingerprint(a))
+    }
+
+    func test_tidy_memory_from_before_presets_still_loads() throws {
+        let old = #"{"before":{"2":{"a":{"x":1,"y":2,"width":3,"height":4}}},"sets":{"2":["a"]}}"#
+        let memory = try JSONDecoder().decode(TidyMemory.self, from: Data(old.utf8))
+        XCTAssertEqual(memory.lastKeys(desktop: 2), ["a"])
+        XCTAssertEqual(memory.lastPreset(desktop: 2), TidyGate.fingerprint(nil))
+    }
+
+    func test_the_default_name_is_the_lowest_unused_layout_number() {
+        XCTAssertEqual(LayoutNames.next(taken: []), "Layout 1")
+        XCTAssertEqual(LayoutNames.next(taken: ["Layout 2"]), "Layout 1")
+        XCTAssertEqual(LayoutNames.next(taken: ["Layout 1", "Layout 2", "Desk"]), "Layout 3")
     }
 
     func test_apps_without_a_slot_are_left_for_the_auto_layout() {
@@ -105,7 +147,7 @@ final class PresetLayoutTests: XCTestCase {
     func test_the_owner_contexts_layout_gives_the_desktops_slots() throws {
         let json = #"{"contexts":[{"id":"a","name":"A","status":"idle","desktop":2,"layout":{"id":"p","name":"Desk","slots":[{"bundleId":"g","app":"G","screen":{"uuid":"LAP","builtin":true},"frame":{"x":0,"y":0,"w":1,"h":1}}]}},{"id":"b","name":"B","status":"idle","desktop":3}],"layouts":[{"id":"p","name":"Desk"}]}"#
         let r = try JSONDecoder().decode(ContextsResponse.self, from: Data(json.utf8))
-        XCTAssertEqual(r.layoutCount, 1)
+        XCTAssertEqual(r.layoutNames, ["Desk"])
         XCTAssertEqual(TidyTargets.slots(contexts: r.contexts, desktop: 2, activeContextId: nil)?.count, 1)
         XCTAssertNil(TidyTargets.slots(contexts: r.contexts, desktop: 3, activeContextId: nil))
     }

@@ -112,9 +112,18 @@ enum Layout {
 enum TidyGate {
     /// From Sort or Move (`force` false) a desktop whose window set equals the one of its last tidy is left alone,
     /// so the owner's own resizes stay.
-    static func shouldRun(keys: Set<String>, last: Set<String>?, force: Bool) -> Bool {
+    /// A changed preset (or default) runs again too.
+    static func shouldRun(keys: Set<String>, last: Set<String>?, force: Bool, preset: String = "", lastPreset: String = "") -> Bool {
         guard !keys.isEmpty else { return false }
-        return force || last != keys
+        return force || last != keys || preset != lastPreset
+    }
+
+    /// Stable text for a preset's slots; "" for none.
+    static func fingerprint(_ slots: [LayoutSlotDTO]?) -> String {
+        guard let slots, !slots.isEmpty else { return "" }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(slots)).map { String(decoding: $0, as: UTF8.self) } ?? "?"
     }
 }
 
@@ -122,11 +131,16 @@ enum TidyGate {
 struct TidyMemory: Codable, Equatable {
     private var before: [String: [String: Rect]] = [:]
     private var sets: [String: [String]] = [:]
+    /// The preset fingerprint of the last tidy; absent in files from before presets.
+    private var presets: [String: String]? = nil
 
-    mutating func record(desktop: Int, before frames: [String: Rect], keys: Set<String>) {
+    mutating func record(desktop: Int, before frames: [String: Rect], keys: Set<String>, preset: String = "") {
         before[String(desktop)] = frames
         sets[String(desktop)] = keys.sorted()
+        presets = (presets ?? [:]).merging([String(desktop): preset]) { _, new in new }
     }
+
+    func lastPreset(desktop: Int) -> String { presets?[String(desktop)] ?? "" }
 
     func lastKeys(desktop: Int) -> Set<String>? { sets[String(desktop)].map(Set.init) }
 
@@ -137,6 +151,7 @@ struct TidyMemory: Codable, Equatable {
         let frames = before[String(desktop)] ?? [:]
         before[String(desktop)] = nil
         sets[String(desktop)] = nil
+        presets?[String(desktop)] = nil
         return frames
     }
 }

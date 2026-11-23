@@ -21,8 +21,8 @@ final class AppModel: ObservableObject {
     /// The current desktop has an Undo for its last tidy.
     @Published private(set) var canUndoTidy = false
     @Published private(set) var unsorted: [WindowRef] = []
-    /// Saved layout presets, for the default name of the next one.
-    @Published private(set) var layoutCount = 0
+    /// Names of the saved layout presets, for the default name of the next one.
+    @Published private(set) var layoutNames: [String] = []
 
     private let config = AppConfig.load()
     private lazy var api = APIClient(config: config)
@@ -136,7 +136,7 @@ final class AppModel: ObservableObject {
 
     /// "Save layout…" in the panel: asks for a name, then saves the desktop on screen as a preset.
     func saveLayoutPrompt() {
-        guard let name = LayoutNamePrompt.ask(defaultName: "Layout \(layoutCount + 1)") else { return }
+        guard let name = LayoutNamePrompt.ask(defaultName: LayoutNames.next(taken: layoutNames)) else { return }
         act("Save layout") { try await self.captureAndSave(name: name) }
     }
 
@@ -318,7 +318,7 @@ final class AppModel: ObservableObject {
         unsortedCount = r.unsortedCount
         unsorted = r.unsorted
         desktopMode = r.desktopMode
-        layoutCount = r.layoutCount
+        layoutNames = r.layoutNames
         toSortCount = r.desktopMode ? r.toSort : 0
         let current = Dictionary(r.contexts.map { ($0.id, $0.status) }, uniquingKeysWith: { a, _ in a })
         if let before = previousStatus {

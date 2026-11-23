@@ -31,6 +31,14 @@ struct PresetWindow: Equatable {
     let number: UInt32
 }
 
+/// Which screens a preset may place windows on.
+enum ScreenScope: Equatable {
+    /// One set of Spaces across displays: any screen.
+    case anyScreen
+    /// Separate Spaces: only the desktop's own display; nil (its id is unknown) places nothing.
+    case only(String?)
+}
+
 enum PresetLayout {
     static let maxSlots = 50
     /// Each extra window of an app sits this much lower and to the right on that app's last slot.
@@ -68,9 +76,10 @@ enum PresetLayout {
     }
 
     /// Window key -> frame. An app's nth window (front to back) takes its nth slot; extra ones deck on its last.
-    /// `onlyScreen`: with separate Spaces per display, slots on any other screen are skipped (the window stays put).
+    /// `scope`: with separate Spaces per display, slots on any other screen are skipped (the window stays put).
     static func assign(_ windows: [PresetWindow], slots: [LayoutSlotDTO], screens: [PresetScreen],
-                       onlyScreen: String? = nil) -> [String: Rect] {
+                       scope: ScreenScope = .anyScreen) -> [String: Rect] {
+        if scope == .only(nil) { return [:] }
         let byApp = Dictionary(grouping: slots, by: \.bundleId)
         var frames: [String: Rect] = [:]
         for (bundleId, wins) in Dictionary(grouping: windows, by: \.bundleId) {
@@ -80,7 +89,7 @@ enum PresetLayout {
                 let slot = i < appSlots.count ? appSlots[i] : lastSlot
                 let step = Double(max(0, i - appSlots.count + 1)) * deckStep
                 guard let screen = screen(for: slot, in: screens) else { continue }
-                if let only = onlyScreen, screen.uuid.caseInsensitiveCompare(only) != .orderedSame { continue }
+                if case .only(let own?) = scope, screen.uuid.caseInsensitiveCompare(own) != .orderedSame { continue }
                 frames[w.key] = place(slot.frame, in: screen.area, offset: step)
             }
         }
@@ -97,6 +106,34 @@ enum PresetLayout {
     static func unslotted(_ windows: [PresetWindow], slots: [LayoutSlotDTO]) -> [String] {
         let apps = Set(slots.map(\.bundleId))
         return windows.filter { !apps.contains($0.bundleId) }.sorted { $0.z < $1.z }.map(\.key)
+    }
+}
+
+/// Shared Spaces: a desktop spans every screen, so the automatic layout runs once per screen.
+enum TidyScreens {
+    /// Screen index -> keys of the windows mostly on it. A window on no screen is left out.
+    static func group(_ windows: [(key: String, frame: Rect)], screens: [Rect]) -> [Int: [String]] {
+        var groups: [Int: [String]] = [:]
+        for w in windows {
+            let overlaps = screens.enumerated().map { ($0.offset, overlap(w.frame, $0.element)) }
+            guard let best = overlaps.max(by: { $0.1 < $1.1 }), best.1 > 0 else { continue }
+            groups[best.0, default: []].append(w.key)
+        }
+        return groups
+    }
+
+    private static func overlap(_ a: Rect, _ b: Rect) -> Double {
+        max(0, min(a.maxX, b.maxX) - max(a.x, b.x)) * max(0, min(a.maxY, b.maxY) - max(a.y, b.y))
+    }
+}
+
+/// The default name for a new preset, as the server picks it.
+enum LayoutNames {
+    static func next(taken: [String]) -> String {
+        let names = Set(taken)
+        var n = 1
+        while names.contains("Layout \(n)") { n += 1 }
+        return "Layout \(n)"
     }
 }
 
