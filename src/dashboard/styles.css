@@ -3071,7 +3071,7 @@ input:focus-visible,
   padding: 18px 20px 14px;
   max-width: 760px;
 }
-.ctx-setup-title { font-family: var(--font-sans); font-size: 17px; color: var(--text-bright); }
+.ctx-setup-title { font-family: var(--font-sans); font-size: var(--font-size-lg); color: var(--text-bright); }
 .ctx-setup-lead {
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
