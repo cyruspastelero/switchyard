@@ -88,6 +88,26 @@ function serveDashboardFile(filePath: string, res: http.ServerResponse): void {
 // Server factory
 // ---------------------------------------------------------------------------
 
+// Loaded in this order by index.html and login.html: the cascade is the one file it was split from.
+const STYLESHEETS: ReadonlySet<string> = new Set(['styles.css', 'styles-panels.css', 'styles-overlays.css', 'styles-mobile.css', 'styles-contexts.css']);
+
+const DASHBOARD_SCRIPTS: ReadonlySet<string> = new Set([
+  'core.js',
+  'activity.js',
+  'usage.js',
+  'app.js',
+  'picker.js',
+  'security.js',
+  'contexts-api.js',
+  'contexts-logic.js',
+  'layouts.js',
+  'desktops.js',
+  'suggestions.js',
+  'dragdrop.js',
+  'new-context.js',
+  'contexts.js',
+]);
+
 export interface ServerOptions {
   /** Clock for session expiry; tests move it. */
   readonly now?: () => number;
@@ -336,7 +356,7 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
         return;
       }
       // Static assets needed by login page
-      if (method === 'GET' && (urlPath === '/styles.css' || urlPath === '/login.js')) {
+      if (method === 'GET' && (STYLESHEETS.has(urlPath.slice(1)) || urlPath === '/login.js')) {
         serveDashboardFile(urlPath.slice(1), res);
         return;
       }
@@ -366,60 +386,13 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
       }
 
       // ── Dashboard routes (authenticated) ──
-      if (method === 'GET' && (url === '/' || url === '/index.html')) {
+      if (method === 'GET' && (urlPath === '/' || urlPath === '/index.html')) {
         serveDashboardFile('index.html', res);
         return;
       }
-      if (method === 'GET' && url === '/core.js') {
-        serveDashboardFile('core.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/activity.js') {
-        serveDashboardFile('activity.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/usage.js') {
-        serveDashboardFile('usage.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/app.js') {
-        serveDashboardFile('app.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/picker.js') {
-        serveDashboardFile('picker.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/security.js') {
-        serveDashboardFile('security.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/contexts-logic.js') {
-        serveDashboardFile('contexts-logic.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/layouts.js') {
-        serveDashboardFile('layouts.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/desktops.js') {
-        serveDashboardFile('desktops.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/suggestions.js') {
-        serveDashboardFile('suggestions.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/dragdrop.js') {
-        serveDashboardFile('dragdrop.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/new-context.js') {
-        serveDashboardFile('new-context.js', res);
-        return;
-      }
-      if (method === 'GET' && url === '/contexts.js') {
-        serveDashboardFile('contexts.js', res);
+      // A new dashboard script needs its name here (and in index.html, in load order).
+      if (method === 'GET' && DASHBOARD_SCRIPTS.has(urlPath.slice(1))) {
+        serveDashboardFile(urlPath.slice(1), res);
         return;
       }
 
@@ -513,6 +486,8 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
       }
       return true;
     },
+    // A socket opened with a session that has since expired or been evicted is closed.
+    stillAllowed: (req) => isAuthenticated(req),
     onConnection: (ws) => onWebSocketConnection(ws),
   });
 
@@ -595,7 +570,13 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
         contexts.start();
         onListening?.();
       });
-      retentionTimer = setInterval(() => purgeExpiredData(), RETENTION_SWEEP_MS);
+      retentionTimer = setInterval(() => {
+        try {
+          purgeExpiredData();
+        } catch (err) {
+          console.error('  [db] Retention purge failed, retrying next hour:', err instanceof Error ? err.message : err);
+        }
+      }, RETENTION_SWEEP_MS);
       retentionTimer.unref();
     },
     stop(): void {

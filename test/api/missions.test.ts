@@ -230,6 +230,16 @@ describe('DELETE /api/missions/:id', () => {
     expect(res.status).toBe(200);
   });
 
+  it('refuses_to_delete_a_mission_an_unfinished_mission_depends_on', async () => {
+    const { id: first } = await (await post('/api/missions', { title: 'Needed' })).json();
+    const dependent = await (await post('/api/missions', { title: 'Waits', depends_on: [first] })).json();
+    const res = await f(`${BASE}/api/missions/${first}`, { method: 'DELETE' });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/depend/);
+    expect((await f(`${BASE}/api/missions/${dependent.id}`, { method: 'DELETE' })).status).toBe(200);
+    expect((await f(`${BASE}/api/missions/${first}`, { method: 'DELETE' })).status).toBe(200);
+  });
+
   it('returns 404 for nonexistent mission', async () => {
     const res = await f(`${BASE}/api/missions/nonexistent`, { method: 'DELETE' });
     expect(res.status).toBe(404);

@@ -25,7 +25,10 @@ fail() { echo "release: $*" >&2; exit 1; }
 
 [ -n "$VERSION" ] || fail "could not read the version from package.json"
 [ -n "$IDENTITY" ] || fail "set SWITCHYARD_SIGN_IDENTITY to the SHA-1 of your Developer ID Application identity (security find-identity -v -p codesigning)"
-security find-identity -v -p codesigning | grep -F "$IDENTITY" | grep -q '"Developer ID Application:' \
+# Exact match on the SHA-1 column. No pipe into `grep -q`: under pipefail its early exit can SIGPIPE the writer.
+IDENTITIES="$(security find-identity -v -p codesigning)" || fail "security find-identity failed"
+WANTED="$(tr '[:lower:]' '[:upper:]' <<<"$IDENTITY")"
+awk -v id="$WANTED" '$2 == id && /"Developer ID Application: /{ found = 1 } END { exit !found }' <<<"$IDENTITIES" \
   || fail "SWITCHYARD_SIGN_IDENTITY is not a valid Developer ID Application identity in your keychain"
 
 step "Building Switchyard $VERSION"
@@ -52,7 +55,16 @@ codesign --force --sign "$IDENTITY" --timestamp "$DMG"
 codesign --verify --strict --verbose=2 "$DMG"
 
 step "Notarizing"
-if ! xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; then
+# A missing profile skips notarization. Any other failure (offline, expired password) stops the release.
+HISTORY_STATUS=0
+HISTORY="$(xcrun notarytool history --keychain-profile "$PROFILE" 2>&1)" || HISTORY_STATUS=$?
+MISSING_PROFILE=0
+case "$HISTORY" in *"No Keychain password item found for profile"*) MISSING_PROFILE=1 ;; esac
+if [ "$MISSING_PROFILE" = 0 ] && [ "$HISTORY_STATUS" != 0 ]; then
+  echo "$HISTORY" >&2
+  fail "notarytool history failed (exit $HISTORY_STATUS); fix that and run again"
+fi
+if [ "$MISSING_PROFILE" = 1 ]; then
   cat <<EOF
 Skipped: no notarytool keychain profile named "$PROFILE".
 Create it once (it asks for an app-specific password from account.apple.com):

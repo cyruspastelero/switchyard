@@ -10,6 +10,7 @@ import {
 import {
   createMission as engineCreateMission,
   unblockReadyMissions,
+  parseDeps,
   MissionEngineError,
 } from '../services/mission-engine.ts';
 import { eventBus } from '../services/event-bus.ts';
@@ -22,7 +23,7 @@ import { parseBody, sendJson, extractId, parseQuery, unknownFields, FIELD_LIMITS
  * POST   /api/missions          — create a new mission
  * GET    /api/missions/:id      — single mission with events
  * PATCH  /api/missions/:id      — update status, assign agent, complete/fail with result
- * DELETE /api/missions/:id      — delete if status is queued
+ * DELETE /api/missions/:id      — delete, unless an unfinished mission depends on it (409)
  */
 export async function handleMissions(
   req: IncomingMessage,
@@ -263,6 +264,13 @@ function handleDeleteMission(missionId: string, res: ServerResponse): void {
   const existing = getMission(missionId);
   if (!existing) {
     sendJson(res, 404, { error: 'Mission not found' });
+    return;
+  }
+
+  // A dependent of a deleted mission would stay blocked forever: its dependency can never complete.
+  const waiting = getMissions().filter((m) => m.status !== 'completed' && m.status !== 'failed' && parseDeps(m.depends_on).includes(missionId));
+  if (waiting.length > 0) {
+    sendJson(res, 409, { error: `Missions depend on this one: ${waiting.map((m) => m.id).join(', ')}. Delete or finish them first.` });
     return;
   }
 

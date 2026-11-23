@@ -200,9 +200,7 @@ struct TidyStore {
 
     func save(_ memory: TidyMemory) {
         do {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(memory).write(to: url, options: .atomic)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            try PrivateFile.write(try JSONEncoder().encode(memory), to: url)
         } catch {
             Log.windows.error("cannot save tidy.json: \(error.localizedDescription, privacy: .public)")
         }

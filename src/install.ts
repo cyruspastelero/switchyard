@@ -25,16 +25,15 @@ export const DEFAULT_SETTINGS_PATH = path.join(
   'settings.json',
 );
 
-const HOOK_MARKERS = ['Switchyard', 'Mission Control'];
-const HOOK_SCRIPT_NAMES = ['switchyard-hook', 'mission-control-hook'];
+// What install writes: `node "<dir>/switchyard-hook.js"` (or `mission-control-hook.js` before the rename).
+// Descriptions are ignored: a user's own hook may mention Switchyard and must survive uninstall.
+const OWN_HOOK_COMMAND = /^node\s+"?(?:[^"]*[\\/])?(?:switchyard|mission-control)-hook\.js"?$/;
 
 /** True for entries written by this tool, including those from before the rename. */
 export function isOwnHookEntry(entry: HookEntry): boolean {
-  if (entry.description && HOOK_MARKERS.some((m) => entry.description!.includes(m))) {
-    return true;
-  }
-  return (entry.hooks ?? []).some(
-    (h) => typeof h.command === 'string' && HOOK_SCRIPT_NAMES.some((n) => h.command.includes(n)),
+  const commands = entry.hooks ?? [];
+  return commands.length > 0 && commands.every(
+    (h) => h.type === 'command' && typeof h.command === 'string' && OWN_HOOK_COMMAND.test(h.command.trim()),
   );
 }
 
@@ -56,20 +55,40 @@ function readSettings(settingsPath: string): ClaudeSettings {
   return JSON.parse(raw) as ClaudeSettings;
 }
 
+/** Writes to a temp file in the same folder, then renames it over the settings, so a crash never leaves half a file. */
 function writeSettings(settingsPath: string, settings: ClaudeSettings): void {
   const dir = path.dirname(settingsPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
+  let mode = 0o600;
+  try {
+    mode = fs.statSync(settingsPath).mode & 0o777;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
   }
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
+  const tempPath = path.join(dir, `.${path.basename(settingsPath)}.${process.pid}.tmp`);
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(settings, null, 2) + '\n', { encoding: 'utf-8', mode });
+    fs.chmodSync(tempPath, mode);
+    fs.renameSync(tempPath, settingsPath);
+  } catch (err) {
+    fs.rmSync(tempPath, { force: true });
+    throw new Error(`Could not write ${settingsPath}: ${(err as Error).message}`, { cause: err });
+  }
 }
 
+/** Keeps the first backup: a later run must not replace the pristine copy with an already-changed file. */
 function backupSettings(settingsPath: string): void {
   if (!fs.existsSync(settingsPath)) {
     return;
   }
   const backupPath = settingsPath + '.backup';
-  fs.copyFileSync(settingsPath, backupPath);
+  try {
+    fs.copyFileSync(settingsPath, backupPath, fs.constants.COPYFILE_EXCL);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    console.log(`  Backup kept: ${backupPath}`);
+    return;
+  }
   console.log(`  Backup: ${backupPath}`);
 }
 
@@ -207,6 +226,7 @@ export function installHooks(settingsPath: string = DEFAULT_SETTINGS_PATH): void
 
 export function uninstallHooks(settingsPath: string = DEFAULT_SETTINGS_PATH): void {
   console.log('\n  Uninstalling Switchyard hooks...\n');
+  backupSettings(settingsPath);
 
   const settings = readSettings(settingsPath);
   const hooks = settings.hooks;
