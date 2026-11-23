@@ -170,6 +170,18 @@ describe('PATCH /api/missions/:id', () => {
   });
 });
 
+describe('PATCH /api/missions/:id completion', () => {
+  it('completing_a_prerequisite_unblocks_its_dependents', async () => {
+    const { id: first } = await (await post('/api/missions', { title: 'Prerequisite' })).json();
+    const dependent = await (await post('/api/missions', { title: 'Dependent', depends_on: [first] })).json();
+    expect(dependent.status).toBe('blocked');
+    await patch(`/api/missions/${first}`, { status: 'active' });
+    await patch(`/api/missions/${first}`, { status: 'completed' });
+    const after = await (await f(`${BASE}/api/missions/${dependent.id}`)).json();
+    expect(after.status).toBe('queued');
+  });
+});
+
 describe('DELETE /api/missions/:id', () => {
   it('deletes a queued mission', async () => {
     const createRes = await post('/api/missions', { title: 'Deletable' });

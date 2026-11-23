@@ -301,7 +301,7 @@ export function getReadyMissions(): readonly Mission[] {
  * Scan all blocked missions and transition any whose dependencies
  * are now fully completed to the queued state.
  */
-function unblockReadyMissions(): void {
+export function unblockReadyMissions(): void {
   const allMissions = getMissions();
   const blockedMissions = allMissions.filter((m) => m.status === "blocked");
 

@@ -9,6 +9,7 @@ import {
 } from '../db.ts';
 import {
   createMission as engineCreateMission,
+  unblockReadyMissions,
   MissionEngineError,
 } from '../services/mission-engine.ts';
 import { eventBus } from '../services/event-bus.ts';
@@ -237,6 +238,7 @@ async function handleUpdateMission(
   }
 
   eventBus.emit('mission:update', updated);
+  if (updated.status === 'completed') unblockReadyMissions();
   sendJson(res, 200, updated);
 }
 
