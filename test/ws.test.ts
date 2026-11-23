@@ -252,3 +252,50 @@ describe('dashboard socket', () => {
     await c.closed;
   });
 });
+
+describe('heartbeat and session checks', () => {
+  const HB_PORT = 14470;
+  let hb: http.Server;
+  let allowed = true;
+
+  beforeAll(async () => {
+    hb = http.createServer((_req, res) => res.end('plain'));
+    attachWebSocketServer(hb, {
+      maxClients: 5,
+      heartbeatMs: 100,
+      verify: () => true,
+      stillAllowed: () => allowed,
+      onConnection: () => undefined,
+    });
+    await new Promise<void>((resolve) => hb.listen(HB_PORT, '127.0.0.1', resolve));
+  });
+  afterAll(() => {
+    hb.closeAllConnections();
+    hb.close();
+  });
+
+  it('drops_a_client_that_never_answers_a_ping', async () => {
+    allowed = true;
+    const c = await open(HB_PORT);
+    const gone = await Promise.race([c.closed.then(() => true), settle(800).then(() => false)]);
+    expect(gone).toBe(true);
+  });
+
+  it('keeps_a_client_that_answers_its_pings', async () => {
+    allowed = true;
+    const c = await open(HB_PORT);
+    const timer = setInterval(() => { if (!c.socket.destroyed) c.socket.write(frame(0xa, '')); }, 50);
+    const gone = await Promise.race([c.closed.then(() => true), settle(600).then(() => false)]);
+    clearInterval(timer);
+    expect(gone).toBe(false);
+    c.socket.destroy();
+  });
+
+  it('closes_a_client_whose_session_has_ended', async () => {
+    allowed = true;
+    const c = await open(HB_PORT);
+    allowed = false;
+    await c.closed;
+    expect(closeCode(c.bytes().subarray(c.bytes().indexOf(0x88)))).toBe(CLOSE.policyViolation);
+  });
+});

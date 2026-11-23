@@ -513,6 +513,8 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
       }
       return true;
     },
+    // A socket opened with a session that has since expired or been evicted is closed.
+    stillAllowed: (req) => isAuthenticated(req),
     onConnection: (ws) => onWebSocketConnection(ws),
   });
 

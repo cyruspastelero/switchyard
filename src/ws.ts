@@ -15,6 +15,7 @@ const CLOSE_GRACE_MS = 2_000;
 export const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1024;
 /** A client that stops reading is dropped once this much output is queued for it. */
 export const MAX_QUEUED_BYTES = 8 * 1024 * 1024;
+const DEFAULT_HEARTBEAT_MS = 30_000;
 
 const OP = { continuation: 0x0, text: 0x1, binary: 0x2, close: 0x8, ping: 0x9, pong: 0xa } as const;
 
@@ -23,6 +24,7 @@ export const CLOSE = {
   protocolError: 1002,
   unsupportedData: 1003,
   invalidPayload: 1007,
+  policyViolation: 1008,
   tooBig: 1009,
   tryAgainLater: 1013,
 } as const;
@@ -41,6 +43,10 @@ export interface WsServerOptions {
   readonly onConnection: (client: WsClient, req: http.IncomingMessage) => void;
   readonly maxClients: number;
   readonly maxPayloadBytes?: number;
+  /** Every tick: a client that sent nothing since the last ping is dropped, the rest get a ping. Default 30 s. */
+  readonly heartbeatMs?: number;
+  /** Checked every tick with the handshake request: false closes the client (its session ended). */
+  readonly stillAllowed?: (req: http.IncomingMessage) => boolean;
 }
 
 export interface WsServer {
@@ -96,6 +102,8 @@ class Connection implements WsClient {
   private inFragmentedMessage = false;
   private open = true;
   private closeSent = false;
+  /** Bytes arrived since the last heartbeat tick. */
+  private heard = true;
   private messageListeners: readonly ((text: string) => void)[] = [];
   private closeListeners: readonly (() => void)[] = [];
 
@@ -123,7 +131,6 @@ class Connection implements WsClient {
   send(text: string): void {
     if (!this.open) return;
     this.write(encodeFrame(OP.text, Buffer.from(text, 'utf-8')));
-    if (this.socket.writableLength > MAX_QUEUED_BYTES) this.socket.destroy();
   }
 
   close(code: number = CLOSE.normal, reason = ''): void {
@@ -139,8 +146,23 @@ class Connection implements WsClient {
     setTimeout(() => this.socket.destroy(), CLOSE_GRACE_MS).unref();
   }
 
+  /** One heartbeat: false when the client sent nothing since the last one (a half-open peer). */
+  tick(): boolean {
+    if (!this.heard) return false;
+    this.heard = false;
+    this.write(encodeFrame(OP.ping, Buffer.alloc(0)));
+    return true;
+  }
+
+  destroy(): void {
+    this.socket.destroy();
+  }
+
+  /** Every frame out, pongs included: a client that stops reading is dropped once its queue passes the cap. */
   private write(frame: Buffer): void {
-    if (!this.socket.destroyed && this.socket.writable) this.socket.write(frame);
+    if (this.socket.destroyed || !this.socket.writable) return;
+    this.socket.write(frame);
+    if (this.socket.writableLength > MAX_QUEUED_BYTES) this.socket.destroy();
   }
 
   private finish(): void {
@@ -152,6 +174,7 @@ class Connection implements WsClient {
   }
 
   private receive(chunk: Buffer): void {
+    this.heard = true;
     if (this.closeSent) return;
     this.buffered = this.buffered.length === 0 ? chunk : Buffer.concat([this.buffered, chunk]);
     while (!this.closeSent && this.readFrame()) {
@@ -250,7 +273,16 @@ class Connection implements WsClient {
 /** Takes over the server's `upgrade` event. Every upgrade request is either verified and accepted, or refused. */
 export function attachWebSocketServer(server: http.Server, options: WsServerOptions): WsServer {
   const clients = new Set<WsClient>();
+  const requests = new Map<Connection, http.IncomingMessage>();
   const maxPayload = options.maxPayloadBytes ?? DEFAULT_MAX_PAYLOAD_BYTES;
+  const heartbeat = setInterval(() => {
+    for (const [connection, req] of requests) {
+      if (options.stillAllowed && !options.stillAllowed(req)) connection.close(CLOSE.policyViolation, 'Session ended');
+      else if (!connection.tick()) connection.destroy();
+    }
+  }, options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS);
+  heartbeat.unref();
+  server.on('close', () => clearInterval(heartbeat));
 
   server.on('upgrade', (req: http.IncomingMessage, socket: Duplex, head: Buffer) => {
     socket.on('error', () => socket.destroy());
@@ -266,7 +298,8 @@ export function attachWebSocketServer(server: http.Server, options: WsServerOpti
     );
     const connection = new Connection(socket, maxPayload);
     clients.add(connection);
-    connection.onClose(() => clients.delete(connection));
+    requests.set(connection, req);
+    connection.onClose(() => { clients.delete(connection); requests.delete(connection); });
     options.onConnection(connection, req);
     if (head.length > 0) socket.emit('data', head);
     socket.resume(); // node:http hands the socket over paused
@@ -275,6 +308,7 @@ export function attachWebSocketServer(server: http.Server, options: WsServerOpti
   return {
     clients,
     close(): void {
+      clearInterval(heartbeat);
       for (const client of [...clients]) client.close(1001, 'Server shutting down');
     },
   };
