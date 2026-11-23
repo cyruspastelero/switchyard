@@ -157,6 +157,7 @@ final class ArrangeTests: XCTestCase {
     func test_tidy_runs_in_the_window_lane() {
         XCTAssertEqual(CommandLane.of("tidy"), .windows)
         XCTAssertEqual(CommandLane.of("undoTidy"), .windows)
+        XCTAssertEqual(CommandLane.of("captureLayout"), .windows)
     }
 
     func test_undo_tidy_command_reads_its_desktop() throws {

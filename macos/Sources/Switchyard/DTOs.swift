@@ -152,13 +152,15 @@ struct ContextDTO: Decodable, Equatable, Identifiable {
     let desktopShared: Bool
     /// Its windows known to sit on another desktop.
     let strays: Int
+    /// The layout preset Tidy uses on its desktop; nil means the automatic layout.
+    let layout: LayoutRefDTO?
 
-    private enum CodingKeys: String, CodingKey { case id, name, key, color, status, windows, desktop, desktopShared, strays }
+    private enum CodingKeys: String, CodingKey { case id, name, key, color, status, windows, desktop, desktopShared, strays, layout }
 
     init(id: String, name: String, key: Int?, color: String?, status: String, windows: [WindowRef] = [],
-         desktop: Int? = nil, desktopShared: Bool = false, strays: Int = 0) {
+         desktop: Int? = nil, desktopShared: Bool = false, strays: Int = 0, layout: LayoutRefDTO? = nil) {
         self.id = id; self.name = name; self.key = key; self.color = color; self.status = status; self.windows = windows
-        self.desktop = desktop; self.desktopShared = desktopShared; self.strays = strays
+        self.desktop = desktop; self.desktopShared = desktopShared; self.strays = strays; self.layout = layout
     }
 
     init(from decoder: Decoder) throws {
@@ -172,6 +174,7 @@ struct ContextDTO: Decodable, Equatable, Identifiable {
         desktop = try? c.decode(Int.self, forKey: .desktop)
         desktopShared = (try? c.decode(Bool.self, forKey: .desktopShared)) ?? false
         strays = (try? c.decode(Int.self, forKey: .strays)) ?? 0
+        layout = try? c.decode(LayoutRefDTO.self, forKey: .layout)
     }
 }
 
@@ -191,8 +194,14 @@ struct ContextsResponse: Decodable, Equatable {
     let toSort: Int
     /// True when the server uses real desktops.
     let desktopMode: Bool
+    /// Saved layout presets, for the "Layout N" default name.
+    let layoutCount: Int
 
-    private enum CodingKeys: String, CodingKey { case windowControl, activeContextId, contexts, waitingCount, unsorted, toSort, desktopMode, unsortedToMove, autoTidy }
+    private struct NamedLayout: Decodable { let id: String }
+
+    private enum CodingKeys: String, CodingKey {
+        case windowControl, activeContextId, contexts, waitingCount, unsorted, toSort, desktopMode, unsortedToMove, autoTidy, layouts
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -206,6 +215,7 @@ struct ContextsResponse: Decodable, Equatable {
         autoTidy = (try? c.decode(Bool.self, forKey: .autoTidy)) ?? true
         toSort = (try? c.decode(Int.self, forKey: .toSort)) ?? 0
         desktopMode = (try? c.decode(String.self, forKey: .desktopMode)) == "desktops"
+        layoutCount = (try? c.decode([NamedLayout].self, forKey: .layouts))?.count ?? 0
     }
 }
 
@@ -232,6 +242,43 @@ struct TabSplitDTO: Decodable, Equatable {
 struct TidyDesktopDTO: Decodable, Equatable {
     let desktop: Int
     let windowKeys: [String]
+    /// The owner context's layout preset; nil means the automatic layout.
+    var slots: [LayoutSlotDTO]? = nil
+}
+
+// MARK: - Layout presets (both ways)
+
+struct SlotScreen: Codable, Equatable {
+    let uuid: String
+    let builtin: Bool
+}
+
+/// Fractions 0-1 of the screen's visible area.
+struct SlotFrame: Codable, Equatable {
+    let x: Double
+    let y: Double
+    let w: Double
+    let h: Double
+}
+
+struct LayoutSlotDTO: Codable, Equatable {
+    let bundleId: String
+    let app: String
+    let screen: SlotScreen
+    let frame: SlotFrame
+}
+
+/// A context's layout in effect (its own, else the default).
+struct LayoutRefDTO: Decodable, Equatable {
+    let id: String
+    let name: String
+    let slots: [LayoutSlotDTO]
+}
+
+/// POST /api/contexts/layouts.
+struct SaveLayoutBody: Encodable {
+    let name: String
+    let slots: [LayoutSlotDTO]
 }
 
 /// Command types: show, moveWindows, tidy, nameWindow, openWindow, closeWindow, openTab, closeTab, showAll, splitTabs.

@@ -72,6 +72,12 @@ final class APIClient {
         return r.accessCode
     }
 
+    /// Saves a layout preset captured from the desktop on screen.
+    func saveLayout(name: String, slots: [LayoutSlotDTO]) async throws {
+        _ = try await request("POST", "/api/contexts/layouts", body: encode(SaveLayoutBody(name: name, slots: slots)),
+                              operation: "save layout")
+    }
+
     func sortWindows() async throws {
         _ = try await request("POST", "/api/contexts/sort", operation: "sort windows")
     }

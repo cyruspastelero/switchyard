@@ -171,6 +171,14 @@ struct TidyStore {
 
 /// Which windows a desktop's tidy lays out, from the contexts the app holds.
 enum TidyTargets {
+    /// The preset of the context that owns the desktop (on the shared desktop, the active one), if it has one.
+    static func slots(contexts: [ContextDTO], desktop: Int, activeContextId: String?) -> [LayoutSlotDTO]? {
+        let here = contexts.filter { $0.desktop == desktop }
+        let owner = here.contains(where: \.desktopShared) ? here.first { $0.id == activeContextId } : (here.count == 1 ? here.first : nil)
+        guard let slots = owner?.layout?.slots, !slots.isEmpty else { return nil }
+        return slots
+    }
+
     /// The windows of the context(s) that own the desktop; on the shared desktop only the active context's.
     /// `moves`: windows just carried, which the contexts the app holds may not show yet.
     static func keys(contexts: [ContextDTO], desktop: Int, activeContextId: String?, moves: [WindowMoveDTO] = []) -> [String] {

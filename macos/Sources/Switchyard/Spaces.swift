@@ -164,8 +164,11 @@ enum Spaces {
         }
     }
 
-    private static func mainDisplayUUID() -> String? {
-        guard let uuid = CGDisplayCreateUUIDFromDisplayID(CGMainDisplayID())?.takeRetainedValue() else { return nil }
+    private static func mainDisplayUUID() -> String? { displayUUID(CGMainDisplayID()) }
+
+    /// The display's stable UUID string, the same one `CGSCopyManagedDisplaySpaces` names displays by.
+    static func displayUUID(_ id: CGDirectDisplayID) -> String? {
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
         return CFUUIDCreateString(nil, uuid) as String?
     }
 }
