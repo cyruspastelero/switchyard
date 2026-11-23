@@ -3,14 +3,16 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { existsSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
+import { createSessionTitleReader } from './session-titles.ts';
 
 const execFileAsync = promisify(execFile);
 const EXEC_TIMEOUT_MS = 3_000;
 const CACHE_TTL_MS = 60_000;
-const MAX_JSONL_BYTES = 64 * 1024 * 1024;
+/** Distinct keys one cache keeps; the session-title key changes whenever a session starts. */
+const CACHE_MAX_ENTRIES = 256;
 
 export interface SignalSource {
   /** Git root of `cwd`, or `cwd` itself when it is not inside a repository. */
@@ -86,8 +88,21 @@ class TtlCache<V> {
     const hit = this.entries.get(key);
     if (hit && this.now() - hit.at < CACHE_TTL_MS) return hit.value;
     const value = load();
+    this.entries.delete(key);
     this.entries.set(key, { value, at: this.now() });
+    this.evict();
     return value;
+  }
+
+  /** Drops expired entries, then the oldest while over the cap (a Map keeps insertion order). */
+  private evict(): void {
+    for (const [key, entry] of this.entries) {
+      if (this.now() - entry.at >= CACHE_TTL_MS) this.entries.delete(key);
+    }
+    for (const key of this.entries.keys()) {
+      if (this.entries.size <= CACHE_MAX_ENTRIES) break;
+      this.entries.delete(key);
+    }
   }
 }
 
@@ -223,37 +238,6 @@ function portPatterns(folder: string, byPort: ReadonlyMap<number, string>): stri
   return out;
 }
 
-// --- Claude session titles ----------------------------------------------------
-
-function lastAiTitle(path: string): string | null {
-  if (statSync(path).size > MAX_JSONL_BYTES) return null;
-  let title: string | null = null;
-  for (const line of readFileSync(path, 'utf-8').split('\n')) {
-    if (!line.includes('"type":"ai-title"')) continue;
-    try {
-      const rec = JSON.parse(line) as { aiTitle?: unknown };
-      if (typeof rec.aiTitle === 'string') title = rec.aiTitle;
-    } catch {
-      // partially written trailing line: keep the previous title
-    }
-  }
-  return title;
-}
-
-function readSessionTitles(sessionIds: readonly string[], claudeDir: string): Map<string, string> {
-  const titles = new Map<string, string>();
-  if (!existsSync(claudeDir) || sessionIds.length === 0) return titles;
-  for (const project of readdirSync(claudeDir)) {
-    for (const id of sessionIds) {
-      const file = join(claudeDir, project, `${id}.jsonl`);
-      if (!existsSync(file)) continue;
-      const title = lastAiTitle(file);
-      if (title) titles.set(id, title);
-    }
-  }
-  return titles;
-}
-
 export interface SignalOptions {
   readonly now?: () => number;
   readonly claudeDir?: string;
@@ -267,6 +251,7 @@ export function createSignalSource(options: SignalOptions = {}): SignalSource {
   const ports = new TtlCache<ReadonlyMap<number, string>>(now);
   const titles = new TtlCache<ReadonlyMap<string, string>>(now);
   const aliases = new TtlCache<readonly string[]>(now);
+  const readTitles = createSessionTitleReader(claudeDir);
 
   return {
     folderRoot: (cwd) => roots.get(cwd, () => gitRoot(cwd)),
@@ -277,7 +262,6 @@ export function createSignalSource(options: SignalOptions = {}): SignalSource {
         return [...remote, ...filePatterns(folder), ...portPatterns(folder, byPort)];
       }),
     aliases: (folder) => aliases.get(folder, async () => fileAliases(folder)),
-    sessionTitles: (ids) =>
-      titles.get([...ids].sort().join(','), async () => readSessionTitles(ids, claudeDir)),
+    sessionTitles: (ids) => titles.get([...ids].sort().join(','), () => readTitles(ids)),
   };
 }
