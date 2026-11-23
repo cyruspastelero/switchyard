@@ -53,6 +53,10 @@
   /* Layout chrome heights, shared by every view's height calc */
   --header-h: 44px;
   --tabs-h: 58px;
+
+  /* Dark-only UI: native controls (checkboxes, selects, scrollbars) render dark too. */
+  color-scheme: dark;
+  accent-color: var(--accent);
 }
 
 /* ── Base ──────────────────────────────────────────────── */
