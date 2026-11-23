@@ -30,6 +30,8 @@ export interface SnapshotWindow {
   readonly browser: BrowserInfo | null;
   /** Desktop number 1–16 on the main display; null on a second display, fullscreen, minimized or on all desktops. */
   readonly desktop?: number | null;
+  /** Native tab titles in tab-bar order, for terminal windows showing a tab bar (two or more tabs). */
+  readonly tabTitles?: readonly string[];
 }
 
 export interface DesktopsInfo {

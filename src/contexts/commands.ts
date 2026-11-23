@@ -1,5 +1,7 @@
 // In-memory command queue for the macOS app (long-poll).
 
+import type { TabSplit } from './tabsplit.ts';
+
 export type CommandBody =
   // hideKeys: the windows of every other context. Sent with the command so the app never has to ask again
   // (a failed second request must not decide what gets hidden). focus=false: re-apply without raising anything.
@@ -13,6 +15,8 @@ export type CommandBody =
   }
   // Real desktops only: carry each window to its desktop, one at a time. Sent by Sort and by Move.
   | { readonly type: 'moveWindows'; readonly moves: readonly { readonly windowKey: string; readonly desktop: number }[] }
+  // Sort, before carrying: pull these terminal tabs out into windows of their own. Never closes anything.
+  | { readonly type: 'splitTabs'; readonly splits: readonly TabSplit[] }
   | { readonly type: 'nameWindow'; readonly windowKey: string; readonly name: string }
   | { readonly type: 'openWindow'; readonly browser: string; readonly name: string | null; readonly urls: readonly string[]; readonly contextId: string }
   | { readonly type: 'closeWindow'; readonly windowKey: string }

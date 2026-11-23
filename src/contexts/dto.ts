@@ -11,6 +11,7 @@ export const LIMITS = {
   snapshotBytes: 1_048_576,
   windows: 500,
   tabsPerWindow: 2_000,
+  terminalTabs: 200,
   key: 512,
   text: 1_024,
   url: 4_096,
@@ -125,7 +126,7 @@ function parseDesktops(raw: unknown): Parsed<DesktopsInfo | null> {
 function parseWindow(raw: unknown): Parsed<SnapshotWindow> {
   const o = asObject(raw, 'window');
   if (!o.ok) return o;
-  const extra = checkKeys(o.value, ['key', 'app', 'bundleId', 'pid', 'title', 'document', 'browser', 'desktop'], 'window');
+  const extra = checkKeys(o.value, ['key', 'app', 'bundleId', 'pid', 'title', 'document', 'browser', 'desktop', 'tabTitles'], 'window');
   if (extra) return fail(extra);
   const pid = o.value.pid;
   if (typeof pid !== 'number' || !Number.isInteger(pid) || pid < 0) return fail('window.pid must be a non-negative integer');
@@ -139,10 +140,19 @@ function parseWindow(raw: unknown): Parsed<SnapshotWindow> {
   if (!parts.ok) return parts;
   const browser = parseBrowser(o.value.browser);
   if (!browser.ok) return browser;
-  const base = { ...parts.value, title: parts.value.title ?? '', pid, browser: browser.value };
+  const tabTitles = parseTabTitles(o.value.tabTitles);
+  if (!tabTitles.ok) return tabTitles;
+  const base = { ...parts.value, title: parts.value.title ?? '', pid, browser: browser.value, ...tabTitles.value };
   if (!('desktop' in o.value)) return ok(base);
   const desktop = nullableDesktop(o.value.desktop, 'window.desktop');
   return desktop.ok ? ok({ ...base, desktop: desktop.value }) : desktop;
+}
+
+function parseTabTitles(raw: unknown): Parsed<{ tabTitles?: readonly string[] }> {
+  if (raw === undefined) return ok({});
+  if (!Array.isArray(raw) || raw.length > LIMITS.terminalTabs) return fail(`window.tabTitles must be an array of at most ${LIMITS.terminalTabs}`);
+  if (!raw.every((t) => typeof t === 'string' && t.length <= LIMITS.text)) return fail('window.tabTitles must hold short strings');
+  return ok({ tabTitles: raw as string[] });
 }
 
 export function parseSnapshot(body: unknown): Parsed<Snapshot> {

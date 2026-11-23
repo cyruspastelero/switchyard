@@ -10,6 +10,7 @@ import { ViewNotifier } from './notifier.ts';
 import { createSignalSource, type SignalSource } from './signals.ts';
 import { createContextStore, type ContextRow, type ContextStore } from './store.ts';
 import { deriveAgentStatus, describeAction } from './agents.ts';
+import { tabSplits, type TabSplit } from './tabsplit.ts';
 import { desktopFor, desktopMode, misplaced, offscreenReason, tidyPlan, unsortedSweep, type WindowMove } from './desktops.ts';
 import { buildView, canBeNamed, computeSuggestions, SNAPSHOT_FRESH_MS, type ViewInput } from './view.ts';
 import {
@@ -67,6 +68,8 @@ export class ContextsService {
   private hiddenKeys: ReadonlySet<string> = new Set();
   /** Last report of every window, so one on another desktop stays on its card when the app stops listing it. */
   private readonly lastSeen = new Map<string, SnapshotWindow>();
+  /** A Sort waiting on its `splitTabs`: carrying starts once the app acked it and reported the new windows. */
+  private splitWait: { readonly seq: number; readonly acked: boolean; readonly snapshots: number } | null = null;
   /** The desktop a focusWindow goes to. Landing there must not make its context active. */
   private focusDesktop: number | null = null;
 
@@ -253,24 +256,72 @@ export class ContextsService {
     const changed = this.sortWindows(snapshot.windows, { onlyNew: true });
     this.followDesktop(previousActive);
     if (changed > 0) this.reshowActive();
+    this.resumeSortAfterSplit();
     this.scheduleEmit();
+  }
+
+  /**
+   * After the app split tabs: carry as soon as a snapshot shows no mixed window left, or after two snapshots
+   * (a split that failed is not tried again, and the rest of the Sort still happens).
+   */
+  private resumeSortAfterSplit(): void {
+    if (!this.splitWait?.acked) return;
+    const snapshots = this.splitWait.snapshots + 1;
+    if (this.tabSplitsNow().length > 0 && snapshots < 2) {
+      this.splitWait = { ...this.splitWait, snapshots };
+      return;
+    }
+    this.splitWait = null;
+    this.sortWindows(this.snapshot?.windows ?? [], { onlyNew: false });
+    this.carrySorted();
+  }
+
+  /** Terminal windows whose tabs belong to different contexts. Owner choices are never split. */
+  private tabSplitsNow(): readonly TabSplit[] {
+    if (this.desktopCount() === null) return [];
+    const assignments = this.store.getAssignments();
+    const keptUnsorted = this.store.ownerUnsorted();
+    const known = new Set(this.store.listContexts().map((c) => c.id));
+    const candidates = (this.snapshot?.windows ?? []).filter((w) => (w.tabTitles?.length ?? 0) > 1).map((w) => {
+      const a = assignments.get(w.key);
+      return {
+        key: w.key, tabTitles: w.tabTitles ?? [], current: a && known.has(a.contextId) ? a.contextId : null,
+        ownerChoice: a?.source === 'owner' || keptUnsorted.has(w.key),
+      };
+    });
+    const byKey = new Map((this.snapshot?.windows ?? []).map((w) => [w.key, w]));
+    return tabSplits(candidates, (key, title) => {
+      const w = byKey.get(key);
+      return w ? (this.autoMatch({ ...w, title, tabTitles: undefined })?.contextId ?? null) : null;
+    });
   }
 
   /**
    * Assigns as before. With real desktops it then queues one `moveWindows` for every sorted window on the
    * wrong desktop. New windows are only ever carried here, on request: a carry takes the screen away.
    */
-  async sort(): Promise<{ sorted: number; toMove: number }> {
+  async sort(): Promise<{ sorted: number; toMove: number; splitting: number }> {
     this.requireApp();
     await this.refresh();
     const sorted = this.sortWindows(this.snapshot?.windows ?? [], { onlyNew: false });
-    // Project moves first, then unsorted windows off project desktops (the app's carry cap keeps that order).
+    const splits = this.tabSplitsNow();
+    if (splits.length > 0) {
+      const command = this.commands.enqueue({ type: 'splitTabs', splits });
+      this.splitWait = { seq: command.seq, acked: false, snapshots: 0 };
+      this.scheduleEmit();
+      return { sorted, toMove: 0, splitting: splits.length };
+    }
+    return { sorted, toMove: this.carrySorted(), splitting: 0 };
+  }
+
+  /** Project moves first, then unsorted windows off project desktops (the app's carry cap keeps that order). */
+  private carrySorted(): number {
     const moves = [...this.moves(), ...this.sweep()];
     if (moves.length > 0) this.commands.enqueue({ type: 'moveWindows', moves });
     this.reshowActive();
     this.tidyChanged(moves);
     this.scheduleEmit();
-    return { sorted, toMove: moves.length };
+    return moves.length;
   }
 
   /** "Move here": carries one context's windows from other desktops to its own. The screen stays where it is. */
@@ -608,6 +659,7 @@ export class ContextsService {
     const command = this.commands.find(seq);
     if (!command) throw new ContextsError(404, `Unknown command: ${seq}`);
     if (command.type === 'moveWindows') this.noteCarries(command.moves.map((m) => m.windowKey), failedKeys);
+    if (command.type === 'splitTabs' && this.splitWait?.seq === seq) this.splitWait = { ...this.splitWait, acked: true };
     const parkedId = this.pendingParked.get(seq);
     this.pendingParked.delete(seq);
     if (!ok) {
