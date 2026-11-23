@@ -3148,6 +3148,9 @@ body.view-contexts .header-stats { display: none; }
 }
 .ctx-select:hover:not(:disabled) { border-color: var(--border-focus); }
 .ctx-select:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.ctx-layouts { font-family: var(--font-mono); }
+/* Section names read like the other section titles (Unsorted, Needs you). */
+.ctx-layouts .ctx-toggle-name { font-family: var(--font-sans); font-size: var(--font-size-xs); letter-spacing: 2px; color: var(--text-secondary); }
 .ctx-layouts .ctx-toggle { cursor: default; flex-wrap: wrap; }
 .ctx-layout-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
 .ctx-layout-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
