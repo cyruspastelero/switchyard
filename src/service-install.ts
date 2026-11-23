@@ -120,14 +120,15 @@ export function installService(opts: ServiceOptions): void {
   console.log('\n  Installing the Switchyard server LaunchAgent...\n');
   fs.mkdirSync(path.dirname(opts.plistPath), { recursive: true });
   fs.mkdirSync(path.dirname(opts.logPath), { recursive: true });
-  // The log holds the dashboard access code: keep it readable by the owner only.
+  // Owner-only: the log can hold paths and project names (older builds also wrote the access code).
   fs.closeSync(fs.openSync(opts.logPath, 'a', 0o600));
   fs.chmodSync(opts.logPath, 0o600);
   fs.writeFileSync(opts.plistPath, buildServicePlist(opts), { mode: 0o644 });
   unload(opts);
   load(opts);
   console.log(`  LaunchAgent: ${opts.plistPath}`);
-  console.log(`  Log (shows the access code after each start): ${opts.logPath}`);
+  console.log(`  Log: ${opts.logPath}`);
+  console.log('  Access code: menu bar icon > Copy dashboard access code, or `node src/index.ts access-code`.');
   console.log('  The server now starts at login and restarts if it stops.\n');
 }
 

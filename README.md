@@ -67,7 +67,7 @@ If you'd rather not run a background service, start the server by hand (`node sr
 
 The dashboard has two views. **Contexts** shows one card per project with its desktop, windows and agents. From there you can Sort, move a window to another project, rename Chrome windows, or park a project (close its browser windows and save the tabs for later). **Activity** shows your agents live, a timeline of their tool calls, alerts for stuck or looping agents, and token costs. See [docs/dashboard.md](docs/dashboard.md) for the panels, alerts, shortcuts and environment variables.
 
-The dashboard asks for a 6-digit access code. It changes every time the server starts. Copy it from the menu bar icon, or find it in `~/.switchyard/server.log`.
+The dashboard asks for a 6-digit access code. It changes every time the server starts. Copy it from the menu bar icon, or run `node src/index.ts access-code`. It is printed when you start the server in a terminal, but never written to `~/.switchyard/server.log`; that log is trimmed to about 512 KB on each start.
 
 Windows Switchyard can't place go to the last desktop as Unsorted, and you can assign them by hand. It never re-sorts a window you placed yourself.
 
