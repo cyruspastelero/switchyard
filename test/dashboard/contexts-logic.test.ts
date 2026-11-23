@@ -213,8 +213,8 @@ describe('unsorted header', () => {
   const ul = logic as unknown as { unsortedCountText: (n: number) => string };
 
   it('counts_the_windows_left_to_sort', () => {
-    expect(ul.unsortedCountText(1)).toBe('1 window not on a desktop');
-    expect(ul.unsortedCountText(3)).toBe('3 windows not on a desktop');
+    expect(ul.unsortedCountText(1)).toBe('1 window in no context');
+    expect(ul.unsortedCountText(3)).toBe('3 windows in no context');
   });
 
   it('says_nothing_when_only_hidden_system_windows_are_unsorted', () => {

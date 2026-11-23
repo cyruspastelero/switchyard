@@ -523,12 +523,14 @@ function handleMessage(msg) {
     case 'agents':
       state.agents = msg.data || [];
       renderAgents();
+      if (usageData || tokenData) renderUsage(); // session rows show agent names
       // Force mobile layout refresh — on some mobile browsers the panel
       // doesn't repaint after WebSocket data arrives during initial load
       if (isMobile()) { setMobileTab(mobileActiveTab); }
       break;
     case 'events':
-      state.events = msg.data || [];
+      // The server sends newest first; the timeline reads oldest to newest and live events append at the bottom.
+      state.events = (msg.data || []).slice().sort(function (a, b) { return (a.id || 0) - (b.id || 0); });
       eventCount = state.events.length;
       state.events.forEach(function (e) { trackAgentActivity(e); trackAgentPatterns(e); });
       renderTimeline();
@@ -589,6 +591,7 @@ function fetchAgentsHttp() {
       if (Array.isArray(agents) && agents.length > 0) {
         state.agents = agents;
         renderAgents();
+        if (usageData || tokenData) renderUsage();
         updateHeaderStats();
         if (isMobile()) { setMobileTab(mobileActiveTab); }
       }

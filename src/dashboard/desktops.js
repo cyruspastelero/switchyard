@@ -101,7 +101,8 @@
         if (box.checked) picked[row.number] = true; else delete picked[row.number];
         onPick();
       });
-      return box;
+      // The label is the hit area (44px on a phone); the box itself stays small.
+      return add(h('label', 'ctx-desktop-pick-hit'), box);
     }
 
     // One shape for every row: pick, name, owner, meta, showing, Go/Close. A blocked Close says why on hover.
@@ -191,7 +192,7 @@
       var box = h('div', 'ctx-foot ctx-layouts ctx-desktops');
       var head = h('div', 'ctx-toggle');
       head.appendChild(h('span', 'ctx-toggle-name', 'Desktops'));
-      if (deps.drag) head.appendChild(h('span', 'ctx-muted ctx-drop-hint', 'Drop a window on a context’s desktop to move it there'));
+      if (deps.drag) head.appendChild(h('span', 'ctx-muted ctx-drop-hint', 'Drop a window on a context’s desktop or card to move it there'));
       list.screens.forEach(function (s) {
         var key = 'desktopAdd:' + s.screen;
         var label = list.screens.length > 1 ? 'Add to ' + s.label : 'Add desktop';

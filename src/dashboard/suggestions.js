@@ -92,7 +92,7 @@
         h('span', 'ctx-suggest-title', r.title || host(r.url)),
         h('span', 'ctx-muted', ' · ' + where(r) + ' · belongs with '),
         h('b', null, g.toName));
-      add(line, text, button(busy[key] ? 'Moving…' : 'Move', '', 'move:' + r.ids[0], function () {
+      add(line, text, button(busy[key] ? 'Moving…' : 'Move to ' + g.toName, '', 'move:' + r.ids[0], function () {
         act(key, function () { return moveAll(r.ids, g.toName); });
       }, !control || !!busy[key], tip));
       return line;

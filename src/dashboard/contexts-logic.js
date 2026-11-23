@@ -293,8 +293,9 @@
     }));
   }
 
-  // Unsorted header: hidden system windows don't count, and no count at all when nothing is left to sort.
-  function unsortedCountText(n) { return n ? plural(n, 'window') + ' not on a desktop' : ''; }
+  // Unsorted header: windows no context holds (they can sit on any desktop). Hidden system windows don't count,
+  // and no count at all when nothing is left to sort.
+  function unsortedCountText(n) { return n ? plural(n, 'window') + ' in no context' : ''; }
 
   // Count badges (Contexts tab, mobile tab): hidden at 0 so an idle tab shows no "0".
   function countBadge(n) { return { text: String(n), hidden: !n }; }

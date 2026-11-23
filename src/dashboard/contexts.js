@@ -308,6 +308,8 @@
       $sortBtn.textContent = st.busy.sort ? logic.busyLabel('sort') : label;
       if (control && label !== 'Sort windows') $sortBtn.title = label.replace(/^Sort \u00B7 /, '') + '. Keep hands off the mouse while it runs; Esc stops it.';
     }
+    var $newCtx = document.getElementById('contexts-new');
+    if ($newCtx) $newCtx.disabled = !d;
     if ($showAllBtn) {
       $showAllBtn.disabled = !control || !!st.busy.showAll;
       $showAllBtn.title = control ? 'Bring back every window Switchyard has hidden' : NO_CONTROL_NOTE;
@@ -329,7 +331,7 @@
         if (needs) frag.appendChild(needs);
         if (d.suggestions.length && suggestionsUi) frag.appendChild(suggestionsUi.section(d, control, control ? '' : NO_CONTROL_NOTE));
         frag.appendChild(cards(d, control));
-        if (d.unsorted.length) frag.appendChild(unsortedSection(d));
+        if (d.unsorted.length || dragUi) frag.appendChild(unsortedSection(d)); // empty: shown only as a drop target
         if (control && d.desktopNote) frag.appendChild(h('div', 'ctx-foot ctx-muted', d.desktopNote));
         else if (control && d.desktopMode !== 'desktops') frag.appendChild(h('div', 'ctx-foot ctx-muted', ONE_DESKTOP_NOTE));
         if (d.desktopMode === 'desktops') frag.appendChild(autoTidyToggle(d));
@@ -454,6 +456,7 @@
     var parked = c.status === 'parked';
     var active = d.activeContextId === c.id;
     var card = h('article', 'ctx-card' + (parked ? ' parked' : '') + (active ? ' active' : ''), null, { role: 'listitem' });
+    if (dragUi) dragUi.card(card, c);
 
     // Same order on every card: head (dot, name, actions), meta, one agent line (maybe empty), windows.
     var head = h('div', 'ctx-card-head');
@@ -549,7 +552,7 @@
 
   function noteRow(text) {
     var li = h('li', 'ctx-w ctx-w-note');
-    add(li, h('span', 'ctx-app-icon ctx-app-empty', null, { 'aria-hidden': 'true' }), h('span', 'ctx-w-text', text));
+    li.appendChild(h('span', 'ctx-w-text', text));
     return li;
   }
 
@@ -642,7 +645,8 @@
 
   // Unsorted: one tidy list, each window with the same assign picker.
   function unsortedSection(d) {
-    var box = h('section', 'ctx-unsorted-box', null, { 'aria-label': 'Unsorted windows' });
+    var box = h('section', 'ctx-unsorted-box' + (d.unsorted.length ? '' : ' ctx-unsorted-empty'), null, { 'aria-label': 'Unsorted windows' });
+    if (dragUi) dragUi.unsorted(box);
     var system = d.unsorted.filter(isSystemWindow);
     var shown = st.showSystem ? d.unsorted.slice() : d.unsorted.filter(function (w) { return !isSystemWindow(w); });
     var head = h('div', 'ctx-unsorted-head');

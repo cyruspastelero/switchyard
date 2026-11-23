@@ -251,15 +251,17 @@ html, body {
   background: var(--bg-panel);
 }
 
+/* Missions and Usage size to content up to a cap; Timeline keeps at least ~8 rows (B9). */
 #missions-panel {
-  flex: 0 0 auto;
-  max-height: 45%;
+  flex: 0 1 auto;
+  max-height: 34%;
+  min-height: 0;
   border-bottom: 1px solid var(--border);
 }
 
 #timeline-panel {
   flex: 1;
-  min-height: 0;
+  min-height: 200px;
 }
 
 /* Active panel accent — subtle white bar, no glow */
@@ -519,9 +521,10 @@ html, body {
 }
 
 /* Gentle pulse for active status dot */
+/* The low point stays above 3:1 on the panel (B15). */
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  50% { opacity: 0.7; }
 }
 
 .agent-dot.active {
@@ -864,7 +867,7 @@ html, body {
   font-weight: 600;
   flex-shrink: 0;
   min-width: 48px;
-  max-width: 80px;
+  max-width: 140px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -890,8 +893,10 @@ html, body {
 }
 
 .timeline-filter {
+  font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   color: var(--text-bright);
+  background: none;
   cursor: pointer;
   padding: 0 6px;
   border: 1px solid var(--border-bright);
@@ -972,6 +977,16 @@ html, body {
   font-size: var(--font-size-base);
   outline: none;
   caret-color: var(--accent);
+}
+
+/* The input has no border of its own, so the row shows focus (B10). */
+.command-body:focus-within {
+  outline: 1px solid var(--text-bright);
+  outline-offset: -1px;
+}
+
+#command-input:focus-visible {
+  outline: none;
 }
 
 #command-input:disabled {
@@ -1253,14 +1268,22 @@ html, body {
   color: var(--text-bright);
 }
 
-.security-close-btn {
+.security-close-btn,
+.kbd-close {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 18px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-lg);
   cursor: pointer;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0 4px;
   line-height: 1;
+}
+
+.kbd-close:hover {
+  color: var(--text-primary);
 }
 
 .security-close-btn:hover {
@@ -1614,15 +1637,29 @@ html, body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
+/* Stays on top while the help scrolls, so the close button is always there. */
+.kbd-head {
+  position: sticky;
+  top: -20px;
+  z-index: 1;
+  margin-top: -20px;
+  padding-top: 20px;
+  background: var(--bg-panel);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
 .kbd-title {
   font-family: var(--font-sans);
   font-size: var(--font-size-sm);
   font-weight: 500;
   letter-spacing: 2px;
   color: var(--text-bright);
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
 }
 
 .kbd-grid {
@@ -1872,7 +1909,7 @@ html, body {
 }
 
 .agent-row.subagent .agent-dot {
-  font-size: 7px;
+  font-size: var(--font-size-xs);
 }
 
 .agent-row.subagent .agent-activity {
@@ -1921,13 +1958,15 @@ html, body {
   transition: opacity 100ms;
 }
 
-.agent-row:hover .agent-quick-actions {
+.agent-row:hover .agent-quick-actions,
+.agent-quick-actions:focus-within {
   opacity: 1;
 }
 
 /* Always show on touch devices */
 @media (hover: none) {
-  .agent-quick-actions { opacity: 0.7; }
+  .agent-quick-actions { opacity: 1; }
+  .agent-quick-actions .agent-quick-btn { color: var(--text-secondary); }
 }
 
 .agent-quick-btn {
@@ -2057,7 +2096,6 @@ html, body {
   .stat:nth-child(n+5) { display: none; }
   .stat-sep:nth-child(n+4) { display: none; }
 
-  .kbd-hint { display: none; }
 
   /* Security shield: compact */
   .security-shield {
@@ -2173,14 +2211,15 @@ html, body {
     min-height: 36px;
   }
 
-  /* Timeline columns: tighter */
+  /* Timeline columns: tighter, but time and agent never touch (B13) */
+  .timeline-row { gap: 8px; }
   .timeline-time {
-    width: 44px;
+    width: auto;
     font-size: var(--font-size-xs);
   }
 
   .timeline-agent {
-    max-width: 50px;
+    max-width: 72px;
     min-width: 36px;
     font-size: var(--font-size-xs);
   }
@@ -2353,8 +2392,9 @@ html, body {
 /* ── Usage panel ─────────────────────────────────────── */
 @media (min-width: 641px) {
   #usage-panel {
-    flex: 0 0 auto;
-    max-height: 40%;
+    flex: 0 1 auto;
+    max-height: 30%;
+    min-height: 0;
     border-bottom: 1px solid var(--border);
   }
 }
@@ -2540,7 +2580,7 @@ html, body {
 
 .ctx-label {
   color: var(--text-secondary);
-  width: 60px;
+  width: 120px;
   flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -2618,7 +2658,7 @@ html, body {
 .session-label {
   color: var(--text-secondary);
   font-weight: 500;
-  width: 68px;
+  width: 120px;
   flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -2821,7 +2861,8 @@ body.view-contexts #contexts-view { display: flex; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 8px;
-  align-items: stretch;
+  /* Each card is as tall as its own content; a short parked card no longer stretches to the tallest in its row. */
+  align-items: start;
 }
 
 .ctx-card {
@@ -2835,7 +2876,9 @@ body.view-contexts #contexts-view { display: flex; }
   font-size: var(--font-size-base);
 }
 .ctx-card.active { border-color: var(--border-bright); box-shadow: inset 2px 0 0 var(--text-bright); }
-.ctx-card.parked { opacity: 0.8; }
+/* Parked: mute the dot and name only. Card-wide opacity took the note text to 3.83:1. */
+.ctx-card.parked .ctx-dot { opacity: 0.5; }
+.ctx-card.parked .ctx-name-text { color: var(--text-secondary); }
 
 .ctx-card-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 28px; }
 /* Body lines up under the name (dot 10px + gap 8px). */
@@ -2868,12 +2911,16 @@ body.view-contexts #contexts-view { display: flex; }
 button.ctx-w-text { cursor: pointer; }
 button.ctx-w-text:hover .ctx-w-label { color: var(--text-bright); text-decoration: underline; text-underline-offset: 2px; }
 button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outline-offset: 1px; }
-.ctx-w-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ctx-w-tabs { flex: none; color: var(--text-muted); }
-.ctx-w-place { flex: none; color: var(--text-muted); font-size: var(--font-size-xs); }
+/* The title has priority: tab count and place shrink (with an ellipsis) long before the title gives way. */
+.ctx-w-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-w-tabs, .ctx-w-place { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-w-tabs { color: var(--text-muted); }
+/* "Desktop 2 · not moved yet" keeps a visible trace ("De…"); the full text is in the row's tooltip. */
+.ctx-w-place { min-width: 4ch; color: var(--text-muted); font-size: var(--font-size-xs); }
 .ctx-w-note .ctx-w-text { color: var(--text-muted); font-size: var(--font-size-sm); }
 /* Notes wrap instead of clipping ("8 windows are on other desktops" next to Move here). */
-.ctx-w-note { height: auto; min-height: 26px; }
+/* No icon box (it read as an unchecked checkbox); the text lines up with window titles (icon 16px + gap 8px). */
+.ctx-w-note { height: auto; min-height: 26px; padding-left: 24px; }
 .ctx-w-note .ctx-w-text { white-space: normal; height: auto; line-height: 1.4; }
 .ctx-w-note .ctx-btn.link { flex: none; white-space: nowrap; }
 .ctx-app-icon, .ctx-app-img { flex: none; width: 16px; height: 16px; }
@@ -2886,7 +2933,6 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   font-size: var(--font-size-xs);
   font-weight: 600;
 }
-.ctx-app-empty { background: none; border-style: dashed; border-color: var(--border); }
 .ctx-w-acts {
   position: absolute; right: 0; top: 50%; transform: translateY(-50%);
   display: flex; gap: 6px; align-items: center; padding-left: 12px;
@@ -2894,6 +2940,9 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   opacity: 0; pointer-events: none;
 }
 .ctx-w:hover .ctx-w-acts, .ctx-w-acts:focus-within, .ctx-w-acts:has([aria-expanded="true"]) { opacity: 1; pointer-events: auto; }
+/* An open Move menu sits inside the row's own stacking context (.ctx-w-acts has a transform, a parked card has
+   opacity), so later rows and cards would paint over it. Lift the open row and its card above their siblings. */
+.ctx-w:has(.pick-btn[aria-expanded="true"]), .ctx-card:has(.pick-btn[aria-expanded="true"]) { position: relative; z-index: 30; }
 @media (hover: none) { .ctx-w-acts { position: static; transform: none; opacity: 1; pointer-events: auto; background: none; padding: 0; } }
 /* Unsorted: assigning is the point of the list, so its picker always shows and takes its own room. */
 .ctx-w-acts.ctx-w-acts-always { position: static; transform: none; opacity: 1; pointer-events: auto; background: none; padding: 0; }
@@ -2980,6 +3029,18 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   .ctx-btn.link { min-height: 32px; }
 }
 
+/* Phone: every Contexts control is a 44px-tall hit area. Rows and labels grow; small marks (checkbox, switch)
+   keep their size inside a label that takes the tap. Desktop widths are untouched. */
+@media (max-width: 640px) {
+  .ctx-btn, .ctx-btn.link, .pick-btn, .ctx-input, .ctx-select { min-height: 44px; }
+  .ctx-card-meta, .ctx-card-layout { height: auto; }
+  .ctx-card-meta .ctx-key-select, .ctx-card-layout .ctx-select { height: auto; }
+  .ctx-w { height: 44px; }
+  .ctx-w-note { min-height: 44px; }
+  .ctx-desktop-pick-hit { display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+  .ctx-toggle { min-height: 44px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .view-tab, .ctx-btn { transition: none; }
 }
@@ -3002,6 +3063,23 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
   cursor: pointer;
 }
 .missions-toggle:hover { color: var(--text-bright); background: var(--bg-hover); }
+/* The toggle stays in view at the bottom of the list instead of scrolling out of reach (B9). */
+.missions-toggle { position: sticky; bottom: 0; z-index: 1; background: var(--bg-panel); }
+
+/* Activity, header and help controls: 44px touch targets on phones (B14). */
+@media (max-width: 640px) {
+  .agent-filters { flex-wrap: wrap; }
+  .agent-filter-btn, .agent-clear-btn, .period-tab, .agent-quick-btn, .mission-clear-btn,
+  .mission-action-btn, .missions-toggle, .timeline-filter, .kbd-hint, .kbd-close,
+  .security-close-btn, .sec-clear-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .ctx-label { width: 84px; }
+  /* The header is 36px tall: grow the security button's hit area, not its box. */
+  #security-btn { position: relative; }
+  #security-btn::after { content: ''; position: absolute; inset: -12px -6px; }
+}
 
 /* ── Keyboard focus: visible everywhere ── */
 button:focus-visible,
@@ -3050,7 +3128,7 @@ input:focus-visible,
   padding: 18px 20px 14px;
   max-width: 760px;
 }
-.ctx-setup-title { font-family: var(--font-sans); font-size: 17px; color: var(--text-bright); }
+.ctx-setup-title { font-family: var(--font-sans); font-size: var(--font-size-lg); color: var(--text-bright); }
 .ctx-setup-lead {
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
@@ -3103,6 +3181,8 @@ input:focus-visible,
 @media (max-width: 480px) { .ctx-toggle { flex-wrap: wrap; } .ctx-toggle-hint { flex-basis: 100%; padding-left: 38px; } }
 @media (prefers-reduced-motion: reduce) { .ctx-switch, .ctx-switch::after { transition: none; } }
 .ctx-ok .ctx-btn { margin-left: 8px; }
+/* Undo / Go links: a 24px target instead of the 12px text line (44px on a phone, above). */
+@media (min-width: 641px) { .ctx-ok .ctx-btn { min-height: 24px; } }
 
 .empty-state .empty-title { color: var(--text-secondary); }
 
@@ -3129,7 +3209,8 @@ input:focus-visible,
   animation: ctx-shimmer 1.4s linear infinite;
 }
 .ctx-skel-summary { height: 28px; width: 40%; }
-.ctx-skel-row { height: 72px; }
+/* Card-sized, in the card grid, so the page doesn't jump when the cards arrive. */
+.ctx-skel-card { height: 160px; }
 @keyframes ctx-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3142,7 +3223,9 @@ body.view-contexts .header-stats { display: none; }
 #contexts-view .panel-header { flex-wrap: wrap; }
 #contexts-view .panel-title { flex: none; }
 @media (max-width: 1180px) {
-  .kbd-hint { display: none; }
+  /* Narrow headers keep a compact "?" so help can still be opened (B8). */
+  .kbd-hint-label { display: none; }
+  .kbd-hint { font-size: var(--font-size-lg); padding: 0 6px; }
 }
 @media (min-width: 641px) and (max-width: 1100px) {
   .header-stats { display: none; }
@@ -3159,7 +3242,8 @@ body.view-contexts .header-stats { display: none; }
   padding: 3px 6px; max-width: 100%; min-width: 0; color-scheme: dark;
 }
 .ctx-select:hover:not(:disabled) { border-color: var(--border-focus); }
-.ctx-select:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+/* Same ring as every other control (1px --text-bright); --border-focus was 2.42:1 on the panel. */
+.ctx-select:focus-visible { outline: 1px solid var(--text-bright); outline-offset: 1px; }
 .ctx-layouts { font-family: var(--font-mono); }
 /* Section names read like the other section titles (Unsorted, Needs you). */
 .ctx-layouts .ctx-toggle-name { font-family: var(--font-sans); font-size: var(--font-size-xs); letter-spacing: 2px; color: var(--text-secondary); }
@@ -3168,11 +3252,12 @@ body.view-contexts .header-stats { display: none; }
 .ctx-layout-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .ctx-layout-name { color: var(--text-primary); overflow-wrap: anywhere; }
 .ctx-layout-hint { flex-basis: 100%; }
+/* Same type and select size as the desktop select on the meta line above it. */
 .ctx-card-layout {
-  display: flex; align-items: center; gap: 8px; margin-top: 6px;
-  font-family: var(--font-sans); font-size: var(--font-size-sm);
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  font-family: var(--font-mono); font-size: var(--font-size-xs);
 }
-.ctx-card-layout .ctx-select { flex: 1 1 auto; }
+.ctx-card-layout .ctx-select { flex: 0 1 auto; height: 18px; padding: 0 4px; font-size: var(--font-size-xs); line-height: 16px; }
 
 /* Desktops section and the desktop select on each card's meta line. */
 .ctx-card-meta .ctx-key-select { flex: 0 1 auto; height: 18px; padding: 0 4px; font-size: var(--font-size-xs); line-height: 16px; }
@@ -3195,9 +3280,28 @@ body.view-contexts .header-stats { display: none; }
 }
 .ctx-desktops .ctx-toggle { gap: 8px; }
 
-/* Drag a window row onto a Desktops row (dragdrop.js). Rows a context owns light up; the rest dim. */
-.ctx-draggable { cursor: grab; }
-.ctx-draggable:active { cursor: grabbing; }
+/* Drag a window row onto a Desktops row, a context card or Unsorted (dragdrop.js). Targets that take the window
+   light up; the rest dim. Grab cursor and grip only for a mouse: touch uses the Move and Assign pickers. */
+.ctx-w-grip { display: none; }
+@media (pointer: fine) {
+  .ctx-draggable { cursor: grab; }
+  .ctx-draggable:active { cursor: grabbing; }
+  .ctx-w-grip {
+    display: block; position: absolute; left: -14px; top: 0; width: 12px; height: 100%;
+    line-height: 26px; text-align: center; color: var(--text-muted); opacity: 0; cursor: grab; user-select: none;
+  }
+  .ctx-w:hover .ctx-w-grip { opacity: 1; }
+}
+.ctx-unsorted-empty { display: none; }
+body.ctx-dragging .ctx-unsorted-empty { display: flex; }
+.ctx-card[data-drop], .ctx-unsorted-box[data-drop] { position: relative; transition: background 0.12s, border-color 0.12s, opacity 0.12s; }
+.ctx-card.drop-ok, .ctx-unsorted-box.drop-ok { border-style: dashed; border-color: var(--success-dim); }
+.ctx-card.drop-over, .ctx-unsorted-box.drop-over { border-style: solid; border-color: var(--success); background: var(--glow-success); }
+.ctx-card.drop-off, .ctx-unsorted-box.drop-off { opacity: 0.5; }
+.ctx-card.drop-off::after, .ctx-unsorted-box.drop-off::after, .ctx-card.drop-over::after, .ctx-unsorted-box.drop-over::after {
+  content: attr(data-drop-note); position: absolute; right: 8px; top: 8px; padding: 4px 8px; pointer-events: none;
+  background: var(--bg-panel-alt); border: 1px solid var(--border); color: var(--text-bright); font-size: var(--font-size-xs);
+}
 .ctx-drop-hint { display: none; font-size: var(--font-size-sm); }
 body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
 .ctx-desktop-row { border: 1px dashed transparent; transition: background 0.12s, border-color 0.12s, opacity 0.12s; }
@@ -3215,7 +3319,7 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
   position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); z-index: 200; max-width: calc(100vw - 32px);
   background: var(--bg-panel-alt); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
-@media (prefers-reduced-motion: reduce) { .ctx-desktop-row { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ctx-desktop-row, .ctx-card[data-drop], .ctx-unsorted-box[data-drop] { transition: none; } }
 
 /* New context dialog (new-context.js). */
 .nc-dialog {
@@ -3236,10 +3340,25 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
 .nc-check { margin: 0; flex: none; }
 .nc-win { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: var(--font-size-sm); }
 .nc-win-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
-.nc-win-from { flex: none; color: var(--text-muted); font-size: var(--font-size-xs); }
 .nc-empty { padding: 8px 0; font-size: var(--font-size-sm); }
 .nc-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .nc-count { margin-right: auto; font-size: var(--font-size-sm); }
-@media (max-width: 640px) { .nc-form { padding: 12px; } .nc-list { max-height: 45dvh; } }
+@media (max-width: 640px) {
+  .nc-form { padding: 12px; } .nc-list { max-height: 45dvh; }
+  /* The window's label covers its whole 44px row, checkbox included, so a tap anywhere on the row toggles it. */
+  .nc-item { position: relative; min-height: 44px; }
+  .nc-win::before { content: ''; position: absolute; inset: 0; }
+}
 /* On wide screens the meta column would stretch and push Showing and the actions far from their desktop. */
 .ctx-desktops .ctx-layout-list, .ctx-desktop-batch { max-width: 760px; }
+
+/* The Agents column is ~220px between 641 and ~1000px wide: the filters wrap instead of cutting off CLEAR OLD. */
+@media (max-width: 1100px) {
+  #agents-panel .panel-header { flex-wrap: wrap; }
+  #agents-panel .agent-filters { flex-wrap: wrap; min-width: 0; }
+}
+
+/* While a window is dragged, controls inside drop targets let the drag through: Safari (WebKit) sends no
+   dragover to a card when the pointer is over its <select>, so the card would refuse the drop there. */
+body.ctx-dragging .ctx-card select, body.ctx-dragging .ctx-card input,
+body.ctx-dragging .ctx-unsorted-box select, body.ctx-dragging .ctx-desktops select { pointer-events: none; }

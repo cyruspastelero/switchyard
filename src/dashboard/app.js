@@ -29,9 +29,14 @@ function navigateRows(direction) {
   var listLength = panelIdx === 0 ? state.agents.length : panelIdx === 1 ? state.missions.length : 0;
   if (listLength === 0) return;
 
+  var list = panelIdx === 0 ? $agentsList : $missionsList;
+  var hadFocus = list.contains(document.activeElement);
   state.focusedRow[panelIdx] = Math.max(0, Math.min(listLength - 1, state.focusedRow[panelIdx] + direction));
   if (panelIdx === 0) renderAgents();
   else renderMissions();
+  // When a row has keyboard focus, j/k move that focus too, not only the highlight.
+  var target = hadFocus && list.querySelector('.focused [tabindex="0"]');
+  if (target) target.focus();
 }
 
 function selectFocusedRow() {
@@ -45,8 +50,20 @@ function selectFocusedRow() {
     // Filter timeline and usage to this agent
     setTimelineFilter(agent.agent_id || agent.id);
     fetchUsage();
+  } else if (state.activePanel === 1 && state.missions.length > 0) {
+    var mission = state.missions[state.focusedRow[1]];
+    if (!mission) return;
+    expandedMissionId = expandedMissionId === mission.id ? null : mission.id;
+    renderMissions();
   }
 }
+
+// Tabbing into a panel makes it the panel that j/k/Enter act on.
+panels.forEach(function (panel, i) {
+  panel.addEventListener('focusin', function () {
+    if (state.activePanel !== i) setActivePanel(i);
+  });
+});
 
 // ── Inline mission creation ──────────────────────────────────────────────
 
@@ -146,11 +163,19 @@ document.addEventListener('keydown', function (e) {
   // Contexts view has its own focusable controls: leave Tab and arrows alone.
   if (document.body.classList.contains('view-contexts') && e.key !== '?' && e.key !== 'Escape') return;
 
+  // A focused button, link or row handles its own Enter and Space; Tab stays native.
+  var onControl = tag === 'BUTTON' || tag === 'A' || tag === 'SELECT' ||
+    (e.target && e.target.getAttribute && e.target.getAttribute('role') === 'button');
+
   // Global shortcuts
   switch (e.key) {
-    case 'Tab':
+    case ']':
       e.preventDefault();
-      cyclePanels(e.shiftKey ? -1 : 1);
+      cyclePanels(1);
+      break;
+    case '[':
+      e.preventDefault();
+      cyclePanels(-1);
       break;
     case 'j':
     case 'ArrowDown':
@@ -163,7 +188,7 @@ document.addEventListener('keydown', function (e) {
       navigateRows(-1);
       break;
     case 'Enter':
-      selectFocusedRow();
+      if (!onControl) selectFocusedRow();
       break;
     case 'i':
       e.preventDefault();
@@ -222,6 +247,28 @@ function toggleHelp() {
   else if (!opening && $kbdHint) $kbdHint.focus();
 }
 if ($kbdHint) $kbdHint.addEventListener('click', toggleHelp);
+// Modal dialogs keep Tab inside them (Tab is native everywhere else).
+function trapTab(dialog) {
+  if (!dialog) return;
+  dialog.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab') return;
+    var items = Array.prototype.filter.call(
+      dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex="0"]'),
+      function (el) { return !el.disabled && el.offsetParent !== null; });
+    if (items.length === 0) return;
+    var first = items[0];
+    var last = items[items.length - 1];
+    var inList = items.indexOf(document.activeElement) !== -1;
+    if (e.shiftKey && (document.activeElement === first || !inList)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (document.activeElement === last || !inList)) { e.preventDefault(); first.focus(); }
+  });
+}
+trapTab($kbdHelp);
+trapTab($securityOverlay);
+
+// A visible close button: phones have no Esc key.
+var $kbdClose = $kbdHelp.querySelector('.kbd-close');
+if ($kbdClose) $kbdClose.addEventListener('click', toggleHelp);
 
 // ── Mobile tab navigation ─────────────────────────────────────────────────
 

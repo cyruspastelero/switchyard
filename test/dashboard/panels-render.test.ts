@@ -25,7 +25,9 @@ function load(files: string[], extra: Record<string, unknown> = {}) {
   const window: Record<string, unknown> = { confirm: () => true, ...extra };
   const body = new El('body');
   const page: { rows: El[] } = { rows: [] };
-  const document = { createElement: (t: string) => new El(t), body, querySelectorAll: () => page.rows };
+  const docListeners: Record<string, (e?: unknown) => void> = {};
+  const document = { createElement: (t: string) => new El(t), body, querySelectorAll: () => page.rows,
+    addEventListener: (type: string, fn: (e?: unknown) => void) => { docListeners[type] = fn; } };
   const ctx = { window, document, setTimeout, Date, URL, Promise, JSON };
   for (const f of files) runInNewContext(readFileSync(new URL(`../../src/dashboard/${f}`, import.meta.url), 'utf8'), ctx);
   const h = (tag: string, cls: string | null, text: string | null, attrs?: Record<string, string>) => {
@@ -43,7 +45,7 @@ function load(files: string[], extra: Record<string, unknown> = {}) {
   };
   const acted: string[] = [];
   const deps = { h, add, button, act: (key: string) => { acted.push(key); return Promise.resolve(); }, request: () => Promise.resolve(null), busy: {} };
-  return { window, deps, acted, body, page };
+  return { window, deps, acted, body, page, docListeners };
 }
 
 const owned = 'Desktop 1 belongs to devx. Give devx another desktop first.';
@@ -75,13 +77,13 @@ describe('desktops panel', () => {
     const close = rows[0].all().find((e) => e.attrs['data-fk'] === 'desktopClose:1')!;
     expect(close.disabled).toBe(true);
     expect(close.title).toBe(owned);
-    expect(rows[0].children[0].disabled).toBe(true);
+    expect(rows[0].children[0].children[0].disabled).toBe(true); // the box sits in its hit-area label
   });
 
   it('ticking_boxes_updates_one_close_button_with_the_real_count', () => {
     const batch = box.all().find((e) => e.attrs['data-fk'] === 'desktopBatch')!;
     expect(batch.disabled).toBe(true);
-    for (const r of rows.slice(1, 3)) { r.children[0].checked = true; r.children[0].listeners.change(); }
+    for (const r of rows.slice(1, 3)) { const box = r.children[0].children[0]; box.checked = true; box.listeners.change(); }
     expect(batch.textContent).toBe('Close 2 desktops');
     expect(batch.disabled).toBe(false);
   });
@@ -144,5 +146,92 @@ describe('dragging a window onto a desktop row', () => {
     expect(acted).toEqual(['drop:w1']);
     expect(body.className).not.toContain('ctx-dragging');
     expect(editing).toEqual([true, false]);
+  });
+});
+
+describe('dragging a window onto a context card or onto Unsorted', () => {
+  type Drag = { source: (li: El, w: unknown, from: unknown, label: string) => void; card: (el: El, c: unknown) => void; unsorted: (el: El) => void };
+  const { window, deps, body, page, docListeners } = load(['contexts-logic.js', 'dragdrop.js']);
+  const sent: { method: string; path: string; body: unknown }[] = [];
+  const results: Promise<{ notice: string; followUp?: { label: string; toast: boolean; run: () => Promise<{ notice: string }> } }>[] = [];
+  const editing: boolean[] = [];
+  const all = { ...deps, data: () => ({ desktopList: null }), editing: (on: boolean) => editing.push(on),
+    request: (method: string, path: string, b: unknown) => { sent.push({ method, path, body: b }); return Promise.resolve({ moving: false, desktop: null }); },
+    act: (_key: string, fn: () => Promise<never>) => { results.push(fn()); return Promise.resolve(); } };
+  const drag = (window.MCDragDrop as (x: unknown) => Drag)(all);
+  const devx = new El('article'), aral = new El('article'), box = new El('section');
+  drag.card(devx, { id: 'd', name: 'devx' });
+  drag.card(aral, { id: 'a', name: 'aral' });
+  drag.unsorted(box);
+  page.rows = [devx, aral, box];
+  const sorted = new El('li'), loose = new El('li');
+  drag.source(sorted, { key: 'w1', app: 'Chrome' }, { id: 'd', name: 'devx' }, 'Docs');
+  drag.source(loose, { key: 'w2', app: 'Ghostty' }, null, 'zsh');
+  const transfer = { data: {} as Record<string, string>, setData(t: string, v: string) { this.data[t] = v; }, clearData() { this.data = {}; },
+    setDragImage: () => {}, effectAllowed: '', dropEffect: '' };
+  const event = () => { const e = { prevented: false, dataTransfer: transfer, relatedTarget: null, target: null, preventDefault: () => { e.prevented = true; } }; return e; };
+
+  it('rows_drag_even_without_desktops_and_carry_text_for_firefox', () => {
+    expect(sorted.attrs.draggable).toBe('true');
+    expect(sorted.children[0].className).toBe('ctx-w-grip');
+    expect(sorted.children[0].attrs['aria-hidden']).toBe('true');
+    sorted.listeners.dragstart(event());
+    expect(transfer.data['text/plain']).toBe('Docs');
+    expect(transfer.effectAllowed).toBe('move');
+  });
+
+  it('the_own_card_dims_and_says_already_there_while_other_targets_light_up', () => {
+    expect(devx.className).toContain('drop-off');
+    expect(devx.attrs['data-drop-note']).toBe('Already in devx');
+    expect(aral.className).toContain('drop-ok');
+    expect(box.className).toContain('drop-ok');
+    expect(aral.attrs.tabindex).toBe(undefined);
+  });
+
+  it('dropping_on_a_card_assigns_and_undo_assigns_back', async () => {
+    const over = event();
+    aral.listeners.dragover(over);
+    expect(over.prevented).toBe(true);
+    expect(transfer.dropEffect).toBe('move');
+    expect(aral.className).toContain('drop-over');
+    aral.listeners.drop(event());
+    expect(aral.className).not.toContain('drop-');
+    expect(aral.attrs['data-drop-note']).toBe(undefined);
+    const res = await results[0];
+    expect(sent[0]).toEqual({ method: 'POST', path: '/api/contexts/assign', body: { windowKey: 'w1', contextId: 'a' } });
+    expect(res.notice).toBe('Moved to aral');
+    expect(res.followUp!.toast).toBe(true);
+    expect((await res.followUp!.run()).notice).toBe('Moved back to devx');
+    expect(sent[1]).toEqual({ method: 'POST', path: '/api/contexts/assign', body: { windowKey: 'w1', contextId: 'd' } });
+  });
+
+  it('dropping_on_unsorted_unassigns_and_undo_assigns_back', async () => {
+    sorted.listeners.dragstart(event());
+    box.listeners.drop(event());
+    const res = await results[1];
+    expect(sent[2]).toEqual({ method: 'POST', path: '/api/contexts/unassign', body: { windowKey: 'w1' } });
+    expect(res.notice).toBe('Moved to Unsorted');
+    await res.followUp!.run();
+    expect(sent[3]).toEqual({ method: 'POST', path: '/api/contexts/assign', body: { windowKey: 'w1', contextId: 'd' } });
+  });
+
+  it('an_unsorted_window_cannot_drop_on_unsorted', () => {
+    loose.listeners.dragstart(event());
+    expect(box.className).toContain('drop-off');
+    const over = event();
+    box.listeners.dragover(over);
+    expect(over.prevented).toBe(false);
+    box.listeners.drop(event());
+    expect(sent).toHaveLength(4);
+  });
+
+  it('every_way_a_drag_ends_releases_the_hold', () => {
+    loose.listeners.dragend(event()); // Esc, a drop outside the window or on nothing all end in dragend
+    expect(body.className).not.toContain('ctx-dragging');
+    expect(box.className).not.toContain('drop-');
+    loose.listeners.dragstart(event());
+    docListeners.dragend(event()); // the row was gone by then: the page still hears it
+    expect(body.className).not.toContain('ctx-dragging');
+    expect(editing.filter((on) => on).length).toBe(editing.filter((on) => !on).length);
   });
 });

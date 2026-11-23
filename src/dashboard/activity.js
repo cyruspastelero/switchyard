@@ -25,6 +25,42 @@ function agentDisplayName(agent) {
   return 'Agent';
 }
 
+// The agent's display name for a raw agent_id (timeline, filter chip); the raw id when no agent matches.
+function agentLabelFor(agentId) {
+  var agent = state.agents.find(function (a) { return a.agent_id === agentId || a.id === agentId; });
+  return agent ? agentDisplayName(agent) : agentId;
+}
+
+// The main agent's name for a session id (usage panel); a short id when the session has no known agent.
+function sessionLabelFor(sessionId) {
+  var agents = state.agents.filter(function (a) { return a.session_id === sessionId; });
+  var main = agents.find(function (a) { return isMainAgentId(a.agent_id || ''); }) || agents[0];
+  if (main) return agentDisplayName(main);
+  return sessionId.length > 10 ? sessionId.slice(0, 8) + '..' : sessionId;
+}
+
+// Re-rendering a list replaces its rows. These keep keyboard focus on the same control of the same row.
+function rememberRowFocus(list, attr) {
+  var el = document.activeElement;
+  if (!el || el === list || !list.contains(el)) return null;
+  var row = el.closest('[' + attr + ']');
+  var cls = (el.className || '').split(' ')[0];
+  if (!row || !cls) return null;
+  var index = Array.prototype.indexOf.call(row.querySelectorAll('.' + cls), el);
+  return { key: row.getAttribute(attr), cls: cls, index: Math.max(0, index) };
+}
+
+function restoreRowFocus(list, attr, saved) {
+  if (!saved) return;
+  var rows = list.querySelectorAll('[' + attr + ']');
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].getAttribute(attr) !== saved.key) continue;
+    var target = rows[i].querySelectorAll('.' + saved.cls)[saved.index];
+    if (target) target.focus({ preventScroll: true });
+    return;
+  }
+}
+
 // Agent filter: 'active' (seen in the last 24 h, the default), 'idle' (same window), 'all'.
 var RECENT_MS = 24 * 3600 * 1000;
 var agentFilter = 'active';
@@ -140,7 +176,21 @@ function buildAgentRow(agent, isSub, isLast, flatIdx) {
   }
 
   topChildren.push(timeEl);
-  var topRow = createEl('div', { className: 'agent-row-top' }, topChildren);
+  var topRow = createEl('div', { className: 'agent-row-top', tabIndex: 0 }, topChildren);
+  // Keyboard: Enter/Space selects (the click bubbles to the list handler); right/left open and fold subagents.
+  topRow.setAttribute('role', 'button');
+  topRow.setAttribute('aria-pressed', String(selected));
+  topRow.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      topRow.click();
+    } else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !isSub && agent._subCount > 0 &&
+      (e.key === 'ArrowRight') === !!agent._sessionCollapsed) {
+      e.preventDefault();
+      toggleSessionCollapse(agent.session_id, true);
+    }
+  });
   var children = [topRow];
 
   // Show short project path (not full /Users/cyrus/...) when selected
@@ -280,7 +330,15 @@ function renderAgents() {
   var totalCount = state.agents.length;
   $agentsBadge.textContent = agentFilter === 'all' ? totalCount : activeCount + '/' + totalCount;
   $agentsBadge.title = activeCount + ' active in the last 24 h, ' + totalCount + ' in total';
+  var savedFocus = rememberRowFocus($agentsList, 'data-agent-id');
   clearElement($agentsList);
+  renderAgentRows();
+  restoreRowFocus($agentsList, 'data-agent-id', savedFocus);
+}
+
+function renderAgentRows() {
+  var activeCount = state.agents.filter(isRecentAgent).length;
+  var totalCount = state.agents.length;
 
   if (state.agents.length === 0) {
     $agentsList.appendChild(emptyState('No agents yet', 'Start Claude Code in a project folder and it appears here. Run "switchyard install" once if it does not.'));
@@ -453,14 +511,19 @@ function renderMissions() {
   var doneCount = state.missions.filter(function (m) { return !isOpenMission(m); }).length;
   $missionsBadge.textContent = state.missions.length - doneCount;
   $missionsBadge.title = doneCount + ' completed';
+  var savedFocus = rememberRowFocus($missionsList, 'data-mission-id');
   clearElement($missionsList);
+  renderMissionRows(doneCount);
+  restoreRowFocus($missionsList, 'data-mission-id', savedFocus);
+}
 
+function renderMissionRows(doneCount) {
   if (state.missions.length === 0) {
-    $missionsList.appendChild(createEl('div', { className: 'empty-state', textContent: 'No goals yet — press n to add one' }));
+    $missionsList.appendChild(emptyState('No missions yet', 'A mission is added for each project an agent starts work in.'));
     return;
   }
   if (doneCount === state.missions.length && !showCompletedMissions) {
-    $missionsList.appendChild(createEl('div', { className: 'empty-state', textContent: 'No open missions — press n to add one' }));
+    $missionsList.appendChild(emptyState('No open missions', 'Every mission is done.'));
   }
 
   state.missions.forEach(function (mission, i) {
@@ -487,7 +550,16 @@ function renderMissions() {
     }
     var metaEl = metaText ? createEl('span', { className: 'mission-meta', textContent: metaText }) : null;
 
-    var topRow = createEl('div', { className: 'mission-top' }, [checkbox, titleEl, metaEl].filter(Boolean));
+    var topRow = createEl('div', { className: 'mission-top', tabIndex: 0 }, [checkbox, titleEl, metaEl].filter(Boolean));
+    // Keyboard: Enter/Space expands or folds the mission (the click bubbles to the list handler).
+    topRow.setAttribute('role', 'button');
+    topRow.setAttribute('aria-expanded', String(isExpanded));
+    topRow.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.click();
+    });
     var children = [topRow];
 
     // Expanded details
@@ -501,7 +573,7 @@ function renderMissions() {
 
       // Agent info
       if (mission.assigned_agent_id) {
-        var agent = state.agents.find(function (a) { return a.id === mission.assigned_agent_id; });
+        var agent = state.agents.find(function (a) { return a.id === mission.assigned_agent_id || a.agent_id === mission.assigned_agent_id; });
         var agentInfo = createEl('div', { className: 'mission-agent-info' });
 
         var agentName = agent ? agentDisplayName(agent) : mission.assigned_agent_id;
@@ -510,7 +582,7 @@ function renderMissions() {
 
         agentInfo.appendChild(createEl('span', { className: 'mission-info-label', textContent: 'Agent:' }));
         agentInfo.appendChild(createEl('span', { className: 'agent-dot ' + agentStatus, textContent: dotChar }));
-        agentInfo.appendChild(createEl('span', { className: 'mission-info-value', textContent: agentName }));
+        agentInfo.appendChild(createEl('span', { className: 'mission-info-value', textContent: agentName, title: mission.assigned_agent_id }));
 
         if (agent && agent.cwd) {
           agentInfo.appendChild(createEl('br'));
