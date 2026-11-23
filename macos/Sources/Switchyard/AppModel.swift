@@ -84,7 +84,10 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func openDashboard() { NSWorkspace.shared.open(config.serverURL) }
+    func openDashboard() {
+        let url = config.serverURL
+        Task.detached { await DashboardTabs.open(url) }
+    }
 
     /// Moves the windows at once from what the app already knows, then tells the server. The server's own
     /// `show` follows a few milliseconds later and only corrects what the local view got wrong.

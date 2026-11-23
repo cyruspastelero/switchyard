@@ -62,4 +62,18 @@ final class BrowserInstanceTests: XCTestCase {
         XCTAssertEqual(BrowserInstances.forNewWindow(running: [(1161, old), (20780, newer)], answering: [:]), 20780)
         XCTAssertNil(BrowserInstances.forNewWindow(running: [], answering: [:]))
     }
+
+    func test_a_process_with_no_chrome_dictionary_is_an_error_not_a_crash() throws {
+        // A Chrome process that is starting up (or anything without Chrome's scripting terms) has no "windows" key;
+        // asking for it raised an Objective-C exception and took the app down.
+        let done = DispatchSemaphore(value: 0)
+        final class Flag: @unchecked Sendable { var failed = false }
+        let flag = Flag()
+        Task.detached {
+            do { _ = try await ChromeBridge.list(pid: ProcessInfo.processInfo.processIdentifier, timeout: 1) } catch { flag.failed = true }
+            done.signal()
+        }
+        done.wait()
+        XCTAssertTrue(flag.failed)
+    }
 }

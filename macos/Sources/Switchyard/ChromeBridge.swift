@@ -63,6 +63,19 @@ enum ChromeBridge {
         }
     }
 
+    /// Makes the tab active and its window the front window of that Chrome.
+    static func focusTab(pid: pid_t, windowId: String, tabId: String) async throws {
+        try await run(pid: pid, timeout: commandTimeout) { s in
+            let w = try s.window(in: try s.windows(), id: windowId)
+            guard let tabs = w.value(forKey: "tabs") as? SBElementArray,
+                  let ids = tabs.value(forKey: "id") as? [Any],
+                  let index = ids.firstIndex(where: { "\($0)" == tabId }) else { throw BrowserError.unsupported("tab not found") }
+            w.setValue(index + 1, forKey: "activeTabIndex")
+            w.setValue(1, forKey: "index")
+            try s.check()
+        }
+    }
+
     static func closeWindow(pid: pid_t, windowId: String) async throws {
         try await run(pid: pid, timeout: commandTimeout) { s in
             try s.close(try s.window(in: try s.windows(), id: windowId))
@@ -105,6 +118,9 @@ enum ChromeBridge {
         }
 
         func windows() throws -> SBElementArray {
+            // Without Chrome's dictionary (a process still starting, or not Chrome) the key is unknown and
+            // value(forKey:) raises an Objective-C exception that Swift cannot catch: it took the app down.
+            guard app.responds(to: NSSelectorFromString("windows")) else { throw BrowserError.unsupported("this process does not offer Chrome's scripting") }
             guard let w = app.value(forKey: "windows") as? SBElementArray else { try check(); throw BrowserError.badOutput }
             return w
         }
