@@ -65,4 +65,12 @@ final class TidyTests: XCTestCase {
         XCTAssertEqual(TidyTargets.keys(contexts: contexts, desktop: 2, activeContextId: nil, moves: moves), ["b1", "moved"])
         XCTAssertEqual(TidyTargets.keys(contexts: contexts, desktop: 1, activeContextId: nil, moves: moves), ["a1"])
     }
+
+    func test_manual_tidy_takes_every_shown_window_whatever_its_context() {
+        let windows: [ManualTidy.Candidate] = [
+            .init(key: "mine", hidden: false), .init(key: "unsorted", hidden: false),
+            .init(key: "other-context", hidden: false), .init(key: "hidden", hidden: true),
+        ]
+        XCTAssertEqual(ManualTidy.keys(windows), ["mine", "unsorted", "other-context"])
+    }
 }

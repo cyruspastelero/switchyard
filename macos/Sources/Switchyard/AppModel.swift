@@ -21,6 +21,8 @@ final class AppModel: ObservableObject {
     /// The current desktop has an Undo for its last tidy.
     @Published private(set) var canUndoTidy = false
     @Published private(set) var unsorted: [WindowRef] = []
+    /// Names of the saved layout presets, for the default name of the next one.
+    @Published private(set) var layoutNames: [String] = []
 
     private let config = AppConfig.load()
     private lazy var api = APIClient(config: config)
@@ -36,6 +38,8 @@ final class AppModel: ObservableObject {
             guard let self else { return [] }
             return TidyTargets.keys(contexts: self.contexts, desktop: desktop, activeContextId: self.activeContextId, moves: moves)
         },
+        tidySlots: { [weak self] desktop in self?.presetSlots(desktop: desktop) },
+        saveLayout: { [weak self] name in try await self?.captureAndSave(name: name) },
         shown: { [weak self] desktop in self?.watchBounce(target: desktop) },
         tidied: { [weak self] desktop, outcome in self?.noteTidy(desktop: desktop, outcome) })
     private let hud = DesktopHUD()
@@ -116,18 +120,34 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// ⌥T and the panel button: lays out the current desktop from what the app holds (works with the server down).
+    /// ⌥T and the panel button: lays out every window on the current desktop (works with the server down).
     func tidyHere() {
         if sortProgress != nil { actionProblem = "Sorting windows. Press Esc to stop it first."; NSSound.beep(); return }
         act("Tidy") {
             guard let desktop = Spaces.activeDesktopNumber() else { throw CommandError.unsupported("this space is not a desktop") }
-            let keys = TidyTargets.keys(contexts: self.contexts, desktop: desktop, activeContextId: self.activeContextId)
-            guard !keys.isEmpty else { throw CommandError.unsupported("no context owns Desktop \(desktop)") }
-            let outcome = await self.tidier.tidy(desktop: desktop, keys: keys, force: true)
+            _ = await self.windows.refresh()
+            let keys = await self.windows.manualTidyKeys()
+            let outcome = await self.tidier.tidy(desktop: desktop, keys: keys, force: true, slots: self.presetSlots(desktop: desktop))
             self.noteTidy(desktop: desktop, outcome)
             self.snapshots.nudge()
             if let skipped = outcome.skipped { throw CommandError.unsupported(skipped) }
         }
+    }
+
+    /// "Save layout…" in the panel: asks for a name, then saves the desktop on screen as a preset.
+    func saveLayoutPrompt() {
+        guard let name = LayoutNamePrompt.ask(defaultName: LayoutNames.next(taken: layoutNames)) else { return }
+        act("Save layout") { try await self.captureAndSave(name: name) }
+    }
+
+    private func presetSlots(desktop: Int) -> [LayoutSlotDTO]? {
+        TidyTargets.slots(contexts: contexts, desktop: desktop, activeContextId: activeContextId)
+    }
+
+    /// Reads the windows on the desktop on screen and posts them as a preset.
+    private func captureAndSave(name: String) async throws {
+        let slots = try await LayoutCapture(windows: windows).slots()
+        try await api.saveLayout(name: name, slots: slots)
     }
 
     func undoTidy() {
@@ -298,6 +318,7 @@ final class AppModel: ObservableObject {
         unsortedCount = r.unsortedCount
         unsorted = r.unsorted
         desktopMode = r.desktopMode
+        layoutNames = r.layoutNames
         toSortCount = r.desktopMode ? r.toSort : 0
         let current = Dictionary(r.contexts.map { ($0.id, $0.status) }, uniquingKeysWith: { a, _ in a })
         if let before = previousStatus {

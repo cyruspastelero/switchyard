@@ -71,6 +71,18 @@ The dashboard asks for a 6-digit access code. It changes every time the server s
 
 Windows Switchyard can't place go to the last desktop as Unsorted, and you can assign them by hand. It never re-sorts a window you placed yourself.
 
+### Layout presets
+
+Tidy lays out windows on its own, but you can teach it your own arrangement.
+
+1. Arrange the windows on a desktop by hand. Say Ghostty on the laptop screen and Chrome on the monitor.
+2. Save it: **Save layout…** in the menu bar panel, or **Save layout** under Layouts in the dashboard. Give it a name.
+3. Pick where it applies. **Default layout** in the dashboard is used for every project. A project card's **Layout** select overrides it for that project: pick a preset, or Auto for the automatic layout.
+
+From then on Tidy (<kbd>⌥</kbd><kbd>T</kbd>, the panel, the dashboard, and the tidy after Sort) puts each app's windows back in their saved spots. Apps the preset doesn't know get the automatic layout. Undo tidy still works.
+
+A preset that spans two screens needs one desktop across both. Turn off **System Settings → Desktop & Dock → Displays have separate Spaces**, then log out and back in. With it on, each screen has its own desktops and a preset only places windows on the desktop's own screen.
+
 ## Permissions
 
 | Permission | Why |

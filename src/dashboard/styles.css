@@ -3135,3 +3135,22 @@ body.view-contexts .header-stats { display: none; }
   .pick { width: 150px; }
   .pick-pop { width: 260px; }
 }
+
+/* Layout presets: the Layouts section under Auto-tidy and the Layout select on each card. */
+.ctx-select {
+  font-family: var(--font-mono); font-size: var(--font-size-sm); line-height: 1.4; color: var(--text-bright);
+  background: var(--bg-base); border: 1px solid var(--border-bright); border-radius: var(--radius);
+  padding: 3px 6px; max-width: 100%; min-width: 0; color-scheme: dark;
+}
+.ctx-select:hover:not(:disabled) { border-color: var(--border-focus); }
+.ctx-select:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.ctx-layouts .ctx-toggle { cursor: default; flex-wrap: wrap; }
+.ctx-layout-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.ctx-layout-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.ctx-layout-name { color: var(--text-primary); overflow-wrap: anywhere; }
+.ctx-layout-hint { flex-basis: 100%; }
+.ctx-card-layout {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+  font-family: var(--font-sans); font-size: var(--font-size-sm);
+}
+.ctx-card-layout .ctx-select { flex: 1 1 auto; }

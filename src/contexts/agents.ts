@@ -1,7 +1,8 @@
 // Agent status and "last action" derived from the agent's latest hook event.
 
-import type { AgentStatus } from './types.ts';
-import type { LatestEvent } from './store.ts';
+import type { Agent } from '../db.ts';
+import type { AgentStatus, AgentView } from './types.ts';
+import type { ContextRow, ContextStore, LatestEvent } from './store.ts';
 
 const WORKING_WINDOW_MS = 2 * 60_000;
 const ASKING_NOTIFICATIONS = new Set(['permission_prompt', 'elicitation_dialog']);
@@ -76,4 +77,33 @@ export function describeAction(latest: LatestEvent | undefined, before?: string 
   if (typeof input.command === 'string') return clip(`Bash: ${input.command}`);
   if (typeof input.description === 'string') return clip(`${latest.tool_name}: ${input.description}`);
   return latest.tool_name;
+}
+
+/** The tracker stores main agents as "main" or "<session>:main"; anything else is a subagent. */
+export function isMainAgent(agentId: string): boolean {
+  return agentId === 'main' || agentId.endsWith(':main');
+}
+
+/** Each context's connected main agents, matched by work folder, with status, last action and cost today. */
+export function agentsByContext(
+  rows: readonly ContextRow[], agents: readonly Agent[], store: ContextStore,
+  agentFolder: ReadonlyMap<string, string>, nowMs: number, costPerCall: number,
+): ReadonlyMap<string, readonly AgentView[]> {
+  const dayStart = new Date(nowMs);
+  dayStart.setHours(0, 0, 0, 0);
+  const map = new Map<string, AgentView[]>();
+  for (const a of agents) {
+    if (!isMainAgent(a.agent_id) || a.status === 'disconnected') continue;
+    const ctx = rows.find((r) => r.folder !== null && r.folder === agentFolder.get(a.id));
+    if (!ctx) continue;
+    const latest = store.latestEvent(a.id);
+    const before = latest?.event_type === 'Notification' ? store.eventBeforeNotification(a.id) : null;
+    const calls = store.toolCallsSince(a.id, dayStart.toISOString());
+    const view: AgentView = {
+      id: a.id, name: a.name ?? a.id, status: deriveAgentStatus(latest, nowMs, before),
+      lastAction: describeAction(latest, before), costToday: Math.round(calls * costPerCall * 10_000) / 10_000,
+    };
+    map.set(ctx.id, [...(map.get(ctx.id) ?? []), view]);
+  }
+  return map;
 }

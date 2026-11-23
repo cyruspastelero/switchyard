@@ -24,7 +24,7 @@ describe('dashboard caching', () => {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: server.accessCode }),
     });
     const cookie = (auth.headers.get('set-cookie') ?? '').split(';')[0];
-    for (const path of ['/', '/core.js', '/activity.js', '/usage.js', '/app.js', '/picker.js', '/contexts.js']) {
+    for (const path of ['/', '/core.js', '/activity.js', '/usage.js', '/app.js', '/picker.js', '/layouts.js', '/contexts.js']) {
       const res = await fetch(`${BASE}${path}`, { headers: { cookie } });
       expect(res.status, path).toBe(200);
       expect(res.headers.get('cache-control'), path).toBe('no-store');

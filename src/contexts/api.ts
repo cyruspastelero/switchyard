@@ -8,6 +8,7 @@ import {
   parseSettings, parseTidy, parseUnassign, parseUndoTidy, parseWindowName, type Parsed,
 } from './dto.ts';
 import { ICON_MAX_BYTES, isBundleId, isPng } from './icons.ts';
+import { parseCaptureLayout, parseCreateLayout, parseRenameLayout } from './layouts.ts';
 import { ContextsError } from './types.ts';
 import type { ContextsService } from './service.ts';
 
@@ -135,6 +136,24 @@ const ROUTES: readonly Route[] = [
       const row = c.service.createTopic(dto.name);
       sendJson(c.res, 201, await contextView(c, row.id));
     },
+  },
+  { method: 'GET', pattern: /^\/layouts$/, appOnly: false, run: async (c) => sendJson(c.res, 200, c.service.layouts.list()) },
+  {
+    // The Mac app saves a capture here too (bearer token from loopback).
+    method: 'POST', pattern: /^\/layouts$/, appOnly: false,
+    run: async (c) => { const d = await body(c, parseCreateLayout); sendJson(c.res, 201, c.service.layouts.create(d)); },
+  },
+  {
+    method: 'POST', pattern: /^\/layouts\/capture$/, appOnly: false,
+    run: async (c) => { const d = await body(c, parseCaptureLayout); ok(c, c.service.captureLayout(d)); },
+  },
+  {
+    method: 'PATCH', pattern: /^\/layouts\/([^/]+)$/, appOnly: false,
+    run: async (c) => { const d = await body(c, parseRenameLayout); sendJson(c.res, 200, c.service.layouts.rename(c.params[0], d.name)); },
+  },
+  {
+    method: 'DELETE', pattern: /^\/layouts\/([^/]+)$/, appOnly: false,
+    run: async (c) => { await body(c, parseEmpty); c.service.layouts.remove(c.params[0]); ok(c); },
   },
   {
     // Before PATCH /:id, which would otherwise take "settings" for a context id.

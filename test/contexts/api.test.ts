@@ -61,7 +61,7 @@ describe('/api/contexts over http', () => {
       const res = await fetcher(`${BASE}/api/contexts`);
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(Object.keys(body).sort()).toEqual(['activeContextId', 'autoTidy', 'contexts', 'desktopMode', 'desktopNote', 'desktops', 'lastFailure', 'suggestions', 'toSort', 'unsorted', 'unsortedToMove', 'waitingCount', 'windowControl']);
+      expect(Object.keys(body).sort()).toEqual(['activeContextId', 'autoTidy', 'contexts', 'defaultLayoutId', 'desktopMode', 'desktopNote', 'desktops', 'lastFailure', 'layouts', 'suggestions', 'toSort', 'unsorted', 'unsortedToMove', 'waitingCount', 'windowControl']);
       expect(body.contexts[0]).toMatchObject({ folder: expect.any(String), key: 1, status: 'idle' });
     }
   });
@@ -296,7 +296,7 @@ describe('arranging endpoints', () => {
     expect((await f(`${BASE}/api/contexts/settings`, { method: 'PATCH', ...json({ autoTidy: 'no' }) })).status).toBe(400);
     expect((await f(`${BASE}/api/contexts/settings`, { method: 'PATCH', ...json({ autoTidy: true, x: 1 }) })).status).toBe(400);
     const res = await f(`${BASE}/api/contexts/settings`, { method: 'PATCH', ...json({ autoTidy: false }) });
-    expect(await res.json()).toEqual({ ok: true, autoTidy: false });
+    expect(await res.json()).toEqual({ ok: true, autoTidy: false, defaultLayoutId: null });
     expect((await (await f(`${BASE}/api/contexts`)).json()).autoTidy).toBe(false);
     await f(`${BASE}/api/contexts/settings`, { method: 'PATCH', ...json({ autoTidy: true }) });
   });

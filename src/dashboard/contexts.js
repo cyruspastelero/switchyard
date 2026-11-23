@@ -94,6 +94,7 @@
         parkedWindowCount: Number(c.parkedWindowCount) || 0,
         desktop: typeof c.desktop === 'number' ? c.desktop : null,
         desktopShared: c.desktopShared === true,
+        layoutId: typeof c.layoutId === 'string' ? c.layoutId : null,
       };
     });
     var waiting = typeof raw.waitingCount === 'number'
@@ -124,6 +125,8 @@
       unsortedToMove: typeof raw.unsortedToMove === 'number' ? raw.unsortedToMove : 0,
       desktopCount: raw.desktops && typeof raw.desktops.count === 'number' ? raw.desktops.count : null,
       autoTidy: raw.autoTidy !== false,
+      layouts: arr(raw.layouts).filter(function (p) { return p && typeof p.id === 'string' && Array.isArray(p.slots); }),
+      defaultLayoutId: typeof raw.defaultLayoutId === 'string' ? raw.defaultLayoutId : null,
     };
   }
 
@@ -335,6 +338,7 @@
         if (control && d.desktopNote) frag.appendChild(h('div', 'ctx-foot ctx-muted', d.desktopNote));
         else if (control && d.desktopMode !== 'desktops') frag.appendChild(h('div', 'ctx-foot ctx-muted', ONE_DESKTOP_NOTE));
         if (d.desktopMode === 'desktops') frag.appendChild(autoTidyToggle(d));
+        if (d.desktopMode === 'desktops' && layoutsUi) frag.appendChild(layoutsUi.section(d, control));
       }
     } else {
       var note = logic.noDataNote(errorText);
@@ -352,6 +356,8 @@
       if (again && !again.disabled) again.focus();
     }
   }
+
+  var layoutsUi = window.MCLayouts ? window.MCLayouts({ h: h, add: add, button: button, act: act, request: request, busy: st.busy }) : null;
 
   function noticeLine() {
     var line = h('div', 'ctx-ok', st.notice, { role: 'status' });
@@ -473,7 +479,7 @@
     if (active) meta.appendChild(h('i', 'ctx-onscreen', null, { title: 'On screen', 'aria-label': 'On screen', role: 'img' }));
     var actions = c.agents.map(function (a) { return a.name + (a.lastAction ? ': ' + a.lastAction : ''); }).join('\n');
     var agents = h('div', 'ctx-card-agents', logic.agentSummary(c), actions ? { title: actions } : null);
-    add(card, head, meta, agents);
+    add(card, head, meta, agents, !parked && c.desktop != null && layoutsUi && d.layouts.length ? layoutsUi.cardSelect(c, d) : null);
 
     var wins = h('ul', 'ctx-card-wins');
     if (parked) {
@@ -510,7 +516,7 @@
       }, !control || !!st.busy['park:' + c.id], tip || 'Close this context\u2019s browser windows and save their tabs'),
       c.desktop != null ? button(st.busy['tidy:' + c.id] ? logic.busyLabel('tidy') : 'Tidy', '', 'tidy:' + c.id, function () {
         act('tidy:' + c.id, function () { return api.tidy(c.id).then(tidyResult); });
-      }, !control || !!st.busy['tidy:' + c.id], tip || 'Lay out this context\u2019s windows on Desktop ' + c.desktop) : null,
+      }, !control || !!st.busy['tidy:' + c.id], tip || 'Lay out every window on Desktop ' + c.desktop) : null,
       button(st.busy['switch:' + c.id] ? logic.busyLabel('switch') : 'Switch', 'primary', 'switch:' + c.id, function () {
         act('switch:' + c.id, function () { return api.switchTo(c.id); }, c.name);
       }, !control || !!st.busy['switch:' + c.id], tip || 'Show this context\u2019s windows and hide the others'));

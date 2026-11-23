@@ -19,7 +19,7 @@ actor Tidier {
     private let store: TidyStore
     private var memory: TidyMemory
     /// Desktops whose frames did not read back from afar: tidied on the owner's next arrival.
-    private var pending: [Int: [String]] = [:]
+    private var pending: [Int: (keys: [String], slots: [LayoutSlotDTO]?)] = [:]
 
     init(windows: WindowLayer, store: TidyStore = TidyStore()) {
         self.windows = windows
@@ -30,8 +30,9 @@ actor Tidier {
     func canUndo(desktop: Int) -> Bool { memory.canUndo(desktop: desktop) }
 
     /// `keys`: the windows that belong on the desktop. Those not really there (or minimized, or hidden) are left out.
+    /// `slots`: a layout preset. Its apps' windows go to their slots; the rest get the automatic layout.
     @discardableResult
-    func tidy(desktop: Int, keys: [String], force: Bool) async -> TidyOutcome {
+    func tidy(desktop: Int, keys: [String], force: Bool, slots: [LayoutSlotDTO]? = nil) async -> TidyOutcome {
         if CarrySession.current != nil { return TidyOutcome(skipped: "windows are being carried") }
         guard await Self.mouseButtonsUp() else {
             Log.windows.notice("tidy skipped desktop=\(desktop, privacy: .public): mouse button held")
@@ -43,26 +44,78 @@ actor Tidier {
         let here = await windows.tidyCandidates(keys).filter { w in
             w.windowNumber.flatMap { Spaces.desktopNumber(ofWindow: $0, in: list) } == desktop
         }
-        guard let display = list.first(where: { $0.number == desktop }).flatMap(Spaces.displayId(of:)) else {
+        guard let entry = list.first(where: { $0.number == desktop }), let display = Spaces.displayId(of: entry) else {
             return TidyOutcome(skipped: "cannot find Desktop \(desktop)'s screen")
         }
         guard let screen = await MainActor.run(body: { Self.screen(display) }) else { return TidyOutcome(skipped: "no screen") }
-        // Only windows on the desktop's own screen (one may hang off it).
-        let onMain = here.filter { screen.frame.intersects($0.frame) }
-        let keySet = Set(onMain.map(\.key))
-        guard TidyGate.shouldRun(keys: keySet, last: memory.lastKeys(desktop: desktop), force: force) else { return TidyOutcome() }
+        let preset = (slots?.isEmpty ?? true) ? nil : slots
+        let sharedSpaces = entry.displayId == "Main"
+        let screens = await MainActor.run(body: { PresetScreens.current() })
+        // One set of Spaces across displays ("Main"): the desktop spans every screen, so every window on it counts.
+        // Separate Spaces: only windows on the desktop's own screen (one may hang off it).
+        let candidates = sharedSpaces && !screens.isEmpty ? here : here.filter { screen.frame.intersects($0.frame) }
+        let keySet = Set(candidates.map(\.key))
+        let fingerprint = TidyGate.fingerprint(preset)
+        guard TidyGate.shouldRun(keys: keySet, last: memory.lastKeys(desktop: desktop), force: force,
+                                 preset: fingerprint, lastPreset: memory.lastPreset(desktop: desktop)) else { return TidyOutcome() }
 
         let z = Spaces.zOrder()
-        let order = Layout.pickMain(onMain.map {
-            LayoutWindow(key: $0.key, bundleId: $0.bundleId, z: $0.windowNumber.flatMap { z[$0] } ?? Int.max, number: $0.windowNumber ?? 0)
-        })
-        let byKey = Dictionary(onMain.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })
-        let wins = order.compactMap { byKey[$0] }
         var before: [String: Rect] = [:]
-        for w in onMain { before[w.key] = AX.frame(w.id.element) ?? w.frame }
-        memory.record(desktop: desktop, before: before, keys: keySet)
+        for w in candidates { before[w.key] = AX.frame(w.id.element) ?? w.frame }
+        memory.record(desktop: desktop, before: before, keys: keySet, preset: fingerprint)
         store.save(memory)
 
+        var outcome = TidyOutcome()
+        var unread = 0
+        var targeted = 0
+        var auto = candidates
+        if let preset {
+            let placed = candidates.map {
+                PresetWindow(key: $0.key, bundleId: $0.bundleId, z: $0.windowNumber.flatMap { z[$0] } ?? Int.max, number: $0.windowNumber ?? 0)
+            }
+            let frames = PresetLayout.assign(placed, slots: preset, screens: screens,
+                                             scope: sharedSpaces ? .anyScreen : .only(Spaces.displayUUID(display)))
+            for w in candidates {
+                guard let f = frames[w.key] else { continue }
+                targeted += 1
+                Self.setFrame(w.id.element, f)
+                let area = FrameMath.screen(containing: f, in: screens.map(\.frame)).flatMap { hit in screens.first { $0.frame == hit }?.area }
+                Self.judge(w, slot: f, got: AX.frame(w.id.element), area: area ?? screen.area, outcome: &outcome, unread: &unread)
+            }
+            let rest = Set(PresetLayout.unslotted(placed, slots: preset))
+            auto = candidates.filter { rest.contains($0.key) }
+        }
+        // The automatic layout runs once per screen the windows are on.
+        let groups: [(frame: Rect, area: Rect, wins: [ManagedWindow])]
+        if sharedSpaces && !screens.isEmpty {
+            let byScreen = TidyScreens.group(auto.map { (key: $0.key, frame: $0.frame) }, screens: screens.map(\.frame))
+            groups = byScreen.keys.sorted().map { i in
+                (screens[i].frame, screens[i].area, auto.filter { byScreen[i]?.contains($0.key) ?? false })
+            }
+        } else {
+            groups = [(screen.frame, screen.area, auto)]
+        }
+        for g in groups where !g.wins.isEmpty {
+            targeted += g.wins.count
+            let done = autoLayout(g.wins, z: z, screen: (g.frame, g.area), desktop: desktop)
+            outcome.laidOut += done.outcome.laidOut
+            outcome.refused += done.outcome.refused
+            unread += done.unread
+        }
+        if unread > 0 && unread == targeted { pending[desktop] = (keys, slots) }
+        let ms = Int(Date().timeIntervalSince(start) * 1000)
+        Log.timing.notice("tidy desktop=\(desktop, privacy: .public) windows=\(candidates.count, privacy: .public) preset=\(preset != nil, privacy: .public) applied=\(outcome.laidOut, privacy: .public) refused=\(outcome.refused, privacy: .public) unread=\(unread, privacy: .public) ms=\(ms, privacy: .public)")
+        return outcome
+    }
+
+    /// The automatic layout (see `Layout`) on one screen, with passes around minimum sizes.
+    private func autoLayout(_ list: [ManagedWindow], z: [UInt32: Int], screen: (frame: Rect, area: Rect),
+                            desktop: Int) -> (outcome: TidyOutcome, unread: Int) {
+        let order = Layout.pickMain(list.map {
+            LayoutWindow(key: $0.key, bundleId: $0.bundleId, z: $0.windowNumber.flatMap { z[$0] } ?? Int.max, number: $0.windowNumber ?? 0)
+        })
+        let byKey = Dictionary(list.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })
+        let wins = order.compactMap { byKey[$0] }
         var minimums: [Int: Size] = [:]
         var slots = Layout.frames(count: wins.count, area: screen.area)
         var got = Self.apply(wins, slots)
@@ -77,27 +130,19 @@ actor Tidier {
         var outcome = TidyOutcome()
         var unread = 0
         for (w, (slot, g)) in zip(wins, zip(slots, got)) {
-            guard let g else { unread += 1; continue }
-            if Self.close(g, slot) || (g.width <= slot.width && g.height <= slot.height) { outcome.laidOut += 1; continue }
-            outcome.refused += 1
-            let fitted = Layout.fit(g, slot: slot, area: screen.area)
-            AX.setPosition(w.id.element, x: fitted.x, y: fitted.y)
-            Log.windows.notice("tidy refused key=\(w.bundleId, privacy: .public) wanted=\(Int(slot.width), privacy: .public)x\(Int(slot.height), privacy: .public) got=\(Int(g.width), privacy: .public)x\(Int(g.height), privacy: .public)")
+            Self.judge(w, slot: slot, got: g, area: screen.area, outcome: &outcome, unread: &unread)
         }
-        if unread > 0 && unread == wins.count { pending[desktop] = keys }
         // Deck: raise top to bottom so every title bar shows. Only here, and never activating an app.
         if slots.count >= 3, slots[1].intersects(slots[2]), Spaces.isShowingDesktop(desktop) {
             for w in wins.dropFirst() { AX.perform(w.id.element, kAXRaiseAction as String) }
         }
-        let ms = Int(Date().timeIntervalSince(start) * 1000)
-        Log.timing.notice("tidy desktop=\(desktop, privacy: .public) windows=\(order.count, privacy: .public) applied=\(outcome.laidOut, privacy: .public) refused=\(outcome.refused, privacy: .public) unread=\(unread, privacy: .public) ms=\(ms, privacy: .public)")
-        return outcome
+        return (outcome, unread)
     }
 
     /// A tidy that could not reach another desktop runs once when the owner arrives there.
     func runPending(desktop: Int) async {
-        guard let keys = pending.removeValue(forKey: desktop) else { return }
-        await tidy(desktop: desktop, keys: keys, force: true)
+        guard let job = pending.removeValue(forKey: desktop) else { return }
+        await tidy(desktop: desktop, keys: job.keys, force: true, slots: job.slots)
     }
 
     /// Puts back the frames from before the last tidy of the desktop. Returns how many windows moved.
@@ -121,6 +166,17 @@ actor Tidier {
         }
     }
 
+    /// Counts a placed window. A window smaller than its slot (a terminal's cell grid) counts as placed; one that
+    /// stayed larger is refused and moved so it does not hang off the area.
+    private static func judge(_ w: ManagedWindow, slot: Rect, got: Rect?, area: Rect, outcome: inout TidyOutcome, unread: inout Int) {
+        guard let g = got else { unread += 1; return }
+        if close(g, slot) || (g.width <= slot.width && g.height <= slot.height) { outcome.laidOut += 1; return }
+        outcome.refused += 1
+        let fitted = Layout.fit(g, slot: slot, area: area)
+        AX.setPosition(w.id.element, x: fitted.x, y: fitted.y)
+        Log.windows.notice("tidy refused key=\(w.bundleId, privacy: .public) wanted=\(Int(slot.width), privacy: .public)x\(Int(slot.height), privacy: .public) got=\(Int(g.width), privacy: .public)x\(Int(g.height), privacy: .public)")
+    }
+
     private static func setFrame(_ el: AXUIElement, _ f: Rect) {
         AX.setSize(el, width: f.width, height: f.height)
         AX.setPosition(el, x: f.x, y: f.y)
@@ -140,9 +196,8 @@ actor Tidier {
         return true
     }
 
-    /// The main display (menu bar) in Accessibility coordinates, and its usable area.
+    /// The screen showing `display`, else the main one, in Accessibility coordinates, and its usable area.
     @MainActor
-    /// The screen showing `display`, else the main one.
     private static func screen(_ display: CGDirectDisplayID) -> (frame: Rect, area: Rect)? {
         guard let primary = NSScreen.screens.first else { return nil }
         let number = NSDeviceDescriptionKey("NSScreenNumber")

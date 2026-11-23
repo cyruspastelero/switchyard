@@ -22,6 +22,7 @@ struct MenuPanelActions {
     var sortWindows: () -> Void
     var tidy: () -> Void = {}
     var undoTidy: () -> Void = {}
+    var saveLayout: () -> Void = {}
     var showAllWindows: () -> Void
     var copyAccessCode: () -> Void
     var openDashboard: () -> Void
@@ -45,6 +46,7 @@ struct MenuContent: View {
             actions: MenuPanelActions(
                 switchTo: { model.switchTo($0) }, sortWindows: { model.sortWindows() },
                 tidy: { model.tidyHere() }, undoTidy: { model.undoTidy() },
+                saveLayout: { window.close(); model.saveLayoutPrompt() },
                 showAllWindows: { model.showAllWindows() }, copyAccessCode: { model.copyAccessCode() },
                 openDashboard: { model.openDashboard() }, requestAccessibility: { model.requestAccessibility() },
                 quit: { model.quit() }, close: { window.close() }),
@@ -212,6 +214,10 @@ struct MenuPanelView: View {
             if state.canUndoTidy {
                 Button("Undo tidy", action: actions.undoTidy).buttonStyle(.link)
             }
+            Button("Save layout…", action: actions.saveLayout)
+                .buttonStyle(.link)
+                .disabled(!state.trusted || state.sortProgress != nil)
+                .help("Save where the windows on this desktop are now")
             Spacer(minLength: 0)
             Text("⌥T").foregroundStyle(.secondary).accessibilityLabel("Option T")
         }

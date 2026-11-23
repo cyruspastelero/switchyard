@@ -112,9 +112,18 @@ enum Layout {
 enum TidyGate {
     /// From Sort or Move (`force` false) a desktop whose window set equals the one of its last tidy is left alone,
     /// so the owner's own resizes stay.
-    static func shouldRun(keys: Set<String>, last: Set<String>?, force: Bool) -> Bool {
+    /// A changed preset (or default) runs again too.
+    static func shouldRun(keys: Set<String>, last: Set<String>?, force: Bool, preset: String = "", lastPreset: String = "") -> Bool {
         guard !keys.isEmpty else { return false }
-        return force || last != keys
+        return force || last != keys || preset != lastPreset
+    }
+
+    /// Stable text for a preset's slots; "" for none.
+    static func fingerprint(_ slots: [LayoutSlotDTO]?) -> String {
+        guard let slots, !slots.isEmpty else { return "" }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(slots)).map { String(decoding: $0, as: UTF8.self) } ?? "?"
     }
 }
 
@@ -122,11 +131,16 @@ enum TidyGate {
 struct TidyMemory: Codable, Equatable {
     private var before: [String: [String: Rect]] = [:]
     private var sets: [String: [String]] = [:]
+    /// The preset fingerprint of the last tidy; absent in files from before presets.
+    private var presets: [String: String]? = nil
 
-    mutating func record(desktop: Int, before frames: [String: Rect], keys: Set<String>) {
+    mutating func record(desktop: Int, before frames: [String: Rect], keys: Set<String>, preset: String = "") {
         before[String(desktop)] = frames
         sets[String(desktop)] = keys.sorted()
+        presets = (presets ?? [:]).merging([String(desktop): preset]) { _, new in new }
     }
+
+    func lastPreset(desktop: Int) -> String { presets?[String(desktop)] ?? "" }
 
     func lastKeys(desktop: Int) -> Set<String>? { sets[String(desktop)].map(Set.init) }
 
@@ -137,6 +151,7 @@ struct TidyMemory: Codable, Equatable {
         let frames = before[String(desktop)] ?? [:]
         before[String(desktop)] = nil
         sets[String(desktop)] = nil
+        presets?[String(desktop)] = nil
         return frames
     }
 }
@@ -171,6 +186,14 @@ struct TidyStore {
 
 /// Which windows a desktop's tidy lays out, from the contexts the app holds.
 enum TidyTargets {
+    /// The preset of the context that owns the desktop (on the shared desktop, the active one), if it has one.
+    static func slots(contexts: [ContextDTO], desktop: Int, activeContextId: String?) -> [LayoutSlotDTO]? {
+        let here = contexts.filter { $0.desktop == desktop }
+        let owner = here.contains(where: \.desktopShared) ? here.first { $0.id == activeContextId } : (here.count == 1 ? here.first : nil)
+        guard let slots = owner?.layout?.slots, !slots.isEmpty else { return nil }
+        return slots
+    }
+
     /// The windows of the context(s) that own the desktop; on the shared desktop only the active context's.
     /// `moves`: windows just carried, which the contexts the app holds may not show yet.
     static func keys(contexts: [ContextDTO], desktop: Int, activeContextId: String?, moves: [WindowMoveDTO] = []) -> [String] {
@@ -180,5 +203,18 @@ enum TidyTargets {
         var keys = owners.flatMap { $0.windows.map(\.key) }.filter { !movedAway.contains($0) }
         for m in moves where m.desktop == desktop && !keys.contains(m.windowKey) { keys.append(m.windowKey) }
         return keys
+    }
+}
+
+/// ⌥T and the panel's Tidy: every window the app holds that is not hidden off-screen, whatever its context.
+/// The tidier keeps only those really on the desktop, so nothing is ever carried to another one.
+enum ManualTidy {
+    struct Candidate: Equatable {
+        let key: String
+        let hidden: Bool
+    }
+
+    static func keys(_ windows: [Candidate]) -> [String] {
+        windows.filter { !$0.hidden }.map(\.key)
     }
 }

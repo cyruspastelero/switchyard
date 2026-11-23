@@ -47,6 +47,7 @@
     moveWindows: 'move every window to its desktop',
     tidy: 'tidy the desktop',
     undoTidy: 'undo the tidy',
+    captureLayout: 'save the layout',
   };
 
   function failureText(f) {
@@ -226,7 +227,30 @@
     return named.length ? named[0].id : null;
   }
 
-  var api = { sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, UNSORTED_ID: UNSORTED_ID };
+  // Layout presets. A card's select: '' follows the default, 'auto' is the automatic layout, else a preset id.
+  function layoutOptions(layouts, defaultId) {
+    var def = layouts.filter(function (p) { return p.id === defaultId; })[0];
+    return [{ value: '', label: 'Default (' + (def ? def.name : 'auto') + ')' }, { value: 'auto', label: 'Auto' }]
+      .concat(layouts.map(function (p) { return { value: p.id, label: p.name }; }));
+  }
+
+  function defaultLayoutOptions(layouts) {
+    return [{ value: '', label: 'Auto' }].concat(layouts.map(function (p) { return { value: p.id, label: p.name }; }));
+  }
+
+  function layoutScreens(p) {
+    var seen = {};
+    p.slots.forEach(function (s) { seen[String(s.screen.uuid).toLowerCase()] = true; });
+    return Object.keys(seen).length;
+  }
+
+  // "3 windows · 2 screens"; one screen is not mentioned.
+  function layoutMeta(p) {
+    var screens = layoutScreens(p);
+    return plural(p.slots.length, 'window') + (screens > 1 ? ' \u00B7 ' + plural(screens, 'screen') : '');
+  }
+
+  var api = { sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MCContextsLogic = api;
 })(typeof window !== 'undefined' ? window : this);

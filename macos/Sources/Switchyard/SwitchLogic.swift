@@ -171,6 +171,6 @@ enum CommandLane: Equatable {
     case slow
 
     static func of(_ type: String) -> CommandLane {
-        ["show", "showAll", "moveWindows", "focusWindow", "tidy", "undoTidy"].contains(type) ? .windows : .slow
+        ["show", "showAll", "moveWindows", "focusWindow", "tidy", "undoTidy", "captureLayout"].contains(type) ? .windows : .slow
     }
 }

@@ -35,6 +35,10 @@ struct CommandRunner {
     var progress: @MainActor (Int, Int) -> Void = { _, _ in }
     /// The windows that belong on a desktop, given the windows just carried.
     var tidyKeys: @MainActor (Int, [WindowMoveDTO]) -> [String] = { _, _ in [] }
+    /// The layout preset of a desktop's owner context, if any.
+    var tidySlots: @MainActor (Int) -> [LayoutSlotDTO]? = { _ in nil }
+    /// `captureLayout`: save the desktop on screen as a preset with this name.
+    var saveLayout: @MainActor (String) async throws -> Void = { _ in }
     /// After a show that went to a desktop: the bounce check.
     var shown: @MainActor (Int) -> Void = { _ in }
     /// After a tidy: what it did, for the menu.
@@ -55,6 +59,9 @@ struct CommandRunner {
             guard let desktop = cmd.desktop else { throw CommandError.missing("desktop") }
             await tidier.undo(desktop: desktop)
             await tidied(desktop, TidyOutcome())
+        case "captureLayout":
+            guard let name = cmd.name else { throw CommandError.missing("name") }
+            try await saveLayout(name)
         case "nameWindow": try await nameWindow(cmd)
         case "openWindow": try await openWindow(cmd)
         case "closeWindow": try await closeWindow(cmd)
@@ -84,7 +91,8 @@ struct CommandRunner {
         SwitchLog.sort(result)
         for desktop in cmd.tidy {
             let keys = await tidyKeys(desktop, cmd.moves)
-            await tidied(desktop, await tidier.tidy(desktop: desktop, keys: keys, force: false))
+            let slots = await tidySlots(desktop)
+            await tidied(desktop, await tidier.tidy(desktop: desktop, keys: keys, force: false, slots: slots))
         }
         if !result.ok { throw MoveFailure(message: result.errorText ?? "not every window moved", failedKeys: result.failed.map(\.key)) }
     }
@@ -98,7 +106,7 @@ struct CommandRunner {
 
     private func tidy(_ cmd: AppCommand) async {
         for d in cmd.tidyDesktops {
-            await tidied(d.desktop, await tidier.tidy(desktop: d.desktop, keys: d.windowKeys, force: cmd.force))
+            await tidied(d.desktop, await tidier.tidy(desktop: d.desktop, keys: d.windowKeys, force: cmd.force, slots: d.slots))
         }
     }
 

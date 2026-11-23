@@ -218,12 +218,21 @@ describe('Sort sweeps unsorted windows off project desktops', () => {
 });
 
 describe('Tidy', () => {
-  it('tidy_with_no_target_lays_out_the_active_desktop_with_what_is_there', async () => {
+  it('tidy_with_no_target_lays_out_every_window_on_the_active_desktop', async () => {
     const svc = newService();
     await setup(svc, { 2: ['a', 'b', 'c'] }, snap([win('a', 2), win('b', 2), win('c', 1), win('u', 2)], 2));
     const seq = svc.commands.lastSeq;
-    expect(svc.tidy({})).toEqual({ desktop: 2, windows: 2 });
-    expect(after(svc, seq, 'tidy')[0]).toMatchObject({ force: true, desktops: [{ desktop: 2, windowKeys: ['a', 'b'] }] });
+    expect(svc.tidy({})).toEqual({ desktop: 2, windows: 3 });
+    expect(after(svc, seq, 'tidy')[0]).toMatchObject({ force: true, desktops: [{ desktop: 2, windowKeys: ['a', 'b', 'u'] }] });
+  });
+
+  it('manual_tidy_takes_other_contexts_strays_and_never_moves_a_window', async () => {
+    const svc = newService();
+    await setup(svc, { 2: ['a'], 3: ['s'] }, snap([win('a', 2), win('s', 2), win('m', null)], 2));
+    const seq = svc.commands.lastSeq;
+    svc.tidy({ desktop: 2 });
+    expect(after(svc, seq, 'tidy')[0].desktops).toEqual([{ desktop: 2, windowKeys: ['a', 's'] }]);
+    expect(after(svc, seq, 'moveWindows')).toHaveLength(0);
   });
 
   it('tidy_of_a_context_targets_its_desktop', async () => {
@@ -243,7 +252,7 @@ describe('Tidy', () => {
 
   it('nothing_to_lay_out_queues_nothing', async () => {
     const svc = newService();
-    await setup(svc, { 2: [] }, snap([win('u', 4)], 4));
+    await setup(svc, { 2: [] }, snap([win('u', 3)], 4));
     const seq = svc.commands.lastSeq;
     expect(svc.tidy({})).toEqual({ desktop: 4, windows: 0 });
     expect(after(svc, seq, 'tidy')).toHaveLength(0);
