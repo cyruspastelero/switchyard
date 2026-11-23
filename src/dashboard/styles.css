@@ -2871,9 +2871,12 @@ body.view-contexts #contexts-view { display: flex; }
 button.ctx-w-text { cursor: pointer; }
 button.ctx-w-text:hover .ctx-w-label { color: var(--text-bright); text-decoration: underline; text-underline-offset: 2px; }
 button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outline-offset: 1px; }
-.ctx-w-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ctx-w-tabs { flex: none; color: var(--text-muted); }
-.ctx-w-place { flex: none; color: var(--text-muted); font-size: var(--font-size-xs); }
+/* The title has priority: tab count and place shrink (with an ellipsis) long before the title gives way. */
+.ctx-w-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-w-tabs, .ctx-w-place { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-w-tabs { color: var(--text-muted); }
+/* "Desktop 2 · not moved yet" keeps a visible trace ("De…"); the full text is in the row's tooltip. */
+.ctx-w-place { min-width: 4ch; color: var(--text-muted); font-size: var(--font-size-xs); }
 .ctx-w-note .ctx-w-text { color: var(--text-muted); font-size: var(--font-size-sm); }
 /* Notes wrap instead of clipping ("8 windows are on other desktops" next to Move here). */
 .ctx-w-note { height: auto; min-height: 26px; }
