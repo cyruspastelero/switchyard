@@ -361,7 +361,27 @@
     return next();
   }
 
-  var api = { closePlan: closePlan, closeBatchLabel: closeBatchLabel, closeBatchConfirm: closeBatchConfirm, closeBatchDoneText: closeBatchDoneText, pollUntil: pollUntil,keyOptions: keyOptions, keyDoneText: keyDoneText, swapTarget: swapTarget, desktopOwnerText: desktopOwnerText, desktopMeta: desktopMeta, statusWord: statusWord, unsortedCountText: unsortedCountText, countBadge: countBadge, sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, placeTag: placeTag, visibleWindows: visibleWindows, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
+  // After action `actionKey` finishes: the inline editors still open. Only the action an editor submitted closes it,
+  // so a Sort that ends while the owner types a name leaves the name alone.
+  function editorAfter(actionKey, editor) {
+    var renaming = editor.renaming;
+    if (renaming !== null && (actionKey === 'renameContext:' + renaming.replace(/^ctx:/, '') && renaming.indexOf('ctx:') === 0
+      || actionKey === 'name:' + renaming)) renaming = null;
+    var newTopicFor = editor.newTopicFor !== null && actionKey === 'assign:' + editor.newTopicFor ? null : editor.newTopicFor;
+    return { renaming: renaming, newTopicFor: newTopicFor };
+  }
+
+  // Orders view replies: one that left before a newer reply (or a socket push) was shown is out of date.
+  function replyGate() {
+    var started = 0, shown = 0;
+    return {
+      start: function () { return ++started; },
+      accept: function (seq) { if (seq <= shown) return false; shown = seq; return true; },
+      pushed: function () { shown = started; },
+    };
+  }
+
+  var api = { editorAfter: editorAfter, replyGate: replyGate, closePlan: closePlan, closeBatchLabel: closeBatchLabel, closeBatchConfirm: closeBatchConfirm, closeBatchDoneText: closeBatchDoneText, pollUntil: pollUntil,keyOptions: keyOptions, keyDoneText: keyDoneText, swapTarget: swapTarget, desktopOwnerText: desktopOwnerText, desktopMeta: desktopMeta, statusWord: statusWord, unsortedCountText: unsortedCountText, countBadge: countBadge, sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, placeTag: placeTag, visibleWindows: visibleWindows, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MCContextsLogic = api;
 })(typeof window !== 'undefined' ? window : this);
