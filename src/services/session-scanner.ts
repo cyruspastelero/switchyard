@@ -8,7 +8,7 @@
  * and model info, enabling precise cost calculation instead of estimates.
  */
 
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { open, readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -112,146 +112,199 @@ interface TokenSummary {
 }
 
 // ---------------------------------------------------------------------------
-// Cache — avoid re-parsing unchanged files
+// Incremental parsing — session logs are append-only, so each request reads only the new bytes
 // ---------------------------------------------------------------------------
 
-interface CacheEntry {
-  readonly size: number;
-  readonly mtime: number;
-  readonly data: SessionTokenUsage;
+/** Running totals for one session file. Mutated only by the single read in flight for that file. */
+interface Totals {
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  messageCount: number;
+  cost: number;
+  model: string;
+  firstTimestamp: string;
+  lastTimestamp: string;
+  lastContextUsed: number;
 }
 
-const fileCache = new Map<string, CacheEntry>();
+interface FileState {
+  readonly ino: number;
+  readonly size: number;
+  readonly mtime: number;
+  /** Bytes consumed so far; a trailing half-written line is left for the next read. */
+  readonly offset: number;
+  readonly totals: Totals;
+}
 
-// ---------------------------------------------------------------------------
-// JSONL parsing
-// ---------------------------------------------------------------------------
+const fileStates = new Map<string, FileState>();
+const readsInFlight = new Map<string, Promise<FileState | null>>();
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB cap per file
+const READ_CHUNK_BYTES = 1024 * 1024;
+const NEWLINE = 0x0a;
 
-function parseSessionFile(filePath: string, sessionId: string): SessionTokenUsage | null {
-  let stat;
-  try {
-    stat = statSync(filePath);
-  } catch {
-    return null;
-  }
-
-  if (stat.size > MAX_FILE_SIZE || stat.size === 0) return null;
-
-  // Check cache
-  const cached = fileCache.get(filePath);
-  if (cached && cached.size === stat.size && cached.mtime === stat.mtimeMs) {
-    return cached.data;
-  }
-
-  let content: string;
-  try {
-    content = readFileSync(filePath, 'utf-8');
-  } catch {
-    return null;
-  }
-
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let cacheCreationTokens = 0;
-  let cacheReadTokens = 0;
-  let messageCount = 0;
-  let cost = 0;
-  let model = 'unknown';
-  let firstTimestamp = '';
-  let lastTimestamp = '';
-  let lastContextUsed = 0; // last known context window usage (from cache_read + cache_creation)
-
-  const lines = content.split('\n');
-  for (const line of lines) {
-    if (line.length < 10) continue;
-
-    let entry: Record<string, unknown>;
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      continue;
-    }
-
-    if (entry.type !== 'assistant') continue;
-
-    const msg = entry.message as Record<string, unknown> | undefined;
-    if (!msg) continue;
-
-    const usage = msg.usage as Record<string, unknown> | undefined;
-    if (!usage) continue;
-
-    const msgModel = (msg.model as string) || 'unknown';
-    if (model === 'unknown' && msgModel !== 'unknown') model = msgModel;
-
-    const ts = entry.timestamp as string;
-    if (ts) {
-      if (!firstTimestamp || ts < firstTimestamp) firstTimestamp = ts;
-      if (!lastTimestamp || ts > lastTimestamp) lastTimestamp = ts;
-    }
-
-    const inTok = (usage.input_tokens as number) || 0;
-    const outTok = (usage.output_tokens as number) || 0;
-    const cacheTok = (usage.cache_creation_input_tokens as number) || 0;
-    const cacheReadTok = (usage.cache_read_input_tokens as number) || 0;
-
-    inputTokens += inTok;
-    outputTokens += outTok;
-    cacheCreationTokens += cacheTok;
-    cacheReadTokens += cacheReadTok;
-    messageCount++;
-
-    // Track last known context window usage (cache_read approximates context size)
-    const thisContext = inTok + cacheTok + cacheReadTok;
-    if (thisContext > 0) lastContextUsed = thisContext;
-
-    // Calculate cost for this message
-    const pricing = getPricing(msgModel);
-    cost += tokenCost(inTok, pricing.input)
-          + tokenCost(outTok, pricing.output)
-          + tokenCost(cacheTok, pricing.cacheCreation)
-          + tokenCost(cacheReadTok, pricing.cacheRead);
-  }
-
-  if (messageCount === 0) return null;
-
-  // Context window size by model (tokens)
-  const CONTEXT_WINDOWS: Record<string, number> = {
-    'claude-opus-4-6': 200000,
-    'claude-opus-4-5': 200000,
-    'claude-sonnet-4-6': 200000,
-    'claude-sonnet-4-5': 200000,
-    'claude-sonnet-4-0': 200000,
-    'claude-haiku-4-5': 200000,
-    'claude-haiku-3-5': 200000,
+function emptyTotals(): Totals {
+  return {
+    inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, messageCount: 0, cost: 0,
+    model: 'unknown', firstTimestamp: '', lastTimestamp: '', lastContextUsed: 0,
   };
-  const contextWindow = CONTEXT_WINDOWS[model] || 200000;
-  const contextPercent = contextWindow > 0
-    ? Math.min(100, parseFloat((lastContextUsed / contextWindow * 100).toFixed(1)))
-    : 0;
+}
 
-  const result: SessionTokenUsage = {
+/** Parses one JSONL line; null when it is not valid JSON. */
+function parseLine(line: string): Record<string, unknown> | null {
+  try {
+    const value: unknown = JSON.parse(line);
+    return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Adds one log entry's usage to `totals`; entries without usage are ignored. */
+function addEntry(totals: Totals, entry: Record<string, unknown>): void {
+  if (entry.type !== 'assistant') return;
+  const msg = entry.message as Record<string, unknown> | undefined;
+  const usage = msg?.usage as Record<string, unknown> | undefined;
+  if (!msg || !usage) return;
+
+  const msgModel = (msg.model as string) || 'unknown';
+  if (totals.model === 'unknown' && msgModel !== 'unknown') totals.model = msgModel;
+
+  const ts = entry.timestamp as string;
+  if (ts) {
+    if (!totals.firstTimestamp || ts < totals.firstTimestamp) totals.firstTimestamp = ts;
+    if (!totals.lastTimestamp || ts > totals.lastTimestamp) totals.lastTimestamp = ts;
+  }
+
+  const inTok = (usage.input_tokens as number) || 0;
+  const outTok = (usage.output_tokens as number) || 0;
+  const cacheTok = (usage.cache_creation_input_tokens as number) || 0;
+  const cacheReadTok = (usage.cache_read_input_tokens as number) || 0;
+  totals.inputTokens += inTok;
+  totals.outputTokens += outTok;
+  totals.cacheCreationTokens += cacheTok;
+  totals.cacheReadTokens += cacheReadTok;
+  totals.messageCount++;
+
+  // Track last known context window usage (cache_read approximates context size)
+  const thisContext = inTok + cacheTok + cacheReadTok;
+  if (thisContext > 0) totals.lastContextUsed = thisContext;
+
+  const pricing = getPricing(msgModel);
+  totals.cost += tokenCost(inTok, pricing.input)
+    + tokenCost(outTok, pricing.output)
+    + tokenCost(cacheTok, pricing.cacheCreation)
+    + tokenCost(cacheReadTok, pricing.cacheRead);
+}
+
+/**
+ * Streams bytes [from, to) of the file into `totals` in chunks, so no file is too big to read.
+ * Returns the offset just past the last line consumed.
+ */
+async function readLines(filePath: string, from: number, to: number, totals: Totals): Promise<number> {
+  const handle = await open(filePath, 'r');
+  try {
+    let position = from;
+    let carry = Buffer.alloc(0);
+    while (position < to) {
+      const chunk = Buffer.alloc(Math.min(READ_CHUNK_BYTES, to - position));
+      const { bytesRead } = await handle.read(chunk, 0, chunk.length, position);
+      if (bytesRead === 0) break;
+      position += bytesRead;
+      const data = carry.length > 0 ? Buffer.concat([carry, chunk.subarray(0, bytesRead)]) : chunk.subarray(0, bytesRead);
+      let lineStart = 0;
+      for (let end = data.indexOf(NEWLINE); end !== -1; end = data.indexOf(NEWLINE, lineStart)) {
+        if (end - lineStart >= 10) {
+          const entry = parseLine(data.toString('utf8', lineStart, end));
+          if (entry) addEntry(totals, entry);
+        }
+        lineStart = end + 1;
+      }
+      carry = Buffer.from(data.subarray(lineStart));
+    }
+    // A last line with no newline yet counts only once it is complete JSON; otherwise it is re-read next time.
+    const last = carry.length > 0 ? parseLine(carry.toString('utf8')) : null;
+    if (last) {
+      addEntry(totals, last);
+      return position;
+    }
+    return position - carry.length;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function refreshFile(filePath: string): Promise<FileState | null> {
+  let info;
+  try {
+    info = await stat(filePath);
+  } catch {
+    return null;
+  }
+  const previous = fileStates.get(filePath);
+  if (previous && previous.ino === info.ino && previous.size === info.size && previous.mtime === info.mtimeMs) {
+    return previous;
+  }
+  // Grown in place: read only the new bytes. Anything else (new, shrunk, replaced) starts over.
+  const appended = previous !== undefined && previous.ino === info.ino && info.size > previous.size;
+  const totals = appended ? { ...previous.totals } : emptyTotals();
+  let offset: number;
+  try {
+    offset = await readLines(filePath, appended ? previous.offset : 0, info.size, totals);
+  } catch (err) {
+    console.warn(`Switchyard: could not read session log ${filePath}: ${(err as Error).message}`);
+    return previous ?? null;
+  }
+  const next: FileState = { ino: info.ino, size: info.size, mtime: info.mtimeMs, offset, totals };
+  fileStates.set(filePath, next);
+  return next;
+}
+
+/** One read per file at a time, so concurrent requests never double-count appended lines. */
+function refreshFileOnce(filePath: string): Promise<FileState | null> {
+  const inFlight = readsInFlight.get(filePath);
+  if (inFlight) return inFlight;
+  const read = refreshFile(filePath).finally(() => readsInFlight.delete(filePath));
+  readsInFlight.set(filePath, read);
+  return read;
+}
+
+// Context window size by model (tokens)
+const CONTEXT_WINDOWS: Record<string, number> = {
+  'claude-opus-4-6': 200000,
+  'claude-opus-4-5': 200000,
+  'claude-sonnet-4-6': 200000,
+  'claude-sonnet-4-5': 200000,
+  'claude-sonnet-4-0': 200000,
+  'claude-haiku-4-5': 200000,
+  'claude-haiku-3-5': 200000,
+};
+
+function toUsage(sessionId: string, t: Totals): SessionTokenUsage {
+  const contextWindow = CONTEXT_WINDOWS[t.model] || 200000;
+  return {
     sessionId,
-    model,
-    inputTokens,
-    outputTokens,
-    cacheCreationTokens,
-    cacheReadTokens,
-    totalTokens: inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens,
-    cost: parseFloat(cost.toFixed(6)),
-    messageCount,
-    firstTimestamp,
-    lastTimestamp,
-    contextWindowUsed: lastContextUsed,
-    contextWindowPercent: contextPercent,
+    model: t.model,
+    inputTokens: t.inputTokens,
+    outputTokens: t.outputTokens,
+    cacheCreationTokens: t.cacheCreationTokens,
+    cacheReadTokens: t.cacheReadTokens,
+    totalTokens: t.inputTokens + t.outputTokens + t.cacheCreationTokens + t.cacheReadTokens,
+    cost: parseFloat(t.cost.toFixed(6)),
+    messageCount: t.messageCount,
+    firstTimestamp: t.firstTimestamp,
+    lastTimestamp: t.lastTimestamp,
+    contextWindowUsed: t.lastContextUsed,
+    contextWindowPercent: Math.min(100, parseFloat((t.lastContextUsed / contextWindow * 100).toFixed(1))),
     isActive: false, // Set by scanner after checking PIDs
   };
+}
 
-  // Cache it
-  fileCache.set(filePath, { size: stat.size, mtime: stat.mtimeMs, data: result });
-
-  return result;
+async function parseSessionFile(filePath: string, sessionId: string): Promise<SessionTokenUsage | null> {
+  const state = await refreshFileOnce(filePath);
+  if (!state || state.totals.messageCount === 0) return null;
+  return toUsage(sessionId, state.totals);
 }
 
 // ---------------------------------------------------------------------------
@@ -263,27 +316,26 @@ const CLAUDE_HOME = process.env.SWITCHYARD_CLAUDE_HOME || join(homedir(), '.clau
 const CLAUDE_DIR = join(CLAUDE_HOME, 'projects');
 const SESSIONS_DIR = join(CLAUDE_HOME, 'sessions');
 
+/** Directory entries, or none when the folder is missing or not a folder. */
+async function listDir(dir: string): Promise<string[]> {
+  try {
+    return await readdir(dir);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Get active session IDs by reading ~/.claude/sessions/*.json
  * and checking if the PID is still running.
  */
-function getActiveSessionIds(): Set<string> {
+async function getActiveSessionIds(): Promise<Set<string>> {
   const active = new Set<string>();
-  if (!existsSync(SESSIONS_DIR)) return active;
-
-  let files: string[];
-  try {
-    files = readdirSync(SESSIONS_DIR).filter((f) => f.endsWith('.json'));
-  } catch {
-    return active;
-  }
-
+  const files = (await listDir(SESSIONS_DIR)).filter((f) => f.endsWith('.json'));
   for (const file of files) {
     try {
-      const content = readFileSync(join(SESSIONS_DIR, file), 'utf-8');
-      const meta = JSON.parse(content) as { pid?: number; sessionId?: string };
+      const meta = JSON.parse(await readFile(join(SESSIONS_DIR, file), 'utf-8')) as { pid?: number; sessionId?: string };
       if (meta.pid && meta.sessionId) {
-        // Check if PID is still running
         try {
           process.kill(meta.pid, 0); // Signal 0 = test existence
           active.add(meta.sessionId);
@@ -298,70 +350,51 @@ function getActiveSessionIds(): Set<string> {
   return active;
 }
 
+interface SessionFile {
+  readonly sessionId: string;
+  readonly filePath: string;
+}
+
+/** Every session log with its session id, optionally limited to one project folder. */
+async function listSessionFiles(projectFilter?: string): Promise<SessionFile[]> {
+  let projectDirs = await listDir(CLAUDE_DIR);
+  if (projectFilter) projectDirs = projectDirs.filter((d) => d === projectFilter);
+  const found: SessionFile[] = [];
+  for (const projectDir of projectDirs) {
+    const projectPath = join(CLAUDE_DIR, projectDir);
+    for (const file of await listDir(projectPath)) {
+      if (!file.endsWith('.jsonl')) continue;
+      found.push({ sessionId: file.slice(0, -'.jsonl'.length), filePath: join(projectPath, file) });
+    }
+  }
+  return found;
+}
+
 /**
  * Scan all Claude Code JSONL session logs and compute token usage.
  * @param hoursBack - 0 means all time
  * @param projectFilter - optional project path hash to scope results
  */
-export function scanSessions(hoursBack = 0, projectFilter?: string): TokenSummary {
-  const since = hoursBack === 0
+export async function scanSessions(hoursBack = 0, projectFilter?: string): Promise<TokenSummary> {
+  const sinceMs = Date.now() - hoursBack * 60 * 60 * 1000;
+  const since = hoursBack <= 0 || !(sinceMs > 0)
     ? '1970-01-01T00:00:00.000Z'
-    : new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
+    : new Date(sinceMs).toISOString();
   const sinceDate = since.slice(0, 10);
 
-  const activeIds = getActiveSessionIds();
+  const activeIds = await getActiveSessionIds();
+  const files = await listSessionFiles(projectFilter);
+  if (!projectFilter) {
+    // Forget logs that were deleted.
+    const present = new Set(files.map((f) => f.filePath));
+    for (const cached of fileStates.keys()) if (!present.has(cached)) fileStates.delete(cached);
+  }
+
   const sessions: SessionTokenUsage[] = [];
-
-  if (!existsSync(CLAUDE_DIR)) {
-    return emptySummary();
-  }
-
-  let projectDirs: string[];
-  try {
-    projectDirs = readdirSync(CLAUDE_DIR);
-  } catch {
-    return emptySummary();
-  }
-
-  // If a project filter is given, only scan that project
-  if (projectFilter) {
-    projectDirs = projectDirs.filter((d) => d === projectFilter);
-  }
-
-  for (const projectDir of projectDirs) {
-    const projectPath = join(CLAUDE_DIR, projectDir);
-    let stat;
-    try {
-      stat = statSync(projectPath);
-    } catch {
-      continue;
-    }
-    if (!stat.isDirectory()) continue;
-
-    let files: string[];
-    try {
-      files = readdirSync(projectPath).filter((f) => f.endsWith('.jsonl'));
-    } catch {
-      continue;
-    }
-
-    for (const file of files) {
-      const sessionId = file.replace('.jsonl', '');
-      const filePath = join(projectPath, file);
-
-      const usage = parseSessionFile(filePath, sessionId);
-      if (!usage) continue;
-
-      // Filter by time range
-      if (usage.lastTimestamp < since) continue;
-
-      // Mark active sessions
-      if (activeIds.has(sessionId)) {
-        sessions.push({ ...usage, isActive: true });
-      } else {
-        sessions.push(usage);
-      }
-    }
+  for (const { sessionId, filePath } of files) {
+    const usage = await parseSessionFile(filePath, sessionId);
+    if (!usage || usage.lastTimestamp < since) continue;
+    sessions.push(activeIds.has(sessionId) ? { ...usage, isActive: true } : usage);
   }
 
   // Sort by most recent first
@@ -491,23 +524,5 @@ export function scanSessions(hoursBack = 0, projectFilter?: string): TokenSummar
     totalSessions: sessions.length,
     activeSessions: sessions.filter((s) => s.isActive).length,
     cacheHitRate,
-  };
-}
-
-function emptySummary(): TokenSummary {
-  return {
-    sessions: [],
-    daily: [],
-    models: [],
-    totalInputTokens: 0,
-    totalOutputTokens: 0,
-    totalCacheCreationTokens: 0,
-    totalCacheReadTokens: 0,
-    totalTokens: 0,
-    totalCost: 0,
-    totalMessages: 0,
-    totalSessions: 0,
-    activeSessions: 0,
-    cacheHitRate: 0,
   };
 }
