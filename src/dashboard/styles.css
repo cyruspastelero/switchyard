@@ -3332,3 +3332,9 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
 }
 /* On wide screens the meta column would stretch and push Showing and the actions far from their desktop. */
 .ctx-desktops .ctx-layout-list, .ctx-desktop-batch { max-width: 760px; }
+
+/* The Agents column is ~220px between 641 and ~1000px wide: the filters wrap instead of cutting off CLEAR OLD. */
+@media (max-width: 1100px) {
+  #agents-panel .panel-header { flex-wrap: wrap; }
+  #agents-panel .agent-filters { flex-wrap: wrap; min-width: 0; }
+}
