@@ -64,6 +64,8 @@ actor Tidier {
         for w in candidates { before[w.key] = AX.frame(w.id.element) ?? w.frame }
         memory.record(desktop: desktop, before: before, keys: keySet, preset: fingerprint)
         store.save(memory)
+        let enhanced = AX.pauseEnhancedUI(pids: Set(candidates.map(\.pid)))
+        defer { AX.restoreEnhancedUI(enhanced) }
 
         var outcome = TidyOutcome()
         var unread = 0
@@ -163,6 +165,8 @@ actor Tidier {
         store.save(memory)
         guard !frames.isEmpty else { return 0 }
         let wins = await windows.tidyCandidates(Array(frames.keys))
+        let enhanced = AX.pauseEnhancedUI(pids: Set(wins.map(\.pid)))
+        defer { AX.restoreEnhancedUI(enhanced) }
         for w in wins { if let f = frames[w.key] { Self.setFrame(w.id.element, f) } }
         Log.timing.notice("tidy undo desktop=\(desktop, privacy: .public) windows=\(wins.count, privacy: .public)")
         return wins.count

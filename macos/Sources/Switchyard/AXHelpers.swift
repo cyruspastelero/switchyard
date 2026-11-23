@@ -113,6 +113,28 @@ enum AX {
         AXUIElementPerformAction(el, action as CFString) == .success
     }
 
+    static func bool(_ el: AXUIElement, _ attr: String) -> Bool? {
+        copy(el, attr) as? Bool
+    }
+
+    static let enhancedUI = "AXEnhancedUserInterface"
+
+    /// Chrome and Electron apps turn this on when an assistive client is present; while on, size and position
+    /// writes animate and fight each other. Turns it off for each app that had it on. Returns those apps.
+    static func pauseEnhancedUI(pids: Set<pid_t>) -> [pid_t] {
+        pids.filter { pid in
+            let app = appElement(pid: pid)
+            return bool(app, enhancedUI) == true && setBool(app, enhancedUI, false)
+        }
+    }
+
+    /// Turns it back on for the apps `pauseEnhancedUI` returned.
+    static func restoreEnhancedUI(_ pids: [pid_t]) {
+        for pid in pids where !setBool(appElement(pid: pid), enhancedUI, true) {
+            Log.windows.error("could not turn AXEnhancedUserInterface back on pid=\(pid, privacy: .public)")
+        }
+    }
+
     @discardableResult
     static func setBool(_ el: AXUIElement, _ attr: String, _ value: Bool) -> Bool {
         AXUIElementSetAttributeValue(el, attr as CFString, value as CFBoolean) == .success
