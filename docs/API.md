@@ -39,7 +39,8 @@ Cookie, or the bearer token from loopback.
 | `POST` | `/api/contexts/:id/switch`, `/park`, `/restore` | Switch to, park or restore a context |
 | `POST` | `/api/contexts/show-all` | Bring every hidden window back; no context is active afterwards |
 | `POST` | `/api/contexts/sort` | Sort open windows |
-| `POST` | `/api/contexts/assign` | `{ windowKey, contextId }` |
+| `POST` | `/api/contexts/assign` | `{ windowKey, contextId }`, the owner's choice; carries the window to the context's desktop. Answers `{ moving, desktop }` |
+| `POST` | `/api/contexts/unassign` | `{ windowKey }`, back to Unsorted (and the shared desktop). Answers `{ moving, desktop }` |
 | `POST` | `/api/contexts/windows/name` | `{ windowKey, name }` |
 | `POST` | `/api/contexts/suggestions/:id/accept` | Move the suggested tab |
 | `POST` | `/api/contexts/desktops` | `{ screen }`, add a desktop at the end of that screen's row |

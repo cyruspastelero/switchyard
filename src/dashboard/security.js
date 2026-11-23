@@ -246,23 +246,34 @@
 
   // ── Event listeners ───────────────────────────────────────────────────────
 
+  // Opening moves focus into the dialog; closing returns it to the button. Escape closes.
+  function closeSecurity() {
+    if ($securityOverlay.classList.contains('hidden')) return;
+    $securityOverlay.classList.add('hidden');
+    if ($securityBtn) $securityBtn.focus();
+  }
+
   if ($securityBtn) {
     $securityBtn.addEventListener('click', function () {
       if ($securityOverlay.classList.contains('hidden')) {
         $securityOverlay.classList.remove('hidden');
         renderLog();
         renderLayers();
+        if ($securityClose) $securityClose.focus();
       } else {
-        $securityOverlay.classList.add('hidden');
+        closeSecurity();
       }
     });
   }
 
-  if ($securityClose) {
-    $securityClose.addEventListener('click', function () {
-      $securityOverlay.classList.add('hidden');
-    });
-  }
+  if ($securityClose) $securityClose.addEventListener('click', closeSecurity);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && $securityOverlay && !$securityOverlay.classList.contains('hidden')) {
+      e.preventDefault();
+      closeSecurity();
+    }
+  });
 
   var $clearAll = document.getElementById('security-clear-all');
   if ($clearAll) {
@@ -273,7 +284,7 @@
 
   if ($securityOverlay) {
     $securityOverlay.addEventListener('click', function (e) {
-      if (e.target === $securityOverlay) $securityOverlay.classList.add('hidden');
+      if (e.target === $securityOverlay) closeSecurity();
     });
   }
 

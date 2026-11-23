@@ -176,10 +176,10 @@ document.addEventListener('keydown', function (e) {
       break;
     case '?':
       e.preventDefault();
-      $kbdHelp.classList.toggle('hidden');
+      toggleHelp();
       break;
     case 'Escape':
-      $kbdHelp.classList.add('hidden');
+      if (!$kbdHelp.classList.contains('hidden')) toggleHelp();
       if (state.timelineFilter) setTimelineFilter(null);
       break;
   }
@@ -212,13 +212,16 @@ $kbdHelp.addEventListener('click', function (e) {
   if (e.target === $kbdHelp) $kbdHelp.classList.add('hidden');
 });
 
-// ? HELP button click handler
+// ? Help button: a real button, so keyboard users can open it too. Focus moves into the dialog and back.
 var $kbdHint = document.querySelector('.kbd-hint');
-if ($kbdHint) {
-  $kbdHint.addEventListener('click', function () {
-    $kbdHelp.classList.toggle('hidden');
-  });
+function toggleHelp() {
+  var opening = $kbdHelp.classList.contains('hidden');
+  $kbdHelp.classList.toggle('hidden');
+  var content = $kbdHelp.querySelector('.kbd-content');
+  if (opening && content) content.focus();
+  else if (!opening && $kbdHint) $kbdHint.focus();
 }
+if ($kbdHint) $kbdHint.addEventListener('click', toggleHelp);
 
 // ── Mobile tab navigation ─────────────────────────────────────────────────
 

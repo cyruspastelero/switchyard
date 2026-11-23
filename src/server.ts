@@ -185,6 +185,12 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
       sendJson(res, 401, { error: 'Invalid hook token' });
       return true;
     }
+    if (req.socket.remoteAddress === undefined) {
+      // The client already hung up (hooks fire and forget): there is no address to judge and no one to answer.
+      // Refuse quietly instead of raising a "token from another address" alarm for our own hook.
+      res.destroy();
+      return true;
+    }
     if (!isLoopbackAddress(req.socket.remoteAddress)) {
       emitSecurityEvent(2, 'HOOK AUTH', 'critical', `Rejected hook token from another address (${what})`, from);
       sendJson(res, 403, { error: 'The hook token is accepted from this machine only' });
@@ -399,6 +405,14 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
       }
       if (method === 'GET' && url === '/suggestions.js') {
         serveDashboardFile('suggestions.js', res);
+        return;
+      }
+      if (method === 'GET' && url === '/dragdrop.js') {
+        serveDashboardFile('dragdrop.js', res);
+        return;
+      }
+      if (method === 'GET' && url === '/new-context.js') {
+        serveDashboardFile('new-context.js', res);
         return;
       }
       if (method === 'GET' && url === '/contexts.js') {

@@ -20,7 +20,7 @@
       <span class="logo-icon">&#9678;</span>
       <span class="logo">SWITCHYARD</span>
       <div class="view-tabs" role="group" aria-label="View">
-        <button type="button" id="view-tab-contexts" class="view-tab active" aria-pressed="true">Contexts <span class="view-tab-count" id="contexts-badge" title="Contexts waiting on you">0</span></button>
+        <button type="button" id="view-tab-contexts" class="view-tab active" aria-pressed="true">Contexts <span class="view-tab-count" id="contexts-badge" title="Contexts waiting on you" hidden>0</span></button>
         <button type="button" id="view-tab-overview" class="view-tab" aria-pressed="false">Activity</button>
       </div>
     </div>
@@ -39,7 +39,7 @@
         <span class="shield-label">SECURE</span>
         <span class="shield-count" id="security-count">0</span>
       </button>
-      <span class="kbd-hint" title="Press ? for shortcuts">? HELP</span>
+      <button type="button" class="kbd-hint" title="Help and shortcuts (?)" aria-haspopup="dialog" aria-controls="kbd-help">? HELP</button>
       <span id="connection-status" class="conn-status disconnected">
         <span class="conn-dot"></span>
         <span class="conn-text">DISCONNECTED</span>
@@ -152,6 +152,7 @@
     <div class="panel-header" style="cursor:default">
       <span class="panel-title">CONTEXTS</span>
       <span class="ctx-head-acts">
+        <button type="button" id="contexts-new" class="ctx-btn" title="Make a context and choose its windows">New context</button>
         <button type="button" id="contexts-show-all" class="ctx-btn" title="Bring back every window Switchyard has hidden">Show all windows</button>
         <button type="button" id="contexts-sort" class="ctx-btn">Sort windows</button>
       </span>
@@ -173,7 +174,7 @@
       <button class="mobile-tab active" data-tab="contexts">
         <span class="mobile-tab-icon" aria-hidden="true">&#9638;</span>
         <span class="mobile-tab-label">Contexts</span>
-        <span class="mobile-tab-count" id="mob-contexts-count" title="Waiting on you">0</span>
+        <span class="mobile-tab-count" id="mob-contexts-count" title="Waiting on you" hidden>0</span>
       </button>
       <button class="mobile-tab" data-tab="agents">
         <span class="mobile-tab-icon" aria-hidden="true">&#9679;</span>
@@ -199,11 +200,11 @@
   </nav>
 
   <!-- Security overlay panel -->
-  <div id="security-overlay" class="security-overlay hidden">
+  <div id="security-overlay" class="security-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="security-title">
     <div class="security-panel">
       <div class="security-header">
-        <span class="security-title">&#9741; SECURITY STATUS</span>
-        <button id="security-close" class="security-close-btn">&times;</button>
+        <span class="security-title" id="security-title">&#9741; Security status</span>
+        <button type="button" id="security-close" class="security-close-btn" aria-label="Close security status">&times;</button>
       </div>
       <div class="security-body">
         <!-- Radar + 7-layer status side by side -->
@@ -259,15 +260,31 @@
   </div>
 
   <!-- Keyboard help (toggle with ?) -->
-  <div id="kbd-help" class="kbd-overlay hidden">
-    <div class="kbd-content">
-      <div class="kbd-title">SWITCHYARD HELP</div>
+  <div id="kbd-help" class="kbd-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="kbd-help-title">
+    <div class="kbd-content" tabindex="-1">
+      <div class="kbd-title" id="kbd-help-title">Switchyard help</div>
 
       <div class="help-section-title">Getting Started</div>
       <div class="help-text">
-        <p>1. Start the server: <code>npx tsx src/index.ts</code></p>
-        <p>2. Install hooks: <code>npx tsx src/index.ts install</code></p>
-        <p>3. Run <code>claude</code> in any terminal &mdash; agents appear automatically</p>
+        <p>1. Run the server at login: <code>node src/index.ts install-service</code> (or <code>node src/index.ts</code> in a terminal).</p>
+        <p>2. Optional, for Claude Code agents: <code>node src/index.ts install</code>, then run <code>claude</code> in any terminal.</p>
+        <p>3. Open the Switchyard menu bar app and press Sort. Each project's windows go to its own desktop.</p>
+      </div>
+
+      <div class="help-section-title">Contexts</div>
+      <div class="help-text">
+        <p><strong>Cards</strong>: one per project. Switch shows its desktop, Park saves and closes its windows, Restore brings them back, Tidy lays them out.</p>
+        <p><strong>Desktop select</strong>: picks which desktop and <kbd>&#8997;</kbd> key a project uses. Picking a taken one swaps the two.</p>
+        <p><strong>Sort</strong>: carries every window to its project's desktop. Unsorted windows go to the shared (last) desktop.</p>
+        <p><strong>Desktops</strong>: every desktop with its owner. Go shows it; Close removes an empty one. Tick several to close them at once.</p>
+        <p><strong>Layouts</strong>: arrange a desktop by hand, press Save layout, and Tidy puts windows back there.</p>
+      </div>
+
+      <div class="help-section-title">Mac shortcuts</div>
+      <div class="kbd-grid">
+        <kbd>&#8997;1&ndash;9</kbd><span class="kbd-desc">Switch to the project on that desktop</span>
+        <kbd>&#8997;Space</kbd><span class="kbd-desc">Search projects and switch</span>
+        <kbd>&#8997;T</kbd><span class="kbd-desc">Tidy the current desktop</span>
       </div>
 
       <div class="help-section-title">Panels</div>
@@ -288,7 +305,7 @@
         <p>Enable browser notifications to get alerts even when this tab is in the background.</p>
       </div>
 
-      <div class="help-section-title">Keyboard Shortcuts</div>
+      <div class="help-section-title">Dashboard shortcuts (Activity view)</div>
       <div class="kbd-grid">
         <kbd>Tab</kbd><span class="kbd-desc">Cycle panels</span>
         <kbd>j / k</kbd><span class="kbd-desc">Navigate rows</span>
@@ -325,7 +342,7 @@
         <p>&bull; The secret scanner checks every tool output for leaked API keys, tokens, and private keys.</p>
       </div>
 
-      <div class="kbd-footer">Press <kbd>?</kbd> or click outside to close</div>
+      <div class="kbd-footer">Press <kbd>?</kbd> or <kbd>Esc</kbd>, or click outside, to close</div>
     </div>
   </div>
 
@@ -338,6 +355,8 @@
   <script src="/desktops.js"></script>
   <script src="/suggestions.js"></script>
   <script src="/picker.js"></script>
+  <script src="/dragdrop.js"></script>
+  <script src="/new-context.js"></script>
   <script src="/contexts.js"></script>
   <script src="/security.js"></script>
 </body>
