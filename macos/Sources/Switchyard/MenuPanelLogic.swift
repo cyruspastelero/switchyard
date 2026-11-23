@@ -2,9 +2,26 @@ import Foundation
 
 /// The status lines at the top of the menu: what is wrong and the next step. Pure, so it is tested.
 enum MenuStatus {
-    static func lines(serverProblem: String?, trusted: Bool, contextCount: Int) -> [String] {
+    static let cliStartCommand = "switchyard install-service"
+
+    /// The command that installs the server as a login service: the copy inside the app when there is one
+    /// (the release .dmg bundles it), else the CLI.
+    static func startCommand(bundledEntry: String?) -> String {
+        guard let entry = bundledEntry else { return cliStartCommand }
+        return "node \"\(entry)\" install-service"
+    }
+
+    /// `Contents/Resources/server/src/index.ts` when this app bundle carries the server.
+    static var bundledServerEntry: String? {
+        guard let resources = Bundle.main.resourceURL else { return nil }
+        let entry = resources.appendingPathComponent("server/src/index.ts").path
+        return FileManager.default.fileExists(atPath: entry) ? entry : nil
+    }
+
+    static func lines(serverProblem: String?, trusted: Bool, contextCount: Int,
+                      startCommand: String = cliStartCommand) -> [String] {
         if let problem = serverProblem {
-            return [problem, "Start it with: switchyard install-service"]
+            return [problem, "Start it with: \(startCommand)"]
         }
         if !trusted {
             return ["Windows can't be moved yet", "Allow Switchyard under Privacy & Security › Accessibility"]
@@ -90,9 +107,10 @@ enum MenuPanelLogic {
     }
 
     /// The header state. The server problem wins: without the server nothing else works.
-    static func health(serverProblem: String?, trusted: Bool) -> Health {
-        let lines = MenuStatus.lines(serverProblem: serverProblem, trusted: trusted, contextCount: 1)
-        if serverProblem != nil, lines.count == 2 { return .problem(lines[0], fix: .command(lines[1])) }
+    static func health(serverProblem: String?, trusted: Bool,
+                       startCommand: String = MenuStatus.cliStartCommand) -> Health {
+        if let problem = serverProblem { return .problem(problem, fix: .command(startCommand)) }
+        let lines = MenuStatus.lines(serverProblem: nil, trusted: trusted, contextCount: 1)
         if !trusted, let first = lines.first { return .problem(first, fix: .allowAccessibility) }
         return .ok
     }

@@ -78,11 +78,23 @@ final class MenuPanelTests: XCTestCase {
     func test_health_is_ok_only_when_the_server_is_up_and_access_is_granted() {
         XCTAssertEqual(MenuPanelLogic.health(serverProblem: nil, trusted: true), .ok)
         XCTAssertEqual(MenuPanelLogic.health(serverProblem: "Server not reachable", trusted: true),
-                       .problem("Server not reachable", fix: .command("Start it with: switchyard install-service")))
+                       .problem("Server not reachable", fix: .command("switchyard install-service")))
         XCTAssertEqual(MenuPanelLogic.health(serverProblem: nil, trusted: false),
                        .problem("Windows can't be moved yet", fix: .allowAccessibility))
         XCTAssertEqual(MenuPanelLogic.health(serverProblem: "Down", trusted: false),
-                       .problem("Down", fix: .command("Start it with: switchyard install-service")))
+                       .problem("Down", fix: .command("switchyard install-service")))
+    }
+
+    func test_server_fix_runs_the_copy_bundled_in_the_app() {
+        let entry = "/Applications/Switchyard.app/Contents/Resources/server/src/index.ts"
+        let command = MenuStatus.startCommand(bundledEntry: entry)
+        XCTAssertEqual(command, #"node "/Applications/Switchyard.app/Contents/Resources/server/src/index.ts" install-service"#)
+        XCTAssertEqual(MenuPanelLogic.health(serverProblem: "Server not reachable", trusted: true, startCommand: command),
+                       .problem("Server not reachable", fix: .command(command)))
+    }
+
+    func test_server_fix_without_a_bundled_copy_uses_the_cli() {
+        XCTAssertEqual(MenuStatus.startCommand(bundledEntry: nil), "switchyard install-service")
     }
 
     func test_header_dot_label_says_whether_switchyard_is_ready() {

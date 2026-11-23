@@ -28,8 +28,14 @@ struct MenuPanelHeader: View {
                     case .allowAccessibility:
                         Button("Allow in Accessibility settings", action: requestAccessibility)
                             .controlSize(.small)
-                    case let .command(text):
-                        Text(text).foregroundStyle(.secondary).textSelection(.enabled)
+                    case let .command(command):
+                        Text("Run this in Terminal:").foregroundStyle(.secondary)
+                        Text(command).font(.caption.monospaced()).textSelection(.enabled)
+                        Button("Copy command") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(command, forType: .string)
+                        }
+                        .controlSize(.small)
                     }
                 }
                 .font(.subheadline)

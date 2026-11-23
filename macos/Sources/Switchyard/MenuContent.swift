@@ -85,7 +85,8 @@ struct MenuPanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            MenuPanelHeader(health: MenuPanelLogic.health(serverProblem: state.serverProblem, trusted: state.trusted),
+            MenuPanelHeader(health: MenuPanelLogic.health(serverProblem: state.serverProblem, trusted: state.trusted,
+                                                         startCommand: MenuStatus.startCommand(bundledEntry: MenuStatus.bundledServerEntry)),
                             actionProblem: state.actionProblem, requestAccessibility: actions.requestAccessibility)
             if state.online {
                 searchField
