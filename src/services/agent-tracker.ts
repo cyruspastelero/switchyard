@@ -16,9 +16,6 @@ const IDLE_THRESHOLD_MS = 60_000; // 60 seconds
 const DISCONNECTED_THRESHOLD_MS = 300_000; // 300 seconds
 const CHECK_INTERVAL_MS = 10_000; // 10 seconds
 
-// Track which agents already have names so we don't overwrite
-const namedAgents = new Set<string>();
-
 // ---------------------------------------------------------------------------
 // Agent name derivation — give agents meaningful names on first contact
 // ---------------------------------------------------------------------------
@@ -168,17 +165,10 @@ class AgentTracker {
       }
     }
 
-    // Derive name only if this agent hasn't been named yet
+    // Name an agent only when its row has no name: a deleted agent that returns is named again, and an
+    // existing (possibly user-chosen) name is kept.
     const isSubagent = id.includes(":") && !id.endsWith(":main");
-    const existingAgent = getAgent(id);
-    let name: string | null = null;
-
-    if (!namedAgents.has(id) && !existingAgent?.name) {
-      name = deriveName(id, sessionId, isSubagent, cwd, parsedInput);
-      namedAgents.add(id);
-    } else if (existingAgent?.name) {
-      namedAgents.add(id); // already named in DB (e.g. user renamed)
-    }
+    const name = getAgent(id)?.name ? null : deriveName(id, sessionId, isSubagent, cwd, parsedInput);
 
     const agentRecord: Agent = {
       id,
@@ -213,11 +203,9 @@ class AgentTracker {
     }
 
     // Run an immediate sweep on startup to fix stale agents from before restart
-    this.sweep();
+    this.sweepSafely();
 
-    this.intervalHandle = setInterval(() => {
-      this.sweep();
-    }, CHECK_INTERVAL_MS);
+    this.intervalHandle = setInterval(() => this.sweepSafely(), CHECK_INTERVAL_MS);
 
     // Allow the process to exit even if the interval is running
     if (this.intervalHandle.unref) {
@@ -232,6 +220,15 @@ class AgentTracker {
     if (this.intervalHandle !== null) {
       clearInterval(this.intervalHandle);
       this.intervalHandle = null;
+    }
+  }
+
+  /** A timer callback must not throw: one SQLite error (busy, disk full) would end the server. */
+  private sweepSafely(): void {
+    try {
+      this.sweep();
+    } catch (err) {
+      console.error('  [agents] Status sweep failed, retrying next interval:', err instanceof Error ? err.message : err);
     }
   }
 

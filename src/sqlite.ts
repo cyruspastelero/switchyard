@@ -78,6 +78,8 @@ export function openSqlite(dbPath: string): Db {
   fs.closeSync(fs.openSync(dbPath, 'a', OWNER_ONLY));
   restrictToOwner(dbPath);
   const db = new Db(dbPath);
+  // Wait up to 5 s for another connection's lock (e.g. a backup or the sqlite3 CLI) instead of failing.
+  db.exec('PRAGMA busy_timeout = 5000');
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   // Deleted rows are overwritten, so purged events do not linger in free pages.
