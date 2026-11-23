@@ -728,7 +728,9 @@ html, body {
   border: none;
   cursor: pointer;
   padding: 2px 4px;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .mission-clear-btn:hover {
@@ -1812,6 +1814,9 @@ html, body {
   cursor: pointer;
   padding: 1px 4px;
   margin-left: 2px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .agent-clear-btn:hover {
