@@ -573,7 +573,7 @@ function renderMissionRows(doneCount) {
 
       // Agent info
       if (mission.assigned_agent_id) {
-        var agent = state.agents.find(function (a) { return a.id === mission.assigned_agent_id; });
+        var agent = state.agents.find(function (a) { return a.id === mission.assigned_agent_id || a.agent_id === mission.assigned_agent_id; });
         var agentInfo = createEl('div', { className: 'mission-agent-info' });
 
         var agentName = agent ? agentDisplayName(agent) : mission.assigned_agent_id;
@@ -582,7 +582,7 @@ function renderMissionRows(doneCount) {
 
         agentInfo.appendChild(createEl('span', { className: 'mission-info-label', textContent: 'Agent:' }));
         agentInfo.appendChild(createEl('span', { className: 'agent-dot ' + agentStatus, textContent: dotChar }));
-        agentInfo.appendChild(createEl('span', { className: 'mission-info-value', textContent: agentName }));
+        agentInfo.appendChild(createEl('span', { className: 'mission-info-value', textContent: agentName, title: mission.assigned_agent_id }));
 
         if (agent && agent.cwd) {
           agentInfo.appendChild(createEl('br'));

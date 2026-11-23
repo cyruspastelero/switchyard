@@ -864,7 +864,7 @@ html, body {
   font-weight: 600;
   flex-shrink: 0;
   min-width: 48px;
-  max-width: 80px;
+  max-width: 140px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -890,8 +890,10 @@ html, body {
 }
 
 .timeline-filter {
+  font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   color: var(--text-bright);
+  background: none;
   cursor: pointer;
   padding: 0 6px;
   border: 1px solid var(--border-bright);
@@ -2181,7 +2183,7 @@ html, body {
   }
 
   .timeline-agent {
-    max-width: 50px;
+    max-width: 72px;
     min-width: 36px;
     font-size: var(--font-size-xs);
   }
@@ -2541,7 +2543,7 @@ html, body {
 
 .ctx-label {
   color: var(--text-secondary);
-  width: 60px;
+  width: 120px;
   flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -2619,7 +2621,7 @@ html, body {
 .session-label {
   color: var(--text-secondary);
   font-weight: 500;
-  width: 68px;
+  width: 120px;
   flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;

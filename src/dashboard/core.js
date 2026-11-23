@@ -523,6 +523,7 @@ function handleMessage(msg) {
     case 'agents':
       state.agents = msg.data || [];
       renderAgents();
+      if (usageData || tokenData) renderUsage(); // session rows show agent names
       // Force mobile layout refresh — on some mobile browsers the panel
       // doesn't repaint after WebSocket data arrives during initial load
       if (isMobile()) { setMobileTab(mobileActiveTab); }
@@ -589,6 +590,7 @@ function fetchAgentsHttp() {
       if (Array.isArray(agents) && agents.length > 0) {
         state.agents = agents;
         renderAgents();
+        if (usageData || tokenData) renderUsage();
         updateHeaderStats();
         if (isMobile()) { setMobileTab(mobileActiveTab); }
       }

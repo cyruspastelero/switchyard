@@ -120,6 +120,17 @@ describe('timeline rows', () => {
     expect(row.attrs['aria-expanded']).toBe('true');
     expect(row.children.some((c) => c.className === 'timeline-expanded')).toBe(true);
   });
+
+  it('the_agent_column_shows_the_agent_name_with_the_raw_id_as_title', () => {
+    const agentCell = timelineRow(evt, agents).children[1];
+    expect(agentCell.textContent).toBe('switchyard — India');
+    expect(agentCell.title).toBe('sess-1:main');
+  });
+
+  it('an_unknown_agent_keeps_its_raw_id', () => {
+    const agentCell = timelineRow({ ...evt, agent_id: 'gone:main' }, agents).children[1];
+    expect(agentCell.textContent).toBe('gone:main');
+  });
 });
 
 describe('mission copy', () => {
