@@ -79,3 +79,30 @@ describe('window commands need the Mac app', () => {
     expect(svc.store.getNames().get('w1')).toBeUndefined();
   });
 });
+
+describe('background refresh failures', () => {
+  it('a_refresh_that_fails_after_a_move_is_logged_with_the_action', async () => {
+    let agentsFail = false;
+    const listAgents = () => {
+      if (agentsFail) throw new Error('database is locked');
+      return getAgents();
+    };
+    const svc = new ContextsService({ db, listAgents, signals, autoContextWindowMs: Infinity });
+    const topic = svc.createTopic('topic');
+    await svc.applySnapshot({ windows: [chrome('w1', 'https://a.com/one')] });
+    const messages: string[] = [];
+    const original = console.warn;
+    console.warn = (message: unknown) => { messages.push(String(message)); };
+    try {
+      agentsFail = true; // only the background refresh reads agents
+      svc.assign('w1', topic.id);
+      await svc.refresh().catch(() => undefined);
+      svc.unassign('w1');
+      await svc.refresh().catch(() => undefined);
+      expect(messages.some((m) => /refresh after assign failed: database is locked/.test(m))).toBe(true);
+      expect(messages.some((m) => /refresh after unassign failed: database is locked/.test(m))).toBe(true);
+    } finally {
+      console.warn = original;
+    }
+  });
+});

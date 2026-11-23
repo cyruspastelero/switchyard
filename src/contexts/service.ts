@@ -123,6 +123,13 @@ export class ContextsService {
     return this.refreshing;
   }
 
+  /** A refresh nobody waits for; a failure is logged with the action that started it. */
+  private refreshInBackground(action: string): void {
+    this.refresh().catch((err: unknown) => {
+      console.warn(`[contexts] refresh after ${action} failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
+
   private async doRefresh(): Promise<void> {
     const agents = [...this.deps.listAgents()]
       .filter((a) => a.cwd)
@@ -717,7 +724,7 @@ export class ContextsService {
       }
       nameChromeWindow(this.store, this.commands, win, contextId);
     }
-    this.refresh().then(() => undefined, () => undefined);
+    this.refreshInBackground('assign');
     return this.afterMove(windowKey, this.contextDesktop(ctx));
   }
 
@@ -741,7 +748,7 @@ export class ContextsService {
       .filter((p): p is string => p !== null)
       .map((pattern) => ({ pattern, contextId: previous }));
     this.store.unsortWindow(windowKey, new Date(this.now()).toISOString(), forget);
-    this.refresh().then(() => undefined, () => undefined);
+    this.refreshInBackground('unassign');
     return this.afterMove(windowKey, this.desktopCount());
   }
 
