@@ -72,6 +72,9 @@ enum ChromeEvents {
         } catch {
             let code = (error as NSError).code
             if code == -1712 { throw BrowserError.unsupported("Chrome did not answer in time making a \(what)") }
+            if code == -1743 {
+                throw BrowserError.unsupported("Switchyard may not control Chrome: allow it in System Settings > Privacy & Security > Automation")
+            }
             throw BrowserError.unsupported("Chrome refused to make a \(what): \(error.localizedDescription) (\(code))")
         }
         if let message = replyError(reply) { throw BrowserError.unsupported("Chrome refused to make a \(what): \(message)") }

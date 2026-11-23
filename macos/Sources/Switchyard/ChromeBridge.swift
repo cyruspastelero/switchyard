@@ -43,9 +43,16 @@ enum ChromeBridge {
             }
             if urls.count > 1 {
                 guard let container = ChromeEvents.windowSpecifier(id: windowId) else { throw BrowserError.unsupported("cannot address the new window") }
-                for url in urls.dropFirst() {
-                    _ = try ChromeEvents.make(pid: pid, scriptingClass: ChromeEvents.tabClass, container: container,
-                                              properties: ["URL ": url], timeout: commandTimeout)
+                let started = Date()
+                for (index, url) in urls.enumerated().dropFirst() {
+                    do {
+                        if Date().timeIntervalSince(started) > commandTimeout * 2 { throw BrowserError.unsupported("Chrome is too slow") }
+                        _ = try ChromeEvents.make(pid: pid, scriptingClass: ChromeEvents.tabClass, container: container,
+                                                  properties: ["URL ": url], timeout: commandTimeout)
+                    } catch {
+                        // The window exists with `index` tabs: say so, so nobody retries into a second window blindly.
+                        throw BrowserError.unsupported("opened the window with \(index) of \(urls.count) tabs, then: \(error.localizedDescription)")
+                    }
                 }
             }
             if let name, !name.isEmpty { w.setValue(name, forKey: "givenName"); try s.check() }
