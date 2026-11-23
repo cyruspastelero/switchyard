@@ -2869,6 +2869,10 @@ button.ctx-w-text:focus-visible { outline: 1px solid var(--border-bright); outli
 .ctx-w-tabs { flex: none; color: var(--text-muted); }
 .ctx-w-place { flex: none; color: var(--text-muted); font-size: var(--font-size-xs); }
 .ctx-w-note .ctx-w-text { color: var(--text-muted); font-size: var(--font-size-sm); }
+/* Notes wrap instead of clipping ("8 windows are on other desktops" next to Move here). */
+.ctx-w-note { height: auto; min-height: 26px; }
+.ctx-w-note .ctx-w-text { white-space: normal; height: auto; line-height: 1.4; }
+.ctx-w-note .ctx-btn.link { flex: none; white-space: nowrap; }
 .ctx-app-icon, .ctx-app-img { flex: none; width: 16px; height: 16px; }
 .ctx-app-icon {
   display: grid;
