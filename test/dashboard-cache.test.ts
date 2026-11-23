@@ -30,4 +30,15 @@ describe('dashboard caching', () => {
       expect(res.headers.get('cache-control'), path).toBe('no-store');
     }
   });
+
+  it('dashboard_files_load_with_a_query_string', async () => {
+    const auth = await fetch(`${BASE}/api/auth`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: server.accessCode }),
+    });
+    const cookie = (auth.headers.get('set-cookie') ?? '').split(';')[0];
+    for (const path of ['/?from=menu', '/app.js?v=1', '/contexts.js?v=2']) {
+      expect((await fetch(`${BASE}${path}`, { headers: { cookie } })).status, path).toBe(200);
+    }
+    expect((await fetch(`${BASE}/nope.js`, { headers: { cookie } })).status).toBe(404);
+  });
 });
