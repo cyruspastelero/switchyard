@@ -405,6 +405,10 @@ export function createServer(port: number = 4280, bindLocal: boolean = true, opt
         serveDashboardFile('dragdrop.js', res);
         return;
       }
+      if (method === 'GET' && url === '/new-context.js') {
+        serveDashboardFile('new-context.js', res);
+        return;
+      }
       if (method === 'GET' && url === '/contexts.js') {
         serveDashboardFile('contexts.js', res);
         return;

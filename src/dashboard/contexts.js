@@ -354,9 +354,10 @@
   }
 
   // editing(on) holds re-renders while a window is dragged, the way an open picker does.
-  var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy, data: function () { return st.data; },
+  var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy, appIcon: appIcon, data: function () { return st.data; },
     editing: function (on) { st.picking = on ? 'drag' : null; if (!on && st.dirty) endEdit(); } };
   var dragUi = uiDeps.drag = window.MCDragDrop ? window.MCDragDrop(uiDeps) : null;
+  var newContextUi = window.MCNewContext ? window.MCNewContext(uiDeps) : null;
   var layoutsUi = window.MCLayouts ? window.MCLayouts(uiDeps) : null;
   var desktopsUi = window.MCDesktops ? window.MCDesktops(uiDeps) : null;
   var suggestionsUi = window.MCSuggestions ? window.MCSuggestions(uiDeps) : null;
@@ -722,6 +723,8 @@
       act('sort', function () { return api.sort(); });
     });
   }
+  var $newBtn = document.getElementById('contexts-new');
+  if ($newBtn && newContextUi) $newBtn.addEventListener('click', newContextUi.open);
   if ($showAllBtn) {
     $showAllBtn.addEventListener('click', function () {
       act('showAll', function () { return api.showAll(); });
