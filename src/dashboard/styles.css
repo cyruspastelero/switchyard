@@ -3260,7 +3260,6 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
 .nc-check { margin: 0; flex: none; }
 .nc-win { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: var(--font-size-sm); }
 .nc-win-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
-.nc-win-from { flex: none; color: var(--text-muted); font-size: var(--font-size-xs); }
 .nc-empty { padding: 8px 0; font-size: var(--font-size-sm); }
 .nc-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .nc-count { margin-right: auto; font-size: var(--font-size-sm); }

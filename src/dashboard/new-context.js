@@ -114,7 +114,6 @@
         onChange();
       });
       var label = add(h('label', 'nc-win', null, { for: id }), deps.appIcon(w), h('span', 'nc-win-title', shared.windowLabel(w)));
-      if (item.from) label.appendChild(h('span', 'nc-win-from', 'in ' + item.from.name));
       return add(h('li', 'nc-item'), box, label);
     }
 
