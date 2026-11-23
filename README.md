@@ -1,7 +1,7 @@
 # Switchyard
 
 <a href="https://github.com/cyruspastelero/switchyard/releases/download/demo/switchyard-demo.mp4">
-  <img src="docs/img/switchyard-demo.gif" alt="Switchyard sorting windows onto one desktop per project, then switching with Option 1 to 3" width="960">
+  <img src="docs/img/switchyard-demo-v2.gif" alt="Switchyard sorting windows onto one desktop per project, then switching with Option 1 to 3" width="960">
 </a>
 
 [Watch the full demo (41 s, with sound)](https://github.com/cyruspastelero/switchyard/releases/download/demo/switchyard-demo.mp4)
