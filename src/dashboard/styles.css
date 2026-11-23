@@ -1909,7 +1909,7 @@ html, body {
 }
 
 .agent-row.subagent .agent-dot {
-  font-size: 7px;
+  font-size: var(--font-size-xs);
 }
 
 .agent-row.subagent .agent-activity {
