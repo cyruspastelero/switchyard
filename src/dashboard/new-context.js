@@ -49,7 +49,8 @@
     var key = nextFreeKey(contexts);
     var value = key == null ? '' : String(key);
     var options = shared.keyOptions(contexts, { id: '', key: key }, desktopCount).map(function (o) {
-      return o.value === value ? { value: o.value, label: o.label + ' (next free)' } : o;
+      // Only a real desktop is "next free"; with none left the default is the shared desktop, said once.
+      return key != null && o.value === value ? { value: o.value, label: o.label + ' (next free)' } : o;
     });
     return { options: options, value: value };
   }
@@ -149,7 +150,8 @@
       function drawList() {
         while (list.firstChild) list.removeChild(list.firstChild);
         state.ids = {};
-        var groups = windowGroups(d.unsorted, d.contexts, search.value);
+        var unsorted = deps.isSystemWindow ? d.unsorted.filter(function (w) { return !deps.isSystemWindow(w); }) : d.unsorted;
+        var groups = windowGroups(unsorted, d.contexts, search.value);
         if (!groups.length) list.appendChild(h('p', 'ctx-muted nc-empty', search.value ? 'No windows match.' : 'No open windows.'));
         groups.forEach(function (g, i) {
           var head = h('div', 'nc-group-title', g.label, { id: 'nc-g-' + i });

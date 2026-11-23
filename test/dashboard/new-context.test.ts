@@ -50,6 +50,13 @@ describe('new context window picker', () => {
     expect(choice.options[choice.options.length - 1].value).toBe('');
   });
 
+  it('with_every_key_taken_the_shared_default_is_not_called_next_free', () => {
+    const full = Array.from({ length: 9 }, (_, i) => ({ id: String(i), name: 'c' + i, key: i + 1, windows: [] }));
+    const choice = logic.desktopChoice(full, 6)!;
+    expect(choice.value).toBe('');
+    expect(choice.options.some((o) => /next free/.test(o.label))).toBe(false);
+  });
+
   it('there_is_no_desktop_choice_without_real_desktops', () => {
     expect(logic.desktopChoice(contexts, null)).toBe(null);
   });

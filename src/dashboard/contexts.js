@@ -353,7 +353,7 @@
   }
 
   // editing(on) holds re-renders while a window is dragged, the way an open picker does.
-  var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy, appIcon: appIcon, data: function () { return st.data; },
+  var uiDeps = { h: h, add: add, button: button, act: act, request: request, busy: st.busy, appIcon: appIcon, isSystemWindow: isSystemWindow, data: function () { return st.data; },
     editing: function (on) { st.picking = on ? 'drag' : null; if (!on && st.dirty) endEdit(); } };
   var dragUi = uiDeps.drag = window.MCDragDrop ? window.MCDragDrop(uiDeps) : null;
   var newContextUi = window.MCNewContext ? window.MCNewContext(uiDeps) : null;
