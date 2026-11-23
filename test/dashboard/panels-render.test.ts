@@ -102,6 +102,15 @@ describe('desktops panel', () => {
     expect(batch.textContent).toBe('Close 2 desktops');
     expect(batch.disabled).toBe(false);
   });
+
+  it('a_blocked_tile_says_why_in_select_mode_and_done_clears_every_tick', () => {
+    expect(rows[0].title).toBe(owned);
+    find(box, 'desktopSelect').listeners.click();
+    expect(box.className).not.toContain('selecting');
+    expect([2, 3].map((n) => find(box, `desktopPick:${n}`).checked)).toEqual([false, false]);
+    expect(rows[0].title).toBe('');
+    expect(find(box, 'desktopBatch').disabled).toBe(true);
+  });
 });
 
 describe('dragging a project chip onto another desktop tile', () => {

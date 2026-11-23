@@ -447,7 +447,15 @@
   }
 
   // One compact card per context, in desktop order (Desktop 1…N, as in Mission Control).
+  // A deleted context's open list is forgotten, so ids never pile up in st.expanded.
+  function pruneExpanded(d) {
+    var live = {};
+    d.contexts.forEach(function (c) { live[c.id] = true; });
+    Object.keys(st.expanded).forEach(function (id) { if (!live[id]) delete st.expanded[id]; });
+  }
+
   function cards(d, control) {
+    pruneExpanded(d);
     var grid = h('div', 'ctx-cards', null, { role: 'list', 'aria-label': 'Contexts' });
     logic.byDesktop(d.contexts).forEach(function (c) { grid.appendChild(contextCard(c, d, control)); });
     return grid;
@@ -477,7 +485,7 @@
       var home = c.desktop != null ? c.desktop : d.activeDesktop;
       var list = logic.visibleWindows(c.windows, !!st.expanded[c.id]);
       list.shown.forEach(function (w) { wins.appendChild(windowLine(w, moveTo, home, c)); });
-      if (list.more || st.expanded[c.id]) wins.appendChild(moreRow(c, list.more));
+      if (list.more || list.collapsible) wins.appendChild(moreRow(c, list.more));
       var stray = logic.strayHint(c);
       if (stray) wins.appendChild(add(noteRow(stray), button('Move here', 'link', 'gather:' + c.id, function () {
         act('gather:' + c.id, function () { return api.gather(c.id); }, c.name);
@@ -549,7 +557,9 @@
     if (parts.tabs) b.appendChild(h('span', 'ctx-w-tabs', '\u00B7 ' + parts.tabs));
     var place = logic.windowPlace(w, activeDesktop, unsorted);
     var tag = logic.placeTag(w, activeDesktop);
-    if (tag) b.appendChild(h('span', 'ctx-w-place', tag, { title: place, 'aria-label': place }));
+    // "D5" is for the eye; screen readers get the long form ("Desktop 5 · not moved yet") instead.
+    if (tag) b.appendChild(add(h('span', 'ctx-w-place', null, { title: place }),
+      h('span', null, tag, { 'aria-hidden': 'true' }), h('span', 'sr-only', place)));
     b.addEventListener('click', function () { act(key, function () { return api.focusWindow(w.key); }); });
     return b;
   }

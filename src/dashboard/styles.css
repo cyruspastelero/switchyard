@@ -3335,10 +3335,10 @@ body.view-contexts .header-stats { display: none; }
 .ctx-desk-add-slot { display: flex; }
 .ctx-desk-add {
   flex: 1; min-height: 86px; font: inherit; font-size: var(--font-size-xs); letter-spacing: 0.5px; text-transform: uppercase;
-  color: var(--text-muted); background: none; border: 1px dashed var(--border-bright); cursor: pointer;
+  color: var(--text-muted); background: none; border: 1px dashed var(--border-focus); cursor: pointer;
   transition: border-color 0.12s, color 0.12s;
 }
-.ctx-desk-add:hover:not(:disabled) { color: var(--text-bright); border-color: var(--border-focus); }
+.ctx-desk-add:hover:not(:disabled) { color: var(--text-bright); border-color: var(--text-muted); }
 .ctx-desk-add:disabled { opacity: 0.4; cursor: not-allowed; }
 .ctx-desk-add:focus-visible { outline: 1px solid var(--text-bright); outline-offset: 1px; }
 
@@ -3395,8 +3395,6 @@ body.ctx-dragging .ctx-unsorted-empty { display: flex; }
   content: attr(data-drop-note); position: absolute; right: 8px; top: 8px; padding: 4px 8px; pointer-events: none;
   background: var(--bg-panel-alt); border: 1px solid var(--border); color: var(--text-bright); font-size: var(--font-size-xs);
 }
-.ctx-drop-hint { display: none; font-size: var(--font-size-sm); }
-body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
 .ctx-drag-ghost {
   position: fixed; top: -1000px; left: 0; display: flex; gap: 8px; align-items: center; max-width: 320px;
   padding: 4px 10px; background: var(--bg-panel-alt); border: 1px solid var(--border-bright); color: var(--text-bright);
@@ -3438,7 +3436,6 @@ body.ctx-dragging .ctx-drop-hint { display: inline; color: var(--text-bright); }
   .nc-item { position: relative; min-height: 44px; }
   .nc-win::before { content: ''; position: absolute; inset: 0; }
 }
-/* On wide screens the meta column would stretch and push Showing and the actions far from their desktop. */
 
 /* The Agents column is ~220px between 641 and ~1000px wide: the filters wrap instead of cutting off CLEAR OLD. */
 @media (max-width: 1100px) {
@@ -3456,18 +3453,19 @@ body.ctx-dragging .ctx-unsorted-box select, body.ctx-dragging .ctx-desktops sele
 .ctx-select, .pick-btn {
   appearance: none; -webkit-appearance: none;
   background: var(--bg-panel-alt) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238a8f98'/%3E%3C/svg%3E") no-repeat right 7px center;
-  border: 1px solid var(--border-bright);
+  /* Field edges at --border-focus (~3.4:1 on the panels) so a field reads as a field (WCAG 1.4.11). */
+  border: 1px solid var(--border-focus);
   padding-right: 22px;
   transition: border-color 0.12s, background-color 0.12s;
 }
 .pick-btn::after { content: none; }
-.ctx-select:hover:not(:disabled), .pick-btn:hover:not(:disabled) { border-color: var(--border-focus); background-color: var(--bg-hover); }
+.ctx-select:hover:not(:disabled), .pick-btn:hover:not(:disabled) { border-color: var(--text-muted); background-color: var(--bg-hover); }
 .ctx-select:focus-visible, .pick-btn:focus-visible, .pick-input:focus-visible, .ctx-input:focus-visible {
   outline: 1px solid var(--text-bright); outline-offset: 1px;
 }
 .ctx-select option { background: var(--bg-panel-alt); color: var(--text-primary); }
-.ctx-input, .pick-input { background: var(--bg-base); border-color: var(--border-bright); transition: border-color 0.12s; }
-.ctx-input:hover, .pick-input:hover { border-color: var(--border-focus); }
+.ctx-input, .pick-input { background: var(--bg-base); border-color: var(--border-focus); transition: border-color 0.12s; }
+.ctx-input:hover, .pick-input:hover { border-color: var(--text-muted); }
 .ctx-input::placeholder, .pick-input::placeholder { color: var(--text-muted); }
 /* The card's desktop select stays text-like (set above); keep it free of the field chrome. */
 .ctx-card-meta .ctx-key-select { background-color: transparent; border: 0; padding-right: 14px; background-position: right 2px center; }

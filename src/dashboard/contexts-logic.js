@@ -81,7 +81,6 @@
       case 'move': return 'Moved to ' + name;
       case 'undoTidy': return 'Tidy undone';
       case 'desktopShow': return 'Going to ' + name;
-      case 'desktopClose': return 'Closing ' + name;
       case 'desktopAdd': return 'Adding a desktop on ' + name;
       default: return '';
     }
@@ -196,8 +195,9 @@
   // Cards show four windows so one long list doesn't stretch every card in its row. One extra row shows as is.
   var WINDOW_LIMIT = 4;
   function visibleWindows(list, expanded) {
-    if (expanded || list.length <= WINDOW_LIMIT + 1) return { shown: list, more: 0 };
-    return { shown: list.slice(0, WINDOW_LIMIT), more: list.length - WINDOW_LIMIT };
+    var long = list.length > WINDOW_LIMIT + 1;
+    if (!long) return { shown: list, more: 0, collapsible: false };
+    return expanded ? { shown: list, more: 0, collapsible: true } : { shown: list.slice(0, WINDOW_LIMIT), more: list.length - WINDOW_LIMIT, collapsible: false };
   }
 
   var STATUS_WORD = { working: 'Working', waiting: 'Waiting on you', idle: 'Idle', parked: 'Parked' };
@@ -304,15 +304,9 @@
     return row.owners.length ? row.owners.map(function (o) { return o.name; }).join(', ') : 'Free';
   }
 
-  function desktopMeta(row) { return row.screenLabel + ' \u00B7 ' + plural(row.windows, 'window'); }
-
-  // The owner select on a Desktops row (rows 1-9 that are not shared): Free, or any context. Picking one gives it
-  // this desktop; it swaps with the current owner.
-  function desktopOwnerOptions(row, contexts, desktopCount) {
-    return [{ value: '', label: 'Free' }].concat(contexts.map(function (c) {
-      var own = c.key != null && c.key < desktopCount && c.key !== row.number;
-      return { value: c.id, label: c.name + (own ? ' (now Desktop ' + c.key + ')' : '') };
-    }));
+  // A tile's last line: the window count, with the screen only when there is more than one.
+  function desktopMeta(row, multiScreen) {
+    return (multiScreen ? row.screenLabel + ' \u00B7 ' : '') + plural(row.windows, 'window');
   }
 
   // Unsorted header: windows no context holds (they can sit on any desktop). Hidden system windows don't count,
@@ -324,7 +318,6 @@
 
   function statusWord(c) { return STATUS_WORD[c.status] || 'Idle'; }
 
-  function closeDesktopConfirm(n) { return 'Close Desktop ' + n + '? Its windows move to another desktop on that screen.'; }
 
   // Batch close: the picked desktops from the highest number down (so lower numbers never shift), skipping any
   // the server blocks (rows carry its closeBlocked reason) and the last one left on a screen.
@@ -368,7 +361,7 @@
     return next();
   }
 
-  var api = { closePlan: closePlan, closeBatchLabel: closeBatchLabel, closeBatchConfirm: closeBatchConfirm, closeBatchDoneText: closeBatchDoneText, pollUntil: pollUntil,keyOptions: keyOptions, keyDoneText: keyDoneText, swapTarget: swapTarget, desktopOwnerText: desktopOwnerText, desktopMeta: desktopMeta, closeDesktopConfirm: closeDesktopConfirm, desktopOwnerOptions: desktopOwnerOptions, statusWord: statusWord, unsortedCountText: unsortedCountText, countBadge: countBadge, sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, placeTag: placeTag, visibleWindows: visibleWindows, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
+  var api = { closePlan: closePlan, closeBatchLabel: closeBatchLabel, closeBatchConfirm: closeBatchConfirm, closeBatchDoneText: closeBatchDoneText, pollUntil: pollUntil,keyOptions: keyOptions, keyDoneText: keyDoneText, swapTarget: swapTarget, desktopOwnerText: desktopOwnerText, desktopMeta: desktopMeta, statusWord: statusWord, unsortedCountText: unsortedCountText, countBadge: countBadge, sortLabel: sortLabel, strayHint: strayHint, moveResultText: moveResultText, tidyText: tidyText, noDataNote: noDataNote, windowLabel: windowLabel, windowParts: windowParts, windowTip: windowTip, windowPlace: windowPlace, placeTag: placeTag, visibleWindows: visibleWindows, cardMeta: cardMeta, agentSummary: agentSummary, shortTitle: shortTitle, byDesktop: byDesktop, suggestedContextId: suggestedContextId, desktopLabel: desktopLabel, toSortText: toSortText, setupSteps: setupSteps, needsSetup: needsSetup, failureText: failureText, busyLabel: busyLabel, doneText: doneText, canRename: canRename, moveItems: moveItems, layoutOptions: layoutOptions, defaultLayoutOptions: defaultLayoutOptions, layoutScreens: layoutScreens, layoutMeta: layoutMeta, UNSORTED_ID: UNSORTED_ID };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MCContextsLogic = api;
 })(typeof window !== 'undefined' ? window : this);

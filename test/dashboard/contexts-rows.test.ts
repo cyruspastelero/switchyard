@@ -10,7 +10,7 @@ const logic = require('../../src/dashboard/contexts-logic.js') as {
   windowTip: (w: Win) => string;
   windowPlace: (w: Win, activeDesktop: number | null, unsorted?: boolean) => string;
   placeTag: (w: Win, activeDesktop: number | null) => string;
-  visibleWindows: <T>(list: T[], expanded: boolean) => { shown: T[]; more: number };
+  visibleWindows: <T>(list: T[], expanded: boolean) => { shown: T[]; more: number; collapsible: boolean };
   cardMeta: (c: { desktop: number | null; key: number | null; status: string }) => string;
   agentSummary: (c: { agents: { status: string; costToday: number | null }[] }) => string;
 };
@@ -63,10 +63,11 @@ describe('window rows', () => {
   });
 
   it('a_long_window_list_shows_four_rows_and_counts_the_rest', () => {
-    expect(logic.visibleWindows([1, 2, 3, 4, 5, 6], false)).toEqual({ shown: [1, 2, 3, 4], more: 2 });
-    expect(logic.visibleWindows([1, 2, 3, 4, 5, 6], true)).toEqual({ shown: [1, 2, 3, 4, 5, 6], more: 0 });
-    // One hidden row is not worth a toggle: show it.
-    expect(logic.visibleWindows([1, 2, 3, 4, 5], false)).toEqual({ shown: [1, 2, 3, 4, 5], more: 0 });
+    expect(logic.visibleWindows([1, 2, 3, 4, 5, 6], false)).toEqual({ shown: [1, 2, 3, 4], more: 2, collapsible: false });
+    expect(logic.visibleWindows([1, 2, 3, 4, 5, 6], true)).toEqual({ shown: [1, 2, 3, 4, 5, 6], more: 0, collapsible: true });
+    // One hidden row is not worth a toggle: show it, and an open list that shrank offers no dead "Show less".
+    expect(logic.visibleWindows([1, 2, 3, 4, 5], false)).toEqual({ shown: [1, 2, 3, 4, 5], more: 0, collapsible: false });
+    expect(logic.visibleWindows([1, 2, 3, 4, 5], true)).toEqual({ shown: [1, 2, 3, 4, 5], more: 0, collapsible: false });
   });
 
   it('cards_in_a_row_share_one_height', () => {

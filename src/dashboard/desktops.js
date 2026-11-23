@@ -102,7 +102,7 @@
       var chip = h('span', 'ctx-desk-owner ctx-desk-chip', null, {
         draggable: row.number <= 9 ? 'true' : 'false', title: 'Drag onto another desktop to swap',
       });
-      add(chip, deps.dot ? deps.dot(ctx.color) : h('i', 'ctx-dot'), h('span', 'ctx-desk-owner-name', row.owners.map(function (o) { return o.name; }).join(', ')));
+      add(chip, deps.dot ? deps.dot(ctx.color) : h('i', 'ctx-dot'), h('span', 'ctx-desk-owner-name', logic.desktopOwnerText(row)));
       chip.addEventListener('dragstart', function (e) {
         e.stopPropagation();
         swapping = { id: ctx.id, name: ctx.name, key: ctx.key != null ? ctx.key : row.number };
@@ -159,13 +159,14 @@
 
     // One tile per desktop, the same parts on every tile: name (Go), on-screen mark or select box, owner, windows.
     // Clicking the tile goes there; in Select mode it ticks the box instead.
-    function desktopTile(row, d, control, onPick, multiScreen) {
+    function desktopTile(row, d, control, onPick, multiScreen, built) {
       var tile = h('li', 'ctx-desktop-row ctx-desk-tile' + (row.showing ? ' showing' : '') + (row.closeBlocked ? ' blocked' : ''),
         null, { 'data-desk': JSON.stringify({ number: row.number, shared: row.shared, owners: row.owners }) });
       var name = 'Desktop ' + row.number, go = 'desktopShow:' + row.number;
       var goBtn = h('button', 'ctx-desk-go', name, { type: 'button', 'data-fk': go, title: row.showing ? 'On screen now' : 'Go to ' + name });
       if (!control || busy[go]) goBtn.disabled = true;
       var box = pickBox(row, control, onPick);
+      built.push({ tile: tile, box: box, blocked: row.closeBlocked });
       // In Select mode a click ticks the box (as its change event would); otherwise it goes to the desktop.
       function goOrPick() {
         if (selecting) {
@@ -183,8 +184,7 @@
       });
       var mark = row.showing ? h('span', 'ctx-desk-showing', 'On screen') : h('span', 'ctx-desk-showing');
       var head = add(h('div', 'ctx-desk-head'), goBtn, mark, box);
-      var meta = (multiScreen ? row.screenLabel + ' \u00B7 ' : '') + (row.windows === 1 ? '1 window' : row.windows + ' windows');
-      add(tile, head, ownerChip(row, d), h('span', 'ctx-muted ctx-desk-meta', meta));
+      add(tile, head, ownerChip(row, d), h('span', 'ctx-muted ctx-desk-meta', logic.desktopMeta(row, multiScreen)));
       tile.addEventListener('click', function (e) {
         var t = e && e.target;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'BUTTON')) return;
@@ -231,7 +231,7 @@
       });
     }
 
-    function batchBar(list, control, box) {
+    function batchBar(list, control) {
       var bar = h('div', 'ctx-desktop-batch');
       var label = h('span', 'ctx-muted');
       var go = button('', '', BATCH, function () {
@@ -261,6 +261,15 @@
       return add(h('li', 'ctx-desk-add-slot'), b);
     }
 
+    // Select mode on or off without a re-render: boxes follow `picked` (Done clears them), and a tile that can't
+    // close says why on hover, since its box is the only other place that reason lives.
+    function markSelecting(built) {
+      built.forEach(function (b) {
+        b.box.checked = !!picked[Number(b.box.getAttribute('data-fk').split(':')[1])];
+        b.tile.title = selecting && b.blocked ? b.blocked : '';
+      });
+    }
+
     function section(d, control) {
       var list = d.desktopList;
       if (!list || !list.desktops.length) return null;
@@ -280,14 +289,17 @@
           selecting = !selecting;
           if (!selecting) picked = {};
           if (selecting) box.classList.add('selecting'); else box.classList.remove('selecting');
+          markSelecting(built);
           bar.update();
         }, !control, 'Pick desktops to close several at once'));
       }
       box.appendChild(head);
-      var bar = batchBar(list, control, box);
+      var bar = batchBar(list, control);
       var multi = list.screens.length > 1;
+      var built = [];
       var ul = h('ul', 'ctx-desk-grid');
-      list.desktops.forEach(function (row) { ul.appendChild(desktopTile(row, d, control, bar.update, multi)); });
+      list.desktops.forEach(function (row) { ul.appendChild(desktopTile(row, d, control, bar.update, multi, built)); });
+      markSelecting(built);
       list.screens.forEach(function (s) { ul.appendChild(addTile(s, list, control)); });
       add(box, ul, bar.el);
       return box;
