@@ -50,9 +50,12 @@
     captureLayout: 'save the layout',
   };
 
-  function failureText(f) {
+  function failureText(f, nowMs) {
     if (!f) return '';
-    return 'The Mac app could not ' + (FAILED[f.action] || 'finish the last action') + ': ' + f.error;
+    var text = 'The Mac app could not ' + (FAILED[f.action] || 'finish the last action') + ': ' + f.error;
+    var at = f.at ? Date.parse(f.at) : NaN;
+    var minutes = isNaN(at) || typeof nowMs !== 'number' ? 0 : Math.floor((nowMs - at) / 60000);
+    return minutes >= 1 ? text + ' (' + minutes + ' min ago)' : text;
   }
 
   var BUSY = {

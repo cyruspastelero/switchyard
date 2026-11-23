@@ -511,6 +511,19 @@ describe('switch, park, restore', () => {
     expect((await svc.view()).lastFailure).toBeNull();
   });
 
+  it('an_old_failure_stops_showing_after_fifteen_minutes', async () => {
+    addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
+    let clock = Date.parse('2026-01-01T01:00:00Z');
+    const svc = new ContextsService({ db, listAgents: getAgents, signals, now: () => clock, autoContextWindowMs: Infinity });
+    await svc.applySnapshot({ windows: [] });
+    const id = (await svc.view()).contexts[0].id;
+    svc.ack(svc.switchTo(id).seq, false, 'window not found');
+    clock += 14 * 60_000;
+    expect((await svc.view()).lastFailure).toMatchObject({ error: 'window not found' });
+    clock += 2 * 60_000;
+    expect((await svc.view()).lastFailure).toBeNull();
+  });
+
   it('park_saves_tabs_before_close_commands', async () => {
     addAgent('a1', '/work/tala', '2026-01-01T00:00:00Z');
     patternsByFolder['/work/tala'] = ['github.com/cyrus/tala'];

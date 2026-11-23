@@ -101,7 +101,7 @@
       ? raw.waitingCount
       : contexts.filter(function (c) { return c.status === 'waiting'; }).length;
     var failure = raw.lastFailure && typeof raw.lastFailure === 'object'
-      ? { action: str(raw.lastFailure.action), error: str(raw.lastFailure.error, 'no detail') } : null;
+      ? { action: str(raw.lastFailure.action), error: str(raw.lastFailure.error, 'no detail'), at: str(raw.lastFailure.at, '') } : null;
     return {
       windowControl: raw.windowControl === true,
       activeContextId: raw.activeContextId == null ? null : String(raw.activeContextId),
@@ -323,7 +323,7 @@
     var errorText = st.error || st.actionError;
     if (errorText) frag.appendChild(h('div', 'ctx-error', errorText, { role: 'alert' }));
     else if (st.notice && !(d && d.lastFailure)) frag.appendChild(noticeLine());
-    if (d && d.lastFailure) frag.appendChild(h('div', 'ctx-error', logic.failureText(d.lastFailure), { role: 'alert' }));
+    if (d && d.lastFailure) frag.appendChild(h('div', 'ctx-error', logic.failureText(d.lastFailure, Date.now()), { role: 'alert' }));
 
     if (!st.loaded) {
       frag.appendChild(h('div', 'ctx-note', 'Loading contexts\u2026'));
