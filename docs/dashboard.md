@@ -11,7 +11,7 @@ Open <http://localhost:4280> and enter the access code shown in the terminal.
 | Usage & Costs | Token costs from Claude Code's JSONL logs, context window health, daily, model and session breakdowns, and a 24h/7d/30d/All selector. |
 | Timeline | Every tool call as it happens. Click a row for the full input and output. |
 | Instruct | Send an instruction to the selected agent and see whether it was delivered. |
-| Contexts | One card per project: its desktop, windows, agents and cost today, with Park, Tidy and Switch. Unsorted windows are listed below with a picker to assign them. |
+| Contexts | One card per project: its desktop (a select: pick another desktop and the two projects swap), windows, agents and cost today, with Park, Tidy and Switch. Unsorted windows are listed below with a picker to assign them. With real desktops, a Desktops list shows every desktop with its screen, owner and window count, with Go, Close and Add desktop. |
 
 Agent status dots: active (pulsing), idle after 60 seconds, disconnected after 5 minutes.
 
